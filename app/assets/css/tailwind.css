@@ -1,0 +1,365 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ============================================================
+   FRESH BREEZE BnB SERVICES — Design System
+   ============================================================
+
+   Color extraction from brand logos:
+     brand     → Orange  #FF6600  ("Fresh" text — dominant warm gradient)
+     secondary → Blue    #0077E6  ("Breeze" text — deep azure blue)
+     accent    → Crimson #E31837  (swirl base / tail of "sh" in "Fresh")
+
+   Token strategy:
+     - All values stored as bare RGB channels (e.g. "255 102 0")
+     - Consumed via rgb(var(--token) / alpha) enabling Tailwind opacity modifiers
+     - Dark mode via .dark class on <html> — overrides surface/text tokens only
+   ============================================================ */
+
+@layer base {
+  /* ──────────────────────────────────────────────────────────
+     ROOT — Light mode defaults
+  ────────────────────────────────────────────────────────── */
+  :root {
+    /* ── Brand palette · Orange ("Fresh") ─────────────────── */
+    --color-brand-50:  255 247 237;
+    --color-brand-100: 255 237 213;
+    --color-brand-200: 254 215 170;
+    --color-brand-300: 253 186 116;
+    --color-brand-400: 251 146  60;
+    --color-brand-500: 255 102   0;   /* #FF6600 — core brand */
+    --color-brand-600: 229  91   0;
+    --color-brand-700: 194  65  12;
+    --color-brand-800: 154  52  18;
+    --color-brand-900: 120  40  12;
+
+    /* ── Primary palette · Blue (global default) ───────────── */
+    --color-primary-50:  238 246 255;
+    --color-primary-100: 214 234 255;
+    --color-primary-200: 173 213 255;
+    --color-primary-300: 122 184 255;
+    --color-primary-400:  61 149 255;
+    --color-primary-500:   0 119 230;
+    --color-primary-600:   0  94 191;
+    --color-primary-700:   0  68 153;
+    --color-primary-800:   0  48 115;
+    --color-primary-900:   0  27  77;
+
+    /* ── Primary warm palette · Orange (global pair) ───────── */
+    --color-primary-warm-50:  255 247 237;
+    --color-primary-warm-100: 255 237 213;
+    --color-primary-warm-200: 254 215 170;
+    --color-primary-warm-300: 253 186 116;
+    --color-primary-warm-400: 251 146  60;
+    --color-primary-warm-500: 255 102   0;
+    --color-primary-warm-600: 229  91   0;
+    --color-primary-warm-700: 194  65  12;
+    --color-primary-warm-800: 154  52  18;
+    --color-primary-warm-900: 120  40  12;
+
+    /* ── Secondary palette · Blue ("Breeze") ───────────────── */
+    --color-secondary-50:  238 246 255;
+    --color-secondary-100: 214 234 255;
+    --color-secondary-200: 173 213 255;
+    --color-secondary-300: 122 184 255;
+    --color-secondary-400:  61 149 255;
+    --color-secondary-500:   0 119 230;   /* #0077E6 — core secondary */
+    --color-secondary-600:   0  94 191;
+    --color-secondary-700:   0  68 153;
+    --color-secondary-800:   0  48 115;
+    --color-secondary-900:   0  27  77;
+
+    /* ── Accent palette · Crimson (swirl / gradient tail) ──── */
+    --color-accent-50:  255 241 242;
+    --color-accent-100: 255 224 226;
+    --color-accent-200: 255 194 200;
+    --color-accent-300: 255 154 163;
+    --color-accent-400: 255  96 112;
+    --color-accent-500: 227  24  55;   /* #E31837 — core accent */
+    --color-accent-600: 191  16  45;
+    --color-accent-700: 150  10  35;
+    --color-accent-800: 110   8  26;
+    --color-accent-900:  72   4  17;
+
+    /* ── Semantic surface tokens ───────────────────────────── */
+    --color-surface:      255 255 255;   /* #FFFFFF — page background    */
+    --color-surface-soft: 248 249 250;   /* #F8F9FA — subtle tinted bg   */
+    --color-border:       226 232 240;   /* #E2E8F0 — dividers / strokes */
+    --color-foreground:    15  23  42;   /* #0F172A — primary text       */
+    --color-muted:        100 116 139;   /* #64748B — secondary text     */
+
+    /* ── Status tokens ─────────────────────────────────────── */
+    --color-success:  22 163  74;   /* #16A34A — green  */
+    --color-warning: 217 119   6;   /* #D97706 — amber  */
+    --color-danger:  220  38  38;   /* #DC2626 — red    */
+  }
+
+  /* ──────────────────────────────────────────────────────────
+     .dark — Dark mode overrides
+     Strategy: keep brand hues, lighten surface/text for readability
+  ────────────────────────────────────────────────────────── */
+  .dark {
+    /* Surface stack — deep navy slate */
+    --color-surface:       15  23  42;   /* #0F172A */
+    --color-surface-soft:  30  41  59;   /* #1E293B */
+    --color-border:        51  65  85;   /* #334155 */
+
+    /* Text — light on dark */
+    --color-foreground:  241 245 249;   /* #F1F5F9 */
+    --color-muted:       148 163 184;   /* #94A3B8 */
+
+    /* Brand — slightly brighter so it pops on dark backgrounds */
+    --color-brand-500: 255 128  30;   /* #FF801E */
+    --color-brand-400: 255 160  70;
+
+    /* Primary defaults in dark mode */
+    --color-primary-500:  56 148 255;
+    --color-primary-400: 100 175 255;
+    --color-primary-warm-500: 255 128 30;
+    --color-primary-warm-400: 255 160 70;
+
+    /* Secondary — brighter azure for dark backgrounds */
+    --color-secondary-500:  56 148 255;   /* #3894FF */
+    --color-secondary-400: 100 175 255;
+  }
+
+  /* ──────────────────────────────────────────────────────────
+     Base element styles
+  ────────────────────────────────────────────────────────── */
+  html {
+    @apply antialiased scroll-smooth;
+  }
+
+  body {
+    @apply bg-surface text-foreground font-sans transition-colors duration-200;
+  }
+
+  *,
+  *::before,
+  *::after {
+    @apply border-border;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    @apply font-heading font-semibold text-foreground;
+  }
+
+  a {
+    @apply text-primary-500 hover:text-primary-600 transition-colors duration-150;
+  }
+}
+
+/* ============================================================
+   COMPONENT LAYER — Reusable utility classes
+   ============================================================ */
+@layer components {
+
+  /* ── Page layout ─────────────────────────────────────────── */
+
+  /**
+   * .page-shell
+   * Full-height wrapper, applies the soft background.
+   * Usage: outermost element of each page.
+   */
+  .page-shell {
+    @apply min-h-screen bg-surface-soft;
+  }
+
+  /**
+   * .page-container
+   * Centered, max-width constrained, responsive horizontal padding.
+   * Usage: direct child of .page-shell.
+   */
+  .page-container {
+    @apply mx-auto w-full max-w-7xl px-4 sm:px-6 lg:px-8 py-8;
+  }
+
+  /* ── Card ────────────────────────────────────────────────── */
+
+  /**
+   * .card-surface
+   * Standard white card with border, rounded corners and shadow.
+   */
+  .card-surface {
+    @apply rounded-2xl bg-surface border border-border/80 shadow-card p-5 sm:p-6
+           transition-shadow duration-200 hover:shadow-elevated;
+  }
+
+  .card-compact {
+    @apply rounded-2xl border border-border/80 bg-surface px-4 py-3 shadow-card;
+  }
+
+  /* ── Form input ──────────────────────────────────────────── */
+
+  /**
+   * .input-base
+   * Full-width text field with brand focus ring.
+   */
+  .input-base {
+    @apply w-full rounded-xl border border-border bg-surface
+           px-3.5 py-2.5 text-sm text-foreground
+           placeholder:text-muted/85
+           focus:outline-none focus:ring-2 focus:ring-primary-500/40 focus:border-primary-500
+           disabled:opacity-50 disabled:cursor-not-allowed
+           transition duration-150 ease-in-out;
+  }
+
+  .select-base {
+    @apply input-base appearance-none pr-9 cursor-pointer;
+  }
+
+  /* ── Buttons ─────────────────────────────────────────────── */
+
+  /**
+   * .btn-primary
+   * Solid orange CTA — main action button.
+   */
+  .btn-primary {
+      @apply inline-flex items-center justify-center gap-2 rounded-xl
+        bg-primary-500 px-4 py-2.5 text-sm font-semibold text-white
+        hover:bg-primary-600 active:bg-primary-700
+           focus:outline-none focus:ring-2 focus:ring-primary-500/50
+           disabled:opacity-50 disabled:cursor-not-allowed
+           transition duration-150 ease-in-out;
+  }
+
+  /**
+   * .btn-secondary
+   * Solid blue button — secondary actions.
+   */
+  .btn-secondary {
+      @apply inline-flex items-center justify-center gap-2 rounded-xl
+        bg-primary-warm-500 px-4 py-2.5 text-sm font-semibold text-white
+           hover:bg-primary-warm-600 active:bg-primary-warm-700
+           focus:outline-none focus:ring-2 focus:ring-primary-warm-500/50
+           disabled:opacity-50 disabled:cursor-not-allowed
+           transition duration-150 ease-in-out;
+  }
+
+  /**
+   * .btn-outline
+   * Ghost button with brand border — tertiary / cancel actions.
+   */
+  .btn-outline {
+    @apply inline-flex items-center justify-center gap-2 rounded-xl
+           border border-primary-300/70 bg-surface px-4 py-2.5 text-sm font-semibold text-primary-600
+           hover:bg-primary-50/70 active:bg-primary-100/80 dark:text-primary-300 dark:border-primary-500/40 dark:hover:bg-primary-500/10
+           focus:outline-none focus:ring-2 focus:ring-primary-500/30
+           disabled:opacity-50 disabled:cursor-not-allowed
+           transition duration-150 ease-in-out;
+  }
+
+  .btn-danger {
+    @apply inline-flex items-center justify-center gap-2 rounded-xl
+           border border-danger/35 bg-danger/10 px-4 py-2.5 text-sm font-semibold text-danger
+           hover:bg-danger/20 active:bg-danger/25
+           focus:outline-none focus:ring-2 focus:ring-danger/35
+           disabled:opacity-50 disabled:cursor-not-allowed
+           transition duration-150 ease-in-out;
+  }
+
+  .toolbar-surface {
+    @apply flex flex-wrap items-center gap-3 rounded-2xl border border-border/80 bg-surface px-4 py-3 shadow-card;
+  }
+
+  .action-bar {
+    @apply flex flex-wrap items-center justify-between gap-3;
+  }
+
+  .table-surface {
+    @apply overflow-hidden rounded-2xl border border-border/80 bg-surface shadow-card;
+  }
+
+  .table-base {
+    @apply w-full text-sm;
+  }
+
+  .table-base thead th {
+    @apply bg-surface-soft/70 px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-muted;
+  }
+
+  .table-base tbody td {
+    @apply px-4 py-2.5 align-middle text-foreground;
+  }
+
+  .table-base tbody tr {
+    @apply border-t border-border/70 transition-colors hover:bg-primary-50/35 dark:hover:bg-white/[0.03];
+  }
+
+  .table-numeric {
+    @apply text-right tabular-nums;
+  }
+
+  .modal-backdrop {
+    @apply fixed inset-0 z-[80] flex items-end justify-center bg-foreground/50 px-4 py-4 backdrop-blur-sm sm:items-center sm:py-8;
+  }
+
+  .modal-surface {
+    @apply w-full rounded-2xl border border-border/90 bg-surface shadow-elevated;
+  }
+
+  .modal-header {
+    @apply flex items-center justify-between gap-3 border-b border-border/80 px-5 py-4 sm:px-6;
+  }
+
+  .modal-body {
+    @apply px-5 py-4 sm:px-6;
+  }
+
+  .modal-footer {
+    @apply flex flex-col-reverse gap-2 border-t border-border/80 px-5 py-4 sm:flex-row sm:justify-end sm:px-6;
+  }
+
+  .form-section {
+    @apply rounded-2xl border border-border/80 bg-surface-soft/45 p-4;
+  }
+
+  .form-section-title {
+    @apply mb-3 text-xs font-semibold uppercase tracking-wide text-muted;
+  }
+
+  .summary-grid {
+    @apply grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4;
+  }
+
+  .summary-card {
+    @apply rounded-2xl border border-border/80 bg-surface px-4 py-3 shadow-card;
+  }
+
+  .empty-state {
+    @apply rounded-2xl border border-dashed border-border bg-surface-soft/60 px-6 py-10 text-center text-sm text-muted;
+  }
+
+  .loading-state {
+    @apply rounded-2xl border border-border/80 bg-surface px-6 py-8 text-center text-sm text-muted;
+  }
+
+  .pagination-bar {
+    @apply flex flex-wrap items-center justify-between gap-3 border-t border-border/80 px-4 py-3 text-sm text-muted;
+  }
+
+  .badge-muted {
+    @apply inline-flex items-center rounded-full bg-surface-soft px-2.5 py-1 text-xs font-semibold text-muted;
+  }
+
+  .badge-success {
+    @apply inline-flex items-center rounded-full bg-success/15 px-2.5 py-1 text-xs font-semibold text-success;
+  }
+
+  .badge-danger {
+    @apply inline-flex items-center rounded-full bg-danger/15 px-2.5 py-1 text-xs font-semibold text-danger;
+  }
+
+  /* ── Badge ───────────────────────────────────────────────── */
+
+  /**
+   * .badge-client
+   * Pill badge used to identify client type / status labels.
+   */
+  .badge-client {
+    @apply inline-flex items-center rounded-full
+           bg-secondary-100 px-3 py-0.5
+           text-xs font-medium text-secondary-700;
+  }
+}
