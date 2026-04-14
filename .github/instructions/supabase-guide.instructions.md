@@ -32,27 +32,21 @@ export default defineNuxtConfig({
 Crie ou ajuste o arquivo `.env`:
 
 ```env
-SUPABASE_URL="https://example.supabase.co"
+NUXT_PUBLIC_SUPABASE_URL="https://example.supabase.co"
 ```
 
 Importante (v2+):
-`SUPABASE_KEY` agora é a **publishable key**
+`NUXT_PUBLIC_SUPABASE_KEY` agora é a **publishable key**
 (não mais a anon key no sentido antigo)
 
 ```env
-SUPABASE_KEY="<your_publishable_key>"
+NUXT_PUBLIC_SUPABASE_KEY="<your_publishable_key>"
 ```
 
 Para bypass de RLS no servidor (admin):
 
 ```env
 SUPABASE_SECRET_KEY="<your_secret_key>"
-```
-
-Legado (deprecated - não use em novos projetos):
-
-```env
-SUPABASE_SERVICE_KEY="<service_role_key>"
 ```
 
 Observação:
@@ -286,7 +280,7 @@ supabase gen types --lang=typescript --local > app/types/database.types.ts
 
 ## 12) Checklist final
 
-- `SUPABASE_KEY = publishable key (v2+)`
+- `NUXT_PUBLIC_SUPABASE_KEY = publishable key (v2+)`
 - `SUPABASE_SECRET_KEY` apenas no servidor
 - Redirect URLs configuradas no dashboard
 - `useSsrCookies = true` para SSR

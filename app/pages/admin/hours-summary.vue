@@ -45,12 +45,13 @@
               This week
             </button>
 
-            <p class="ml-auto text-[10px] font-medium uppercase tracking-wide text-muted">
+            <p class="w-full text-left text-[10px] font-medium uppercase tracking-wide text-muted sm:ml-auto sm:w-auto sm:text-right">
               {{ weekRangeLabel }}
             </p>
           </div>
 
-          <div class="grid grid-cols-7 gap-1.5">
+          <div class="mobile-table-scroll">
+            <div class="grid min-w-[560px] grid-cols-7 gap-1.5">
             <button
               v-for="day in weekDays"
               :key="day.date"
@@ -77,6 +78,7 @@
               <p class="mt-1 text-xs font-semibold leading-none" :class="day.date === activeWeekDate ? 'text-white' : 'text-foreground'">{{ day.dayNumber }}</p>
               <p class="mt-1 text-[9px] leading-none" :class="day.date === activeWeekDate ? 'text-white/80' : 'text-muted'">{{ day.totalMinutes }}m · {{ day.totalHours.toFixed(1) }}h</p>
             </button>
+            </div>
           </div>
         </div>
 

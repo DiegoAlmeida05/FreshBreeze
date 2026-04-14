@@ -47,7 +47,7 @@
               This week
             </button>
 
-            <div class="ml-auto text-right text-[10px] text-muted">
+            <div class="w-full text-left text-[10px] text-muted sm:ml-auto sm:w-auto sm:text-right">
               <p class="font-medium uppercase tracking-wide">{{ weekRangeLabel }}</p>
               <p class="mt-0.5">Week of {{ weekLabel }}</p>
               <p class="mt-0.5">Planned {{ dayTotalPlannedMinutes }} min</p>
@@ -55,7 +55,8 @@
           </div>
 
           <div class="flex flex-col gap-2 lg:flex-row lg:items-start">
-            <div class="grid flex-1 grid-cols-7 gap-1.5">
+            <div class="mobile-table-scroll flex-1">
+            <div class="grid min-w-[560px] grid-cols-7 gap-1.5">
               <button
                 v-for="day in weekDays"
                 :key="day.date"
@@ -75,6 +76,7 @@
                 <p class="mt-1 text-xs font-semibold leading-none" :class="dayNumberClass(day)">{{ day.dayNumber }}</p>
                 <p class="mt-1 text-[9px] leading-none" :class="dayMetaClass(day)">{{ day.totalMinutes }}m · {{ day.totalHours.toFixed(1) }}h</p>
               </button>
+            </div>
             </div>
 
             <div class="grid w-full grid-cols-2 gap-2 lg:w-[360px] lg:shrink-0">
@@ -182,7 +184,7 @@
                 </p>
               </div>
 
-              <div class="grid grid-cols-3 gap-2 text-[11px]">
+              <div class="grid w-full grid-cols-3 gap-2 text-[11px] sm:w-auto">
                 <div class="rounded-md border border-primary-100/70 bg-white/70 px-2 py-1 text-right dark:border-white/10 dark:bg-white/[0.03]">
                   <p class="uppercase tracking-wide text-[9px] text-muted">Planned</p>
                   <p class="font-semibold tabular-nums text-foreground">{{ team.totalPlannedMinutes }}m</p>

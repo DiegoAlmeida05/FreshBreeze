@@ -10,26 +10,27 @@ interface AuthProfile {
 }
 
 export default defineNuxtRouteMiddleware(async (to) => {
+  if (import.meta.server) {
+    return
+  }
+
   const isAdminRoute = to.path.startsWith('/admin')
   const isWorkerRoute = to.path.startsWith('/worker')
-  const isLoginRoute = to.path === '/login'
 
-  if (!isAdminRoute && !isWorkerRoute && !isLoginRoute) {
+  if (!isAdminRoute && !isWorkerRoute) {
     return
   }
 
   const supabase = useSupabaseClient()
 
-  if (import.meta.client) {
-    const rememberMode = localStorage.getItem(REMEMBER_MODE_KEY)
-    const hasSessionMarker = sessionStorage.getItem(SESSION_ACTIVE_KEY) === '1'
+  const rememberMode = localStorage.getItem(REMEMBER_MODE_KEY)
+  const hasSessionMarker = sessionStorage.getItem(SESSION_ACTIVE_KEY) === '1'
 
-    if (rememberMode === 'session' && !hasSessionMarker) {
-      await supabase.auth.signOut()
+  if (rememberMode === 'session' && !hasSessionMarker) {
+    await supabase.auth.signOut()
 
-      if (isAdminRoute || isWorkerRoute) {
-        return navigateTo('/login')
-      }
+    if (isAdminRoute || isWorkerRoute) {
+      return navigateTo('/login')
     }
   }
 
@@ -52,10 +53,6 @@ export default defineNuxtRouteMiddleware(async (to) => {
   if (profileError || !profile || !profile.active) {
     await supabase.auth.signOut()
     return navigateTo('/login')
-  }
-
-  if (isLoginRoute) {
-    return navigateTo(profile.role === 'admin' ? '/admin' : '/worker/schedule')
   }
 
   if (isAdminRoute && profile.role !== 'admin') {

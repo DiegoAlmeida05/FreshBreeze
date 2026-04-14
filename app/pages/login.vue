@@ -21,6 +21,15 @@
         </article>
 
         <article class="p-6 sm:p-8 text-left">
+          <div class="mb-5 rounded-2xl border border-border/80 bg-primary-50/40 p-4 text-center lg:hidden">
+            <img
+              src="/logo/logo_escrito_transparente.png"
+              alt="FreshBreeze"
+              class="mx-auto h-auto w-full max-w-[260px] object-contain"
+            />
+            <p class="mt-3 text-[11px] font-semibold uppercase tracking-wide text-primary-700">Secure access</p>
+          </div>
+
           <div class="mb-6 flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between text-left">
             <div>
               <p class="text-xs font-semibold uppercase tracking-wide text-muted">Account access</p>
@@ -99,6 +108,7 @@
 
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
+import type { ProfileDTO } from '../../shared/types/ProfileDTO'
 import BaseFeedbackBanner from '../components/ui/BaseFeedbackBanner.vue'
 import AuthActionButton from '../components/login/AuthActionButton.vue'
 import AuthTextField from '../components/login/AuthTextField.vue'
@@ -106,6 +116,7 @@ import { useAuth } from '../composables/useAuth'
 import { useTheme } from '../composables/useTheme'
 
 const REMEMBER_MODE_KEY = 'auth-remember-mode'
+const LAST_ROUTE_STORAGE_KEY = 'last-app-route'
 
 const { isDark, toggleTheme } = useTheme()
 const { signIn, getProfile } = useAuth()
@@ -123,7 +134,41 @@ onMounted(() => {
 
   const savedMode = localStorage.getItem(REMEMBER_MODE_KEY)
   remember.value = savedMode !== 'session'
+
+  void redirectIfAlreadyAuthenticated()
 })
+
+async function redirectIfAlreadyAuthenticated(): Promise<void> {
+  try {
+    const profile = await getProfile()
+
+    if (!profile.active) {
+      return
+    }
+
+    await navigateTo(resolveRouteAfterAuth(profile))
+  } catch {
+    // No valid session yet: keep the user on the login page.
+  }
+}
+
+function resolveRouteAfterAuth(profile: ProfileDTO): string {
+  if (!import.meta.client) {
+    return profile.role === 'admin' ? '/admin' : '/worker/schedule'
+  }
+
+  const lastRoute = localStorage.getItem(LAST_ROUTE_STORAGE_KEY)
+
+  if (profile.role === 'admin' && lastRoute?.startsWith('/admin')) {
+    return lastRoute
+  }
+
+  if (profile.role === 'worker' && lastRoute?.startsWith('/worker')) {
+    return lastRoute
+  }
+
+  return profile.role === 'admin' ? '/admin' : '/worker/schedule'
+}
 
 async function onLoginSubmit(): Promise<void> {
   loginError.value = ''
@@ -139,11 +184,7 @@ async function onLoginSubmit(): Promise<void> {
       return
     }
 
-    if (profile.role === 'admin') {
-      await navigateTo('/admin')
-    } else {
-      await navigateTo('/worker/schedule')
-    }
+    await navigateTo(resolveRouteAfterAuth(profile))
   } catch (err: unknown) {
     loginError.value = err instanceof Error
       ? err.message

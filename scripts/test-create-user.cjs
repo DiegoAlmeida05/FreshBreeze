@@ -114,7 +114,7 @@ async function createUser(apiUrl, accessToken) {
 
 async function runTest() {
   const supabaseUrl = requireEnv('NUXT_PUBLIC_SUPABASE_URL')
-  const anonKey     = requireEnv('NUXT_PUBLIC_SUPABASE_ANON_KEY')
+  const anonKey     = requireEnv('NUXT_PUBLIC_SUPABASE_KEY')
   const adminEmail  = requireEnv('TEST_ADMIN_EMAIL')
   const adminPass   = requireEnv('TEST_ADMIN_PASSWORD')
   const apiUrl      = process.env.CREATE_USER_TEST_URL || DEFAULT_API_URL

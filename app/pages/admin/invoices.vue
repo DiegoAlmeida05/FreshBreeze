@@ -56,7 +56,7 @@
               This week
             </button>
 
-            <p class="ml-auto text-[10px] font-medium uppercase tracking-wide text-muted">
+            <p class="w-full text-left text-[10px] font-medium uppercase tracking-wide text-muted sm:ml-auto sm:w-auto sm:text-right">
               {{ weekRangeLabel }}
             </p>
           </div>
