@@ -93,6 +93,8 @@
         <div class="text-right text-[11px] font-semibold leading-tight text-foreground/90">
           <p>{{ durationMinutesLabel }}</p>
           <p v-if="plannedStartTime && plannedEndTime">{{ formatTime(plannedStartTime) }} - {{ formatTime(plannedEndTime) }}</p>
+          <p v-if="travelMinutesLabel" class="text-[10px]" :class="props.travelUnavailable ? 'text-warning font-medium' : 'text-muted'">{{ travelMinutesLabel }}</p>
+          <p v-if="props.suspiciousDistance" class="text-[10px] text-warning font-medium">⚠ {{ props.distanceLabel }}</p>
         </div>
 
         <div class="mt-auto inline-flex items-center gap-1.5 rounded-md border border-primary-100/80 p-0.5 dark:border-white/10">
@@ -143,10 +145,81 @@
       </div>
     </div>
   </article>
+
+  <Teleport to="body">
+    <Transition
+      enter-active-class="transition duration-200 ease-out"
+      enter-from-class="opacity-0"
+      enter-to-class="opacity-100"
+      leave-active-class="transition duration-150 ease-in"
+      leave-from-class="opacity-100"
+      leave-to-class="opacity-0"
+    >
+      <div
+        v-if="isNavigationSheetOpen"
+        class="fixed inset-0 z-[110]"
+        role="dialog"
+        aria-modal="true"
+        aria-label="Open with"
+      >
+        <button
+          type="button"
+          class="absolute inset-0 bg-black/45"
+          aria-label="Close navigation options"
+          @click="closeNavigationOptions"
+        />
+
+        <Transition
+          enter-active-class="transition duration-250 ease-out"
+          enter-from-class="translate-y-full"
+          enter-to-class="translate-y-0"
+          leave-active-class="transition duration-200 ease-in"
+          leave-from-class="translate-y-0"
+          leave-to-class="translate-y-full"
+        >
+          <div
+            v-if="isNavigationSheetOpen"
+            class="absolute inset-x-0 bottom-0 w-full rounded-t-2xl border border-border/90 bg-surface px-4 pb-5 pt-3 shadow-elevated sm:mx-auto sm:max-w-md"
+          >
+            <div class="mx-auto h-1.5 w-12 rounded-full bg-border/90" />
+            <h4 class="mt-3 text-base font-semibold text-foreground">Open with</h4>
+
+            <div class="mt-3 space-y-2">
+              <button
+                type="button"
+                class="btn-primary w-full !justify-center !px-4 !py-3 text-sm"
+                @click="openGoogleMaps(task)"
+              >
+                Google Maps
+              </button>
+
+              <button
+                type="button"
+                class="btn-outline w-full !justify-center !px-4 !py-3 text-sm disabled:cursor-not-allowed disabled:opacity-50"
+                :disabled="!hasCoordinates"
+                @click="openWaze(task)"
+              >
+                Waze
+              </button>
+              <p v-if="!hasCoordinates" class="px-1 text-xs text-muted">Waze requires coordinates.</p>
+
+              <button
+                type="button"
+                class="btn-outline w-full !justify-center !px-4 !py-3 text-sm"
+                @click="closeNavigationOptions"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </Transition>
+      </div>
+    </Transition>
+  </Teleport>
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import type { CSSProperties } from 'vue'
 import type { DailyTaskDTO } from '../../../../shared/types/DailyTaskDTO'
 import type { PropertyDTO } from '../../../../shared/types/PropertyDTO'
@@ -159,6 +232,11 @@ interface Props {
   durationMinutes?: number | null
   plannedStartTime?: string | null
   plannedEndTime?: string | null
+  travelMinutesFromPrevRaw?: number | null
+  travelMinutesFromPrevApplied?: number | null
+  travelUnavailable?: boolean
+  suspiciousDistance?: boolean
+  distanceLabel?: string
   canMoveUp?: boolean
   canMoveDown?: boolean
   availableTeams?: { id: string; label: string }[]
@@ -267,12 +345,52 @@ const visibleTags = computed(() => {
   return buildVisibleTaskTags(props.task.tags, propertyData.value?.default_tags ?? [])
 })
 
+const isNavigationSheetOpen = ref(false)
+
+const hasCoordinates = computed(() => {
+  return typeof props.task.property_lat === 'number'
+    && Number.isFinite(props.task.property_lat)
+    && typeof props.task.property_lng === 'number'
+    && Number.isFinite(props.task.property_lng)
+})
+
+const canOpenNavigation = computed(() => {
+  return hasCoordinates.value || Boolean(props.task.property_address?.trim())
+})
+
 const durationMinutesLabel = computed(() => {
   if (typeof props.durationMinutes === 'number' && Number.isFinite(props.durationMinutes) && props.durationMinutes >= 0) {
     return `${props.durationMinutes} min`
   }
 
   return cleaningMinutesLabel.value || '0 min'
+})
+
+const travelMinutesLabel = computed(() => {
+  if (props.travelUnavailable) {
+    return 'Travel unavailable'
+  }
+
+  const rawMinutes = typeof props.travelMinutesFromPrevRaw === 'number' && Number.isFinite(props.travelMinutesFromPrevRaw)
+    ? Math.max(0, props.travelMinutesFromPrevRaw)
+    : 0
+  const appliedMinutes = typeof props.travelMinutesFromPrevApplied === 'number' && Number.isFinite(props.travelMinutesFromPrevApplied)
+    ? Math.max(0, props.travelMinutesFromPrevApplied)
+    : 0
+
+  if (rawMinutes <= 0) {
+    return ''
+  }
+
+  if (appliedMinutes === 0) {
+    return `Travel ${rawMinutes} min waived`
+  }
+
+  if (appliedMinutes !== rawMinutes) {
+    return `Travel ${rawMinutes} min rounded to ${appliedMinutes} min`
+  }
+
+  return `Travel ${appliedMinutes} min`
 })
 
 const cardStyle = computed<CSSProperties>(() => {
@@ -313,5 +431,57 @@ function hexToRgba(hex: string, alpha: number): string {
   }
 
   return `rgba(${r}, ${g}, ${b}, ${alpha})`
+}
+
+function closeNavigationOptions(): void {
+  isNavigationSheetOpen.value = false
+}
+
+function openNavigationOptions(task: DailyTaskDTO): void {
+  const hasAddress = Boolean(task.property_address?.trim())
+  const hasLatLng = typeof task.property_lat === 'number'
+    && Number.isFinite(task.property_lat)
+    && typeof task.property_lng === 'number'
+    && Number.isFinite(task.property_lng)
+
+  if (!hasAddress && !hasLatLng) {
+    return
+  }
+
+  isNavigationSheetOpen.value = true
+}
+
+function openGoogleMaps(task: DailyTaskDTO): void {
+  const hasLatLng = typeof task.property_lat === 'number'
+    && Number.isFinite(task.property_lat)
+    && typeof task.property_lng === 'number'
+    && Number.isFinite(task.property_lng)
+
+  const query = hasLatLng
+    ? `${task.property_lat},${task.property_lng}`
+    : task.property_address?.trim() ?? task.property_name
+
+  if (!query) {
+    return
+  }
+
+  const url = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(query)}`
+  window.open(url, '_blank', 'noopener,noreferrer')
+  closeNavigationOptions()
+}
+
+function openWaze(task: DailyTaskDTO): void {
+  const hasLatLng = typeof task.property_lat === 'number'
+    && Number.isFinite(task.property_lat)
+    && typeof task.property_lng === 'number'
+    && Number.isFinite(task.property_lng)
+
+  if (!hasLatLng) {
+    return
+  }
+
+  const url = `https://waze.com/ul?ll=${task.property_lat},${task.property_lng}&navigate=yes`
+  window.open(url, '_blank', 'noopener,noreferrer')
+  closeNavigationOptions()
 }
 </script>

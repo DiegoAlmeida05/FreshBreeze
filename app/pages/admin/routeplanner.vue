@@ -67,7 +67,7 @@
         @dismiss="dismissStaleWarning"
       />
 
-      <section class="rounded-xl border border-primary-100 bg-gradient-to-r from-primary-50/60 via-surface to-primary-warm-50/60 p-3 dark:border-white/10 dark:from-[#1b2534] dark:via-[#182231] dark:to-[#212d3d]">
+      <section class="overflow-x-hidden rounded-xl border border-primary-100 bg-gradient-to-r from-primary-50/60 via-surface to-primary-warm-50/60 p-3 dark:border-white/10 dark:from-[#1b2534] dark:via-[#182231] dark:to-[#212d3d]">
         <div class="grid grid-cols-1 gap-3 lg:grid-cols-[minmax(0,1fr)_360px] lg:items-start">
           <div class="space-y-2">
             <div class="flex flex-wrap items-center gap-2">
@@ -156,7 +156,7 @@
                 >
                   <span
                     v-if="day.isHoliday"
-                    class="absolute right-1 top-1 inline-flex rounded-full px-1.5 py-0.5 text-[8px] font-bold uppercase tracking-wide"
+                    class="holiday-badge inline-flex rounded-full px-1.5 py-0.5 text-[8px] font-bold uppercase tracking-wide"
                     :class="day.iso === selectedDate ? 'bg-white/20 text-white' : 'bg-warning/15 text-warning'"
                     :title="day.holidayNames.join(', ') || 'Holiday'"
                   >
@@ -249,7 +249,15 @@
         class="rounded-xl border border-border bg-surface p-3 shadow-card"
       >
         <div class="mb-3 flex items-center justify-between gap-3">
-          <h3 class="text-base font-semibold text-foreground">Team {{ team.label }}</h3>
+          <div>
+            <h3 class="text-base font-semibold text-foreground">Team {{ team.label }}</h3>
+            <p v-if="team.tasks.length > 0" class="mt-0.5 flex flex-wrap gap-x-3 text-[11px] text-muted">
+              <span>{{ teamTotalsByTeam[team.id]?.taskCount }} tasks</span>
+              <span>Cleaning: {{ formatDuration(teamTotalsByTeam[team.id]?.cleaningMinutes ?? 0) }}</span>
+              <span>Travel: {{ formatDuration(teamTotalsByTeam[team.id]?.travelMinutes ?? 0) }}</span>
+              <span class="font-medium text-foreground/80">Total: {{ formatDuration(teamTotalsByTeam[team.id]?.totalMinutes ?? 0) }}</span>
+            </p>
+          </div>
           <div class="flex items-center gap-2">
             <span class="inline-flex rounded-full bg-primary-100 px-2.5 py-1 text-xs font-semibold text-primary-700 dark:bg-white/10 dark:text-white">
               {{ team.tasks.length }}
@@ -367,6 +375,11 @@
                 :duration-minutes="getTaskDurationMinutes(task)"
                 :planned-start-time="getTaskPlannedTime(team.id, task.id)?.plannedStartTime ?? null"
                 :planned-end-time="getTaskPlannedTime(team.id, task.id)?.plannedEndTime ?? null"
+                :travel-minutes-from-prev-raw="getTaskPlannedTime(team.id, task.id)?.travel_minutes_from_prev_raw ?? 0"
+                :travel-minutes-from-prev-applied="getTaskPlannedTime(team.id, task.id)?.travel_minutes_from_prev_applied ?? 0"
+                :travel-unavailable="getTaskPlannedTime(team.id, task.id)?.travel_unavailable ?? false"
+                :suspicious-distance="getTaskPlannedTime(team.id, task.id)?.suspiciousDistance ?? false"
+                :distance-label="getTaskPlannedTime(team.id, task.id)?.distanceLabel ?? ''"
                 column="assigned"
                 :can-move-up="index > 0"
                 :can-move-down="index < team.tasks.length - 1"
@@ -378,25 +391,23 @@
             </div>
           </div>
 
-          <!-- Right: Map placeholder -->
+          <!-- Right: Team map -->
           <aside class="rounded-xl border border-primary-100 bg-gradient-to-br from-primary-50/70 to-primary-warm-50/60 p-4 dark:border-white/10 dark:from-white/5 dark:to-white/[0.03] lg:col-span-7 xl:col-span-8">
             <div class="flex h-[450px] min-h-[450px] max-h-[450px] flex-col lg:h-[630px] lg:min-h-[630px] lg:max-h-[630px]">
               <div class="mb-3 flex items-start justify-between gap-2">
                 <div>
                   <h4 class="text-sm font-semibold text-foreground">Team {{ team.label }} Map</h4>
-                  <p class="mt-1 text-sm text-muted">Reserved panel for future map integration.</p>
+                  <p class="mt-1 text-sm text-muted">Ordered markers based on the current team task list.</p>
                 </div>
                 <button type="button" class="btn-outline !px-2 !py-1 text-[11px]" @click="openMap(team.id)">Expand Map</button>
               </div>
 
-                <div class="flex-1 rounded-xl border border-dashed border-primary-200/80 bg-surface/70 p-4 dark:border-white/10 dark:bg-black/10">
-                <div class="flex h-full min-h-[180px] flex-col items-center justify-center text-center text-sm text-muted">
-                  <p class="font-medium text-foreground">Map placeholder</p>
-                  <p class="mt-2">Start from first task in team list</p>
-                  <p class="mt-1">Start time: {{ fmtTime(team.startTime) || 'Not defined' }}</p>
-                  <p class="mt-1">Employees: {{ getEmployeeNamesForTeam(team) }}</p>
-                  <p class="mt-3 max-w-xs text-xs">Future route timing and map drawing will use this manual task order.</p>
-                </div>
+                <div class="min-h-[180px] flex-1">
+                <MapView
+                  :tasks="buildTeamMapStops(team)"
+                  empty-message="Add coordinates to team properties to render markers."
+                  @route-metrics-change="updateTeamRouteMetrics(team.id, $event)"
+                />
               </div>
             </div>
           </aside>
@@ -419,7 +430,9 @@
       :title="mapModalTitle"
       :start-time="mapModalStartTime"
       :employee-names="mapModalEmployeeNames"
+      :stops="mapModalStops"
       @update:model-value="onMapModalVisibilityChange"
+      @route-metrics-change="handleExpandedMapRouteMetrics"
     />
 
     <!-- Edit Task Modal -->
@@ -473,6 +486,7 @@
 import { computed, onMounted, reactive, ref, watch } from 'vue'
 import BaseFeedbackBanner from '../../components/ui/BaseFeedbackBanner.vue'
 import DailyTaskForm from '../../components/features/tasks/DailyTaskForm.vue'
+import MapView from '../../components/features/tasks/MapView.vue'
 import type { DailyTaskFormPayload } from '../../components/features/tasks/DailyTaskForm.vue'
 import RoutePlannerMapModal from '../../components/features/tasks/RoutePlannerMapModal.vue'
 import RoutePlannerTaskCard from '../../components/features/tasks/RoutePlannerTaskCard.vue'
@@ -483,12 +497,14 @@ import { useEmployees } from '../../composables/useEmployees'
 import { useHolidays } from '../../composables/useHolidays'
 import { useProperties } from '../../composables/useProperties'
 import { useRoutePlans } from '../../composables/useRoutePlans'
-import { fmtTime } from '../../utils/formatTime'
+import { applyTravelMinutesRule } from '../../utils/routePlannerTravel'
 import type { DailyTaskDTO } from '../../../shared/types/DailyTaskDTO'
 import type { ClientDTO } from '../../../shared/types/ClientDTO'
 import type { EmployeeDTO } from '../../../shared/types/EmployeeDTO'
 import type { PropertyDTO } from '../../../shared/types/PropertyDTO'
 import type { RoutePlanDTO, RoutePlanStatus } from '../../../shared/types/RoutePlanDTO'
+import type { RoutePlannerMapStop } from '../../../shared/types/RoutePlannerMapStop'
+import type { RoutePlannerTravelMetric } from '../../../shared/types/RoutePlannerTravelMetric'
 
 definePageMeta({
   name: 'admin-route-planner',
@@ -509,6 +525,19 @@ interface PlannedTaskTiming {
   plannedStartTime: string
   plannedEndTime: string
   travelMinutesFromPrev: number
+  travel_minutes_from_prev_raw: number
+  travel_minutes_from_prev_applied: number
+  travel_unavailable: boolean
+  suspiciousDistance: boolean
+  distanceFromDepotKm: number
+  distanceLabel: string
+}
+
+interface TeamTotals {
+  taskCount: number
+  cleaningMinutes: number
+  travelMinutes: number
+  totalMinutes: number
 }
 
 type MoveDirection = 'up' | 'down'
@@ -541,6 +570,7 @@ const activeEmployees = ref<EmployeeDTO[]>([])
 const clientsById = ref<Record<string, ClientDTO>>({})
 const propertiesById = ref<Record<string, PropertyDTO>>({})
 const expandedMapTeamId = ref<string | null>(null)
+const routeMetricsByTeam = ref<Record<string, Record<string, RoutePlannerTravelMetric>>>({})
 const route = useRoute()
 const router = useRouter()
 
@@ -807,6 +837,11 @@ const mapModalEmployeeNames = computed(() => {
   return names.length > 0 ? names.join(', ') : 'Not selected'
 })
 
+const mapModalStops = computed<RoutePlannerMapStop[]>(() => {
+  const team = mapModalTeam.value
+  return team ? buildTeamMapStops(team) : []
+})
+
 // ── watchers ──────────────────────────────────────────────────────────────────
 
 watch(selectedDate, async (date) => {
@@ -933,6 +968,31 @@ function getTaskClientColor(task: DailyTaskDTO): string | null {
   return clientsById.value[property.client_id]?.color ?? null
 }
 
+function buildTeamMapStops(team: TeamState): RoutePlannerMapStop[] {
+  const markerColorByTeam: Record<string, string> = {
+    A: '#2563EB',
+    B: '#16A34A',
+    C: '#D97706',
+    D: '#9333EA',
+  }
+
+  return team.tasks.map((task, index) => {
+    const property = getTaskProperty(task)
+
+    return {
+      id: task.id,
+      order: index + 1,
+      propertyName: task.property_name ?? property?.name ?? 'Unknown property',
+      address: property?.address ?? '',
+      lat: property?.lat ?? null,
+      lng: property?.lng ?? null,
+      clientName: getTaskClientName(task),
+      teamLabel: team.label,
+      markerColor: markerColorByTeam[team.label] ?? '#2563EB',
+    }
+  })
+}
+
 function parseTimeToMinutes(time: string | null | undefined, fallbackMinutes = 8 * 60): number {
   if (!time) {
     return fallbackMinutes
@@ -949,12 +1009,36 @@ function parseTimeToMinutes(time: string | null | undefined, fallbackMinutes = 8
   return (hour * 60) + minute
 }
 
+function formatDuration(minutes: number): string {
+  if (!Number.isFinite(minutes) || minutes <= 0) return '0m'
+  const h = Math.floor(minutes / 60)
+  const m = minutes % 60
+  if (h === 0) return `${m}m`
+  if (m === 0) return `${h}h`
+  return `${h}h ${m}m`
+}
+
 function alignMinutesToFive(rawMinutes: number): number {
   if (!Number.isFinite(rawMinutes) || rawMinutes <= 0) {
     return 0
   }
 
   return Math.ceil(rawMinutes / 5) * 5
+}
+
+function updateTeamRouteMetrics(teamId: string, metrics: RoutePlannerTravelMetric[]): void {
+  routeMetricsByTeam.value = {
+    ...routeMetricsByTeam.value,
+    [teamId]: Object.fromEntries(metrics.map((metric) => [metric.stopId, metric])),
+  }
+}
+
+function handleExpandedMapRouteMetrics(metrics: RoutePlannerTravelMetric[]): void {
+  if (!expandedMapTeamId.value) {
+    return
+  }
+
+  updateTeamRouteMetrics(expandedMapTeamId.value, metrics)
 }
 
 function formatMinutesToTime(totalMinutes: number): string {
@@ -981,15 +1065,20 @@ const plannedTimingsByTeam = computed<Record<string, PlannedTaskTiming[]>>(() =>
 
   teams.value.forEach((team) => {
     let cursorMinutes = alignMinutesToFive(parseTimeToMinutes(team.startTime))
+    const routeMetrics = routeMetricsByTeam.value[team.id] ?? {}
 
     byTeam[team.id] = team.tasks.map((task, index) => {
       const durationMinutes = getTaskDurationMinutes(task)
-      const travelMinutesFromPrev = 0
+      const routeMetric = routeMetrics[task.id]
+      const travel_minutes_from_prev_raw = index === 0 ? 0 : (routeMetric?.travel_minutes_from_prev_raw ?? 0)
+      const travel_minutes_from_prev_applied = index === 0 ? 0 : (routeMetric?.travel_minutes_from_prev_applied ?? applyTravelMinutesRule(travel_minutes_from_prev_raw))
 
-      const plannedStartMinutes = alignMinutesToFive(cursorMinutes)
+      const plannedStartMinutes = alignMinutesToFive(cursorMinutes + travel_minutes_from_prev_applied)
       const plannedEndMinutes = plannedStartMinutes + durationMinutes
 
-      cursorMinutes = plannedEndMinutes + travelMinutesFromPrev
+      cursorMinutes = plannedEndMinutes
+
+      const travel_unavailable = index > 0 && routeMetric?.coordinatesUnavailable === true
 
       return {
         dailyTaskId: task.id,
@@ -997,12 +1086,37 @@ const plannedTimingsByTeam = computed<Record<string, PlannedTaskTiming[]>>(() =>
         durationMinutes,
         plannedStartTime: formatMinutesToTime(plannedStartMinutes),
         plannedEndTime: formatMinutesToTime(plannedEndMinutes),
-        travelMinutesFromPrev,
+        travelMinutesFromPrev: travel_minutes_from_prev_applied,
+        travel_minutes_from_prev_raw,
+        travel_minutes_from_prev_applied,
+        travel_unavailable,
+        suspiciousDistance: routeMetric?.suspiciousDistance ?? false,
+        distanceFromDepotKm: routeMetric?.distanceFromDepotKm ?? 0,
+        distanceLabel: routeMetric?.distanceLabel ?? '',
       }
     })
   })
 
   return byTeam
+})
+
+const teamTotalsByTeam = computed<Record<string, TeamTotals>>(() => {
+  const result: Record<string, TeamTotals> = {}
+
+  for (const team of teams.value) {
+    const timings = plannedTimingsByTeam.value[team.id] ?? []
+    const cleaningMinutes = timings.reduce((sum, t) => sum + t.durationMinutes, 0)
+    const travelMinutes = timings.reduce((sum, t) => sum + t.travel_minutes_from_prev_applied, 0)
+
+    result[team.id] = {
+      taskCount: timings.length,
+      cleaningMinutes,
+      travelMinutes,
+      totalMinutes: cleaningMinutes + travelMinutes,
+    }
+  }
+
+  return result
 })
 
 function getTaskPlannedTime(teamId: string, taskId: string): PlannedTaskTiming | null {
@@ -1060,7 +1174,7 @@ function buildSavePayload() {
         orderIndex: timing.orderIndex,
         plannedStartTime: timing.plannedStartTime,
         plannedEndTime: timing.plannedEndTime,
-        travelMinutesFromPrev: timing.travelMinutesFromPrev,
+        travelMinutesFromPrev: timing.travel_minutes_from_prev_applied,
       })),
       taskIds: team.tasks.map((task) => task.id),
     })),

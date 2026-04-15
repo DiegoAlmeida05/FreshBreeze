@@ -19,7 +19,7 @@
         {{ overviewError }}
       </p>
 
-      <div class="rounded-xl border border-primary-100/80 bg-primary-50/30 p-3 dark:border-white/10 dark:bg-white/[0.02]">
+      <div class="overflow-x-hidden rounded-xl border border-primary-100/80 bg-primary-50/30 p-3 dark:border-white/10 dark:bg-white/[0.02]">
         <div class="space-y-2">
           <div class="flex flex-wrap items-center gap-2">
             <div class="flex items-center gap-1.5">
@@ -67,7 +67,7 @@
               >
                 <span
                   v-if="day.isHoliday"
-                  class="absolute right-1 top-1 inline-flex rounded-full px-1.5 py-0.5 text-[8px] font-bold uppercase tracking-wide"
+                  class="holiday-badge inline-flex rounded-full px-1.5 py-0.5 text-[8px] font-bold uppercase tracking-wide"
                   :class="dayHolidayBadgeClass(day)"
                 >
                   H

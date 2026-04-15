@@ -348,7 +348,7 @@
     ]">
       <!-- Topbar -->
       <header v-if="!isFullscreenMode" class="shrink-0 px-4 pt-4 sm:px-6 lg:px-6">
-        <div class="flex h-16 items-center justify-between rounded-[30px] border border-white/65 bg-white/72 px-4 shadow-[0_18px_40px_rgba(15,23,42,0.08)] backdrop-blur-xl sm:px-5 lg:px-6 dark:border-white/10 dark:bg-white/[0.03] dark:shadow-[0_24px_60px_rgba(0,0,0,0.38)]">
+        <div class="relative flex h-16 items-center rounded-[30px] border border-white/65 bg-white/72 px-4 shadow-[0_18px_40px_rgba(15,23,42,0.08)] backdrop-blur-xl sm:px-5 lg:px-6 dark:border-white/10 dark:bg-white/[0.03] dark:shadow-[0_24px_60px_rgba(0,0,0,0.38)]">
           <!-- Hamburger (mobile) -->
           <button
             id="admin-sidebar-toggle"
@@ -367,17 +367,21 @@
           </button>
 
           <!-- Page title / greeting -->
-          <div class="flex items-center gap-2">
-            <div>
+          <div class="ml-2 flex min-w-0 flex-1 items-center gap-2 text-left lg:ml-0">
+            <div class="min-w-0">
               <p class="text-xs font-medium uppercase tracking-[0.2em] text-muted">Welcome</p>
-              <h1 class="text-base font-semibold text-foreground">{{ fullName || greetingName }}! 😎 🚀</h1>
+              <h1 class="truncate text-base font-semibold text-foreground">{{ fullName || greetingName }}! 😎 🚀</h1>
             </div>
           </div>
 
           <!-- Topbar actions slot -->
-          <div class="flex items-center gap-2">
+          <div class="ml-2 flex shrink-0 items-center gap-2">
             <slot name="topbar-actions" />
           </div>
+
+          <p v-if="appUpdatedLabel" class="pointer-events-none absolute bottom-0.5 right-4 text-[9px] font-medium tracking-tight text-muted/70 sm:right-5 lg:right-6">
+            Updated {{ appUpdatedLabel }}
+          </p>
         </div>
       </header>
 
@@ -412,6 +416,7 @@ const emit = defineEmits<{
   signout: []
 }>()
 
+const runtimeConfig = useRuntimeConfig()
 const route = useRoute()
 const sidebarCollapsed = useState('admin-sidebar-collapsed', () => false)
 const sidebarOpen = ref(false)
@@ -430,6 +435,29 @@ const avatarInitial = computed(() => {
 })
 
 const isFullscreenMode = computed(() => route.query.fullscreen === '1')
+
+const appUpdatedLabel = computed(() => {
+  const rawValue = runtimeConfig.public.appUpdatedAt as string | undefined
+
+  if (!rawValue) {
+    return ''
+  }
+
+  const parsedDate = new Date(rawValue)
+
+  if (Number.isNaN(parsedDate.getTime())) {
+    return ''
+  }
+
+  return parsedDate.toLocaleString('en-US', {
+    month: 'short',
+    day: '2-digit',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: true,
+  })
+})
 
 const isDesktopCollapsed = computed(() => isDesktop.value && sidebarCollapsed.value)
 

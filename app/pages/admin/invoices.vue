@@ -9,7 +9,7 @@
       </header>
 
       <!-- Filter bar -->
-      <div class="rounded-xl border border-primary-100 bg-gradient-to-r from-primary-50/60 via-surface to-primary-warm-50/60 p-3 dark:border-white/10 dark:from-[#1b2534] dark:via-[#182231] dark:to-[#212d3d] sm:p-4">
+      <div class="overflow-x-hidden rounded-xl border border-primary-100 bg-gradient-to-r from-primary-50/60 via-surface to-primary-warm-50/60 p-3 dark:border-white/10 dark:from-[#1b2534] dark:via-[#182231] dark:to-[#212d3d] sm:p-4">
         <div class="space-y-2 sm:space-y-3">
           <!-- Week navigation row -->
           <div class="flex flex-wrap items-center gap-2">
@@ -63,12 +63,12 @@
 
           <!-- Filters + actions row -->
           <div class="grid grid-cols-1 gap-1.5 sm:grid-cols-2 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,1.5fr)_auto_auto] lg:items-end">
-            <div>
+            <div class="min-w-0">
               <label for="invoice-start-date" class="mb-0.5 block text-[11px] font-semibold uppercase tracking-wide text-muted">Start Date</label>
               <input id="invoice-start-date" v-model="filters.startDate" type="date" class="input-base !py-1 !text-xs [color-scheme:light] dark:[color-scheme:dark]" readonly>
             </div>
 
-            <div>
+            <div class="min-w-0">
               <label for="invoice-end-date" class="mb-0.5 block text-[11px] font-semibold uppercase tracking-wide text-muted">End Date</label>
               <input id="invoice-end-date" v-model="filters.endDate" type="date" class="input-base !py-1 !text-xs [color-scheme:light] dark:[color-scheme:dark]" readonly>
             </div>

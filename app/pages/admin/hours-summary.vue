@@ -16,7 +16,7 @@
         </button>
       </header>
 
-      <div class="rounded-xl border border-primary-100 bg-gradient-to-r from-primary-50/60 via-surface to-primary-warm-50/60 p-3 dark:border-white/10 dark:from-[#1b2534] dark:via-[#182231] dark:to-[#212d3d] sm:p-4">
+      <div class="overflow-x-hidden rounded-xl border border-primary-100 bg-gradient-to-r from-primary-50/60 via-surface to-primary-warm-50/60 p-3 dark:border-white/10 dark:from-[#1b2534] dark:via-[#182231] dark:to-[#212d3d] sm:p-4">
         <div class="space-y-2 sm:space-y-3">
           <div class="flex flex-wrap items-center gap-2">
             <div class="flex items-center gap-1.5">
@@ -68,7 +68,7 @@
             >
               <span
                 v-if="day.isHoliday"
-                class="absolute right-1 top-1 inline-flex rounded-full px-1.5 py-0.5 text-[8px] font-bold uppercase tracking-wide"
+                class="holiday-badge inline-flex rounded-full px-1.5 py-0.5 text-[8px] font-bold uppercase tracking-wide"
                 :class="day.date === activeWeekDate ? 'bg-white/20 text-white' : 'bg-warning/15 text-warning'"
                 :title="day.holidayNames.join(', ') || 'Holiday'"
               >
@@ -83,12 +83,12 @@
         </div>
 
         <div class="mt-2 grid grid-cols-1 gap-1.5 sm:grid-cols-2 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)_auto_auto] lg:items-end">
-          <div>
+          <div class="min-w-0">
             <label for="hours-summary-start-date-filter" class="mb-0.5 block text-[11px] font-semibold uppercase tracking-wide text-muted">Start Date</label>
             <input id="hours-summary-start-date-filter" v-model="filters.startDate" type="date" class="input-base !py-1 !text-xs" @change="onStartDateChange">
           </div>
 
-          <div>
+          <div class="min-w-0">
             <label for="hours-summary-end-date-filter" class="mb-0.5 block text-[11px] font-semibold uppercase tracking-wide text-muted">End Date</label>
             <input id="hours-summary-end-date-filter" v-model="filters.endDate" type="date" class="input-base !py-1 !text-xs" readonly>
           </div>

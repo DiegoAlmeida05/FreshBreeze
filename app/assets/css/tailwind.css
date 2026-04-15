@@ -2,6 +2,20 @@
 @tailwind components;
 @tailwind utilities;
 
+html, body {
+  overflow-x: hidden;
+  width: 100%;
+}
+
+body {
+  height: 100vh;
+  overflow: hidden;
+}
+
+* {
+  -webkit-tap-highlight-color: transparent;
+}
+
 /* ============================================================
    FRESH BREEZE BnB SERVICES — Design System
    ============================================================
@@ -138,7 +152,7 @@
   *,
   *::before,
   *::after {
-    @apply border-border;
+    @apply box-border border-border;
   }
 
   h1, h2, h3, h4, h5, h6 {
@@ -203,6 +217,13 @@
            focus:outline-none focus:ring-2 focus:ring-primary-500/40 focus:border-primary-500
            disabled:opacity-50 disabled:cursor-not-allowed
            transition duration-150 ease-in-out;
+  }
+
+  input.input-base[type='date'] {
+    width: 100%;
+    min-width: 0;
+    max-width: 100%;
+    box-sizing: border-box;
   }
 
   .select-base {
@@ -367,7 +388,38 @@
            text-xs font-medium text-secondary-700;
   }
 
+  /**
+   * .holiday-badge
+   * Positioned badge for marking holidays in calendars.
+   */
+  .holiday-badge {
+    position: absolute;
+    top: 3px;
+    right: 3px;
+    min-width: 14px;
+    justify-content: center;
+    line-height: 1;
+  }
+
   @media (max-width: 640px) {
+    input.input-base[type='date'] {
+      font-size: 12px;
+      padding-left: 0.625rem;
+      padding-right: 0.5rem;
+    }
+
+    input.input-base[type='date']::-webkit-date-and-time-value {
+      text-align: left;
+    }
+
+    .holiday-badge {
+      top: 2px;
+      right: 2px;
+      min-width: 10px;
+      font-size: 6px;
+      padding: 0 2px;
+    }
+
     .action-bar > .btn-primary,
     .action-bar > .btn-secondary,
     .action-bar > .btn-outline,

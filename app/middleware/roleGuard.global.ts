@@ -9,6 +9,20 @@ interface AuthProfile {
   active: boolean
 }
 
+function resolveRouteAfterAuth(role: AuthProfile['role']): string {
+  const lastRoute = localStorage.getItem('last-app-route')
+
+  if (role === 'admin' && lastRoute?.startsWith('/admin')) {
+    return lastRoute
+  }
+
+  if (role === 'worker' && lastRoute?.startsWith('/worker')) {
+    return lastRoute
+  }
+
+  return role === 'admin' ? '/admin' : '/worker/schedule'
+}
+
 export default defineNuxtRouteMiddleware(async (to) => {
   if (import.meta.server) {
     return
@@ -16,8 +30,9 @@ export default defineNuxtRouteMiddleware(async (to) => {
 
   const isAdminRoute = to.path.startsWith('/admin')
   const isWorkerRoute = to.path.startsWith('/worker')
+  const isLoginRoute = to.path === '/login'
 
-  if (!isAdminRoute && !isWorkerRoute) {
+  if (!isAdminRoute && !isWorkerRoute && !isLoginRoute) {
     return
   }
 
@@ -53,6 +68,10 @@ export default defineNuxtRouteMiddleware(async (to) => {
   if (profileError || !profile || !profile.active) {
     await supabase.auth.signOut()
     return navigateTo('/login')
+  }
+
+  if (isLoginRoute) {
+    return navigateTo(resolveRouteAfterAuth(profile.role))
   }
 
   if (isAdminRoute && profile.role !== 'admin') {

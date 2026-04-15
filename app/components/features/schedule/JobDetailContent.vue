@@ -62,9 +62,9 @@
               <button
                 type="button"
                 class="inline-flex h-7 gap-1 items-center rounded px-2 py-1 text-[11px] font-medium text-primary-600 transition hover:bg-primary-100/50 dark:text-primary-400 dark:hover:bg-white/10"
-                title="Open in Maps"
-                :disabled="!jobDetail.lat && !jobDetail.lng && !jobDetail.address.trim()"
-                @click="openJobNavigation()"
+                title="Open navigation options"
+                :disabled="(jobDetail.lat === null || jobDetail.lng === null) && !jobDetail.address.trim()"
+                @click="openNavigationSheet({ address: jobDetail.address, lat: jobDetail.lat, lng: jobDetail.lng })"
               >
                 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="h-3 w-3">
                   <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm3.5-9c.83 0 1.5-.67 1.5-1.5S16.33 8 15.5 8 14 8.67 14 9.5s.67 1.5 1.5 1.5zm-7 0c.83 0 1.5-.67 1.5-1.5S9.33 8 8.5 8 7 8.67 7 9.5 7.67 11 8.5 11zm3.5 6.5c2.33 0 4.31-1.46 5.11-3.5H6.89c.8 2.04 2.78 3.5 5.11 3.5z" />
@@ -120,14 +120,26 @@
 
           <div class="space-y-1.5 text-xs text-muted">
             <p><span class="font-medium text-foreground/80">Has key:</span> {{ jobDetail.hasKey ? 'Yes' : 'No' }}</p>
-            <p v-if="jobDetail.keyPickupAddress" class="flex items-start justify-between gap-2">
-              <span><span class="font-medium text-foreground/80">Key pickup address:</span> {{ jobDetail.keyPickupAddress }}</span>
-              <div class="flex gap-1 mt-1">
+            <p v-if="jobDetail.keyPickupAddress">
+              <span class="font-medium text-foreground/80">Key pickup address:</span> {{ jobDetail.keyPickupAddress }}
+            </p>
+            <p v-if="!jobDetail.hasKey && jobDetail.propertyKeys.length === 0 && keyPhotoUrls.length === 0 && !jobDetail.keyPhotoUrl">No key details available.</p>
+          </div>
+
+          <div v-if="jobDetail.propertyKeys.length > 0" class="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
+            <article
+              v-for="(item, index) in jobDetail.propertyKeys"
+              :key="`${jobDetail.propertyId}-key-${index}`"
+              class="rounded-lg border border-border/70 bg-background px-3 py-2"
+            >
+              <p class="text-xs font-semibold text-foreground">{{ item.label || `Key ${index + 1}` }}</p>
+              <p v-if="item.pickupAddress" class="mt-1 text-xs text-muted">Pickup: {{ item.pickupAddress }}</p>
+              <div v-if="item.pickupAddress" class="mt-1.5 flex flex-wrap gap-1">
                 <button
                   type="button"
                   class="inline-flex h-6 gap-1 items-center rounded px-1.5 py-0.5 text-[10px] font-medium text-primary-600 transition hover:bg-primary-100/50 dark:text-primary-400 dark:hover:bg-white/10"
-                  title="Open in Maps"
-                  @click="openMapsForAddress(jobDetail.keyPickupAddress!)"
+                  title="Open navigation options"
+                  @click="openNavigationSheet({ address: item.pickupAddress })"
                 >
                   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="h-3 w-3">
                     <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm3.5-9c.83 0 1.5-.67 1.5-1.5S16.33 8 15.5 8 14 8.67 14 9.5s.67 1.5 1.5 1.5zm-7 0c.83 0 1.5-.67 1.5-1.5S9.33 8 8.5 8 7 8.67 7 9.5 7.67 11 8.5 11zm3.5 6.5c2.33 0 4.31-1.46 5.11-3.5H6.89c.8 2.04 2.78 3.5 5.11 3.5z" />
@@ -138,7 +150,7 @@
                   type="button"
                   class="inline-flex h-6 gap-1 items-center rounded px-1.5 py-0.5 text-[10px] font-medium text-primary-600 transition hover:bg-primary-100/50 dark:text-primary-400 dark:hover:bg-white/10"
                   title="Copy address"
-                  @click="copyToClipboard(jobDetail.keyPickupAddress!)"
+                  @click="copyToClipboard(item.pickupAddress)"
                 >
                   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="h-3 w-3">
                     <path d="M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z" />
@@ -146,18 +158,6 @@
                   Copy
                 </button>
               </div>
-            </p>
-            <p v-if="!jobDetail.hasKey && jobDetail.propertyKeys.length === 0 && keyPhotoUrls.length === 0 && !jobDetail.keyPhotoUrl">No key details available.</p>
-          </div>
-
-          <div v-if="jobDetail.propertyKeys.length > 0" class="mt-3 space-y-2">
-            <article
-              v-for="(item, index) in jobDetail.propertyKeys"
-              :key="`${jobDetail.propertyId}-key-${index}`"
-              class="rounded-lg border border-border/70 bg-background px-3 py-2"
-            >
-              <p class="text-xs font-semibold text-foreground">{{ item.label || `Key ${index + 1}` }}</p>
-              <p v-if="item.pickupAddress" class="mt-1 text-xs text-muted">Pickup: {{ item.pickupAddress }}</p>
               <p v-if="item.note" class="mt-1 text-xs text-muted">Note: {{ item.note }}</p>
               <button
                 v-if="item.attachmentUrl"
@@ -166,7 +166,7 @@
                 :aria-label="`View key attachment ${index + 1}`"
                 @click="openLightbox(item.attachmentUrl)"
               >
-                <img :src="item.attachmentUrl" :alt="`Key attachment ${index + 1}`" class="h-20 w-20 object-cover" />
+                <img :src="item.attachmentUrl" :alt="`Key attachment ${index + 1}`" class="h-12 w-12 object-cover" />
               </button>
             </article>
           </div>
@@ -182,7 +182,7 @@
                 :aria-label="`View key photo ${idx + 1}`"
                 @click="openLightbox(url)"
               >
-                <img :src="url" :alt="`Key photo ${idx + 1}`" class="h-20 w-20 object-cover" />
+                <img :src="url" :alt="`Key photo ${idx + 1}`" class="h-12 w-12 object-cover" />
               </button>
             </div>
           </div>
@@ -195,7 +195,7 @@
               aria-label="View key photo"
               @click="openLightbox(jobDetail.keyPhotoUrl!)"
             >
-              <img :src="jobDetail.keyPhotoUrl" alt="Property key photo" class="h-20 w-20 object-cover" />
+              <img :src="jobDetail.keyPhotoUrl" alt="Property key photo" class="h-12 w-12 object-cover" />
             </button>
           </div>
         </div>
@@ -566,6 +566,76 @@
           @update:model-value="(value) => { if (!value) { isReportDetailModalOpen = false; selectedReportForDetail = null } }"
           @save="onSaveReportDetail"
         />
+
+        <Transition
+          enter-active-class="transition duration-200 ease-out"
+          enter-from-class="opacity-0"
+          enter-to-class="opacity-100"
+          leave-active-class="transition duration-150 ease-in"
+          leave-from-class="opacity-100"
+          leave-to-class="opacity-0"
+        >
+          <div
+            v-if="isNavigationSheetOpen"
+            class="fixed inset-0 z-[110]"
+            role="dialog"
+            aria-modal="true"
+            aria-label="Open with"
+          >
+            <button
+              type="button"
+              class="absolute inset-0 bg-black/45"
+              aria-label="Close navigation options"
+              @click="closeNavigationSheet"
+            />
+
+            <Transition
+              enter-active-class="transition duration-250 ease-out"
+              enter-from-class="translate-y-full"
+              enter-to-class="translate-y-0"
+              leave-active-class="transition duration-200 ease-in"
+              leave-from-class="translate-y-0"
+              leave-to-class="translate-y-full"
+            >
+              <div
+                v-if="isNavigationSheetOpen"
+                class="absolute inset-x-0 bottom-0 w-full rounded-t-2xl border border-border/90 bg-surface px-4 pb-5 pt-3 shadow-elevated sm:mx-auto sm:max-w-md"
+              >
+                <div class="mx-auto h-1.5 w-12 rounded-full bg-border/90" />
+                <h4 class="mt-3 text-base font-semibold text-foreground">Open with</h4>
+
+                <div class="mt-3 space-y-2">
+                  <button
+                    type="button"
+                    class="btn-primary w-full !justify-center !px-4 !py-3 text-sm"
+                    :disabled="!canOpenGoogleMaps"
+                    @click="openGoogleMaps"
+                  >
+                    Google Maps
+                  </button>
+
+                  <button
+                    type="button"
+                    class="btn-outline w-full !justify-center !px-4 !py-3 text-sm disabled:cursor-not-allowed disabled:opacity-50"
+                    :disabled="!canOpenWaze"
+                    @click="openWaze"
+                  >
+                    Waze
+                  </button>
+                  <p v-if="!canOpenWaze" class="px-1 text-xs text-muted">Waze requires coordinates.</p>
+
+                  <button
+                    type="button"
+                    class="btn-outline w-full !justify-center !px-4 !py-3 text-sm"
+                    @click="closeNavigationSheet"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            </Transition>
+          </div>
+        </Transition>
       </Teleport>
     </template>
   </section>
@@ -769,6 +839,8 @@ const removedExistingReportPhotos = ref<ExistingReportPhotoItem[]>([])
 const reportPhotosByReportId = ref<Record<string, ExistingReportPhotoItem[]>>({})
 const keyPhotoUrls = ref<string[]>([])
 const lightboxUrl = ref<string | null>(null)
+const isNavigationSheetOpen = ref(false)
+const navigationTarget = ref<{ address: string; lat: number | null; lng: number | null } | null>(null)
 const reportIdPendingDelete = ref<string | null>(null)
 const reportIdPendingStatusChange = ref<{ id: string; targetStatus: PropertyReportStatus } | null>(null)
 const isCreateReportModalOpen = ref(false)
@@ -845,6 +917,20 @@ const editReportInitialValue = computed<ReportFormPayload | null>(() => {
 const backTo = computed(() => (props.mode === 'admin' ? '/admin/schedule' : '/worker/schedule'))
 const isAdmin = computed(() => currentProfile.value?.role === 'admin')
 const openReports = computed(() => reports.value.filter((report) => report.status === 'open'))
+const canOpenGoogleMaps = computed(() => {
+  const target = navigationTarget.value
+
+  if (!target) {
+    return false
+  }
+
+  const hasCoordinates = target.lat !== null && target.lng !== null
+  return hasCoordinates || target.address.trim().length > 0
+})
+const canOpenWaze = computed(() => {
+  const target = navigationTarget.value
+  return Boolean(target && target.lat !== null && target.lng !== null)
+})
 
 function isReportOwner(report: PropertyReportListItemDTO): boolean {
   return currentProfile.value?.id === report.created_by_profile_id
@@ -1687,27 +1773,65 @@ function copyToClipboard(text: string): void {
   })
 }
 
-function openMapsForAddress(address: string): void {
-  if (!address.trim()) return
-  const encodedAddress = encodeURIComponent(address)
-  window.open(`https://maps.google.com/?q=${encodedAddress}`, '_blank', 'noopener,noreferrer')
+function openNavigationSheet(target: { address?: string | null; lat?: number | null; lng?: number | null }): void {
+  const address = target.address?.trim() ?? ''
+  const lat = target.lat ?? null
+  const lng = target.lng ?? null
+
+  if (lat === null && lng === null && !address) {
+    return
+  }
+
+  navigationTarget.value = {
+    address,
+    lat,
+    lng,
+  }
+  isNavigationSheetOpen.value = true
 }
 
-function openJobNavigation(): void {
-  if (!jobDetail.value) return
+function closeNavigationSheet(): void {
+  isNavigationSheetOpen.value = false
+  navigationTarget.value = null
+}
 
-  const { lat, lng, address } = jobDetail.value
+function openGoogleMaps(): void {
+  const target = navigationTarget.value
 
-  if (lat !== null && lng !== null) {
-    const latLng = `${lat},${lng}`
-    window.open(`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(latLng)}`, '_blank', 'noopener,noreferrer')
+  if (!target) {
     return
   }
 
-  if (address.trim()) {
-    window.open(`https://maps.google.com/?q=${encodeURIComponent(address.trim())}`, '_blank', 'noopener,noreferrer')
+  const hasCoordinates = target.lat !== null && target.lng !== null
+  let url = ''
+
+  if (hasCoordinates) {
+    const latLng = `${target.lat},${target.lng}`
+    url = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(latLng)}`
+  } else if (target.address.trim()) {
+    url = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(target.address.trim())}`
+  }
+
+  if (!url) {
     return
   }
+
+  window.open(url, '_blank', 'noopener,noreferrer')
+  closeNavigationSheet()
+}
+
+function openWaze(): void {
+  const target = navigationTarget.value
+
+  if (!target || target.lat === null || target.lng === null) {
+    errorMessage.value = 'Waze requires coordinates.'
+    return
+  }
+
+  const latLng = `${target.lat},${target.lng}`
+  const url = `https://waze.com/ul?ll=${encodeURIComponent(latLng)}&navigate=yes`
+  window.open(url, '_blank', 'noopener,noreferrer')
+  closeNavigationSheet()
 }
 
 onMounted(async () => {

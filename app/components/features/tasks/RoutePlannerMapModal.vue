@@ -16,11 +16,12 @@
           <button type="button" class="btn-outline" @click="close">Close</button>
         </div>
 
-        <div class="h-[72vh] rounded-xl border border-dashed border-primary-200/80 bg-primary-50/50 p-4 dark:border-white/15 dark:bg-white/[0.03]">
-          <div class="flex h-full flex-col items-center justify-center text-center text-sm text-muted">
-            <p class="font-medium text-foreground">Expanded map area</p>
-            <p class="mt-2">This panel is ready for full-size map rendering for route planning.</p>
-          </div>
+        <div class="h-[72vh]">
+          <MapView
+            :tasks="stops"
+            empty-message="Team has no properties with coordinates for map rendering yet."
+            @route-metrics-change="emit('routeMetricsChange', $event)"
+          />
         </div>
       </div>
     </div>
@@ -30,18 +31,23 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { fmtTime } from '../../../utils/formatTime'
+import MapView from './MapView.vue'
+import type { RoutePlannerMapStop } from '../../../../shared/types/RoutePlannerMapStop'
+import type { RoutePlannerTravelMetric } from '../../../../shared/types/RoutePlannerTravelMetric'
 
 interface Props {
   modelValue: boolean
   title: string
   startTime: string
   employeeNames: string
+  stops: RoutePlannerMapStop[]
 }
 
 const props = defineProps<Props>()
 
 const emit = defineEmits<{
   'update:modelValue': [value: boolean]
+  routeMetricsChange: [metrics: RoutePlannerTravelMetric[]]
 }>()
 
 function close(): void {

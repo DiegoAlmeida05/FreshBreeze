@@ -25,15 +25,13 @@
         </span>
       </div>
 
-      <a
-        v-if="mapsUrl"
-        :href="mapsUrl"
-        target="_blank"
-        rel="noopener noreferrer"
+      <button
+        v-if="canOpenNavigation"
+        type="button"
         class="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-bold text-white shadow-sm transition active:scale-95"
         :style="`background-color: ${item.clientColor};`"
         :aria-label="'Navigate to ' + item.propertyName"
-        @click.stop
+        @click.stop="openNavigationSheet"
       >
         <svg
           xmlns="http://www.w3.org/2000/svg"
@@ -47,7 +45,7 @@
           />
         </svg>
         GO
-      </a>
+      </button>
       <span
         v-else
         class="inline-flex items-center gap-1.5 rounded-lg bg-muted px-3 py-1.5 text-xs font-bold text-white/90 opacity-70"
@@ -136,10 +134,82 @@
 
     </div>
   </article>
+
+  <Teleport to="body">
+    <Transition
+      enter-active-class="transition duration-200 ease-out"
+      enter-from-class="opacity-0"
+      enter-to-class="opacity-100"
+      leave-active-class="transition duration-150 ease-in"
+      leave-from-class="opacity-100"
+      leave-to-class="opacity-0"
+    >
+      <div
+        v-if="isNavigationSheetOpen"
+        class="fixed inset-0 z-[110]"
+        role="dialog"
+        aria-modal="true"
+        aria-label="Open with"
+      >
+        <button
+          type="button"
+          class="absolute inset-0 bg-black/45"
+          aria-label="Close navigation options"
+          @click="closeNavigationSheet"
+        />
+
+        <Transition
+          enter-active-class="transition duration-250 ease-out"
+          enter-from-class="translate-y-full"
+          enter-to-class="translate-y-0"
+          leave-active-class="transition duration-200 ease-in"
+          leave-from-class="translate-y-0"
+          leave-to-class="translate-y-full"
+        >
+          <div
+            v-if="isNavigationSheetOpen"
+            class="absolute inset-x-0 bottom-0 w-full rounded-t-2xl border border-border/90 bg-surface px-4 pb-5 pt-3 shadow-elevated sm:mx-auto sm:max-w-md"
+          >
+            <div class="mx-auto h-1.5 w-12 rounded-full bg-border/90" />
+            <h4 class="mt-3 text-base font-semibold text-foreground">Open with</h4>
+
+            <div class="mt-3 space-y-2">
+              <button
+                type="button"
+                class="btn-primary w-full !justify-center !px-4 !py-3 text-sm"
+                :disabled="!canOpenGoogleMaps"
+                @click="openGoogleMaps"
+              >
+                Google Maps
+              </button>
+
+              <button
+                type="button"
+                class="btn-outline w-full !justify-center !px-4 !py-3 text-sm disabled:cursor-not-allowed disabled:opacity-50"
+                :disabled="!canOpenWaze"
+                @click="openWaze"
+              >
+                Waze
+              </button>
+              <p v-if="!canOpenWaze" class="px-1 text-xs text-muted">Waze requires coordinates.</p>
+
+              <button
+                type="button"
+                class="btn-outline w-full !justify-center !px-4 !py-3 text-sm"
+                @click="closeNavigationSheet"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </Transition>
+      </div>
+    </Transition>
+  </Teleport>
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import type { ScheduleItem } from '../../../composables/useWorkerSchedule'
 import { calculateChocolates } from '../../../utils/calculateChocolates'
 import { buildVisibleTaskTags } from '../../../utils/visualTaskTags'
@@ -151,6 +221,8 @@ const props = defineProps<{
 const emit = defineEmits<{
   openDetails: []
 }>()
+
+const isNavigationSheetOpen = ref(false)
 
 function hexToRgbParts(hex: string): string | null {
   const cleaned = hex.replace('#', '')
@@ -178,21 +250,78 @@ const groupBadgeStyle = computed(
     `background: rgba(${rgbParts.value}, 0.12); color: ${props.item.clientColor};`,
 )
 
-const mapsUrl = computed(() => {
+const navigationTarget = computed(() => {
   const { propertyLat, propertyLng, address } = props.item
+  const trimmedAddress = address?.trim() ?? ''
 
-  if (propertyLat !== null && propertyLng !== null) {
-    const latLng = `${propertyLat},${propertyLng}`
-    return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(latLng)}`
+  return {
+    lat: propertyLat,
+    lng: propertyLng,
+    address: trimmedAddress,
   }
-
-  const trimmedAddress = address?.trim()
-  if (trimmedAddress) {
-    return `https://maps.google.com/?q=${encodeURIComponent(trimmedAddress)}`
-  }
-
-  return ''
 })
+
+const canOpenNavigation = computed(() => {
+  const target = navigationTarget.value
+  const hasCoordinates = target.lat !== null && target.lng !== null
+  return hasCoordinates || target.address.length > 0
+})
+
+const canOpenGoogleMaps = computed(() => {
+  const target = navigationTarget.value
+  const hasCoordinates = target.lat !== null && target.lng !== null
+  return hasCoordinates || target.address.length > 0
+})
+
+const canOpenWaze = computed(() => {
+  const target = navigationTarget.value
+  return target.lat !== null && target.lng !== null
+})
+
+function openNavigationSheet(): void {
+  if (!canOpenNavigation.value) {
+    return
+  }
+
+  isNavigationSheetOpen.value = true
+}
+
+function closeNavigationSheet(): void {
+  isNavigationSheetOpen.value = false
+}
+
+function openGoogleMaps(): void {
+  const target = navigationTarget.value
+  const hasCoordinates = target.lat !== null && target.lng !== null
+  let url = ''
+
+  if (hasCoordinates) {
+    const latLng = `${target.lat},${target.lng}`
+    url = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(latLng)}`
+  } else if (target.address) {
+    url = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(target.address)}`
+  }
+
+  if (!url) {
+    return
+  }
+
+  window.open(url, '_blank', 'noopener,noreferrer')
+  closeNavigationSheet()
+}
+
+function openWaze(): void {
+  const target = navigationTarget.value
+
+  if (target.lat === null || target.lng === null) {
+    return
+  }
+
+  const latLng = `${target.lat},${target.lng}`
+  const url = `https://waze.com/ul?ll=${encodeURIComponent(latLng)}&navigate=yes`
+  window.open(url, '_blank', 'noopener,noreferrer')
+  closeNavigationSheet()
+}
 
 const chocolates = computed(() =>
   calculateChocolates({

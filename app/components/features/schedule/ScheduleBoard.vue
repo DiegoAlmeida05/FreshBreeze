@@ -112,7 +112,7 @@
           >
             <span
               v-if="day.isHoliday"
-              class="absolute right-1 top-1 inline-flex rounded-full px-1.5 py-0.5 text-[8px] font-bold uppercase tracking-wide"
+              class="holiday-badge inline-flex rounded-full px-1.5 py-0.5 text-[8px] font-bold uppercase tracking-wide"
               :class="day.iso === selectedDate ? 'bg-white/20 text-white' : 'bg-warning/15 text-warning'"
               :title="day.holidayNames.join(', ') || 'Holiday'"
             >

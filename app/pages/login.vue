@@ -4,7 +4,25 @@
     <div class="pointer-events-none absolute -right-24 bottom-10 h-80 w-80 rounded-full bg-primary-warm-500/20 blur-3xl" />
 
     <div class="page-container relative flex min-h-[calc(100vh-4rem)] items-center justify-start">
-      <section class="block w-full overflow-hidden rounded-3xl border border-border bg-surface shadow-elevated text-left lg:grid lg:grid-cols-2 lg:max-w-5xl">
+      <section
+        v-if="isBootstrapping"
+        class="w-full max-w-md rounded-3xl border border-border bg-surface px-6 py-10 text-center shadow-elevated"
+      >
+        <img
+          src="/logo/logo_escrito_transparente.png"
+          alt="FreshBreeze"
+          class="mx-auto h-auto w-full max-w-[220px] object-contain"
+        />
+        <div class="mt-6 flex items-center justify-center gap-2 text-sm text-muted">
+          <div class="h-4 w-4 animate-spin rounded-full border-2 border-primary-500 border-t-transparent" />
+          Restoring your session...
+        </div>
+      </section>
+
+      <section
+        v-else
+        class="block w-full overflow-hidden rounded-3xl border border-border bg-surface shadow-elevated text-left lg:grid lg:grid-cols-2 lg:max-w-5xl"
+      >
         <article class="relative hidden overflow-hidden border-b border-border p-8 lg:block lg:border-b-0 lg:border-r">
           <div class="absolute inset-0 bg-gradient-to-br from-primary-500/20 via-primary-warm-500/20 to-accent-500/10" />
           <div class="relative flex h-full items-center justify-center">
@@ -107,7 +125,7 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
+import { onMounted, ref, watch } from 'vue'
 import type { ProfileDTO } from '../../shared/types/ProfileDTO'
 import BaseFeedbackBanner from '../components/ui/BaseFeedbackBanner.vue'
 import AuthActionButton from '../components/login/AuthActionButton.vue'
@@ -126,6 +144,8 @@ const loginPassword = ref('')
 const remember = ref(false)
 const isLoading = ref(false)
 const loginError = ref('')
+const isBootstrapping = ref(true)
+const isAuthBootstrapping = useState<boolean>('auth-bootstrap-loading', () => true)
 
 onMounted(() => {
   if (!import.meta.client) {
@@ -135,8 +155,38 @@ onMounted(() => {
   const savedMode = localStorage.getItem(REMEMBER_MODE_KEY)
   remember.value = savedMode !== 'session'
 
-  void redirectIfAlreadyAuthenticated()
+  void bootstrapAuthFlow()
 })
+
+async function bootstrapAuthFlow(): Promise<void> {
+  await waitForAuthBootstrap()
+
+  try {
+    await redirectIfAlreadyAuthenticated()
+  } finally {
+    isBootstrapping.value = false
+  }
+}
+
+async function waitForAuthBootstrap(): Promise<void> {
+  if (!import.meta.client || !isAuthBootstrapping.value) {
+    return
+  }
+
+  await new Promise<void>((resolve) => {
+    const stop = watch(isAuthBootstrapping, (loading) => {
+      if (!loading) {
+        stop()
+        resolve()
+      }
+    })
+
+    setTimeout(() => {
+      stop()
+      resolve()
+    }, 2000)
+  })
+}
 
 async function redirectIfAlreadyAuthenticated(): Promise<void> {
   try {
