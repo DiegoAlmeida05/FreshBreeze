@@ -1,14 +1,15 @@
 <template>
-  <div class="flex h-screen overflow-hidden bg-gradient-to-br from-surface-soft via-primary-50/30 to-primary-warm-50/30 dark:bg-black dark:bg-none">
+  <div class="flex h-screen w-full min-w-0 overflow-hidden bg-gradient-to-br from-surface-soft via-primary-50/30 to-primary-warm-50/30 dark:bg-black dark:bg-none">
     <!-- Sidebar overlay (mobile) -->
     <div
-      v-if="sidebarOpen"
+      v-if="sidebarOpen && !isDesktop"
       class="fixed inset-0 z-20 bg-foreground/40 backdrop-blur-sm lg:hidden"
       @click="sidebarOpen = false"
     />
 
     <!-- Sidebar -->
     <aside
+      v-if="isDesktop || sidebarOpen"
       id="worker-sidebar"
       :class="[
         'fixed inset-y-0 left-0 z-30 flex w-64 flex-col bg-gradient-to-b from-white via-primary-50/55 to-primary-warm-50/45 shadow-[0_18px_40px_rgba(15,23,42,0.08),10px_0_30px_rgba(148,163,184,0.08)] backdrop-blur-sm transition-all duration-300 ease-in-out dark:bg-gradient-to-b dark:from-black dark:via-neutral-950 dark:to-neutral-900 dark:shadow-[0_24px_60px_rgba(0,0,0,0.55),14px_0_36px_rgba(255,255,255,0.03)]',
@@ -132,7 +133,7 @@
     </aside>
 
     <!-- Main area -->
-    <div class="flex min-h-0 flex-1 flex-col overflow-hidden lg:mb-3 lg:mr-3 lg:mt-3">
+    <div class="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden lg:mb-3 lg:mr-3 lg:mt-3">
       <!-- Topbar -->
       <header class="shrink-0 px-4 pt-4 sm:px-6 lg:px-6">
         <div class="flex h-16 items-center rounded-[30px] border border-white/65 bg-white/72 px-4 shadow-[0_18px_40px_rgba(15,23,42,0.08)] backdrop-blur-xl sm:px-5 lg:px-6 dark:border-white/10 dark:bg-white/[0.03] dark:shadow-[0_24px_60px_rgba(0,0,0,0.38)]">
@@ -169,11 +170,11 @@
       </header>
 
       <!-- Page content -->
-      <main class="relative min-h-0 flex-1 overflow-y-auto px-4 pb-4 pt-4 sm:px-6 sm:pb-6 sm:pt-4 lg:px-6 lg:pb-8 lg:pt-4">
+      <main class="relative min-h-0 min-w-0 flex-1 overflow-x-hidden overflow-y-auto px-4 pb-4 pt-4 sm:px-6 sm:pb-6 sm:pt-4 lg:px-6 lg:pb-8 lg:pt-4">
         <div class="pointer-events-none absolute -left-16 top-8 h-56 w-56 rounded-full bg-primary-500/10 blur-3xl dark:bg-white/5" />
         <div class="pointer-events-none absolute -right-20 bottom-12 h-64 w-64 rounded-full bg-primary-warm-500/10 blur-3xl dark:bg-white/5" />
 
-        <div class="relative z-10 w-full rounded-[30px] border border-white/65 bg-white/72 p-4 shadow-[0_18px_40px_rgba(15,23,42,0.08)] backdrop-blur-xl sm:p-5 lg:p-6 dark:border-white/10 dark:bg-white/[0.03] dark:shadow-[0_24px_60px_rgba(0,0,0,0.38)]">
+        <div class="relative z-10 w-full min-w-0 max-w-full rounded-[30px] border border-white/65 bg-white/72 p-4 shadow-[0_18px_40px_rgba(15,23,42,0.08)] backdrop-blur-xl sm:p-5 lg:p-6 dark:border-white/10 dark:bg-white/[0.03] dark:shadow-[0_24px_60px_rgba(0,0,0,0.38)]">
           <slot />
         </div>
       </main>
@@ -182,7 +183,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useAuth } from '../composables/useAuth'
 import { useSupabaseClient } from '../composables/useSupabaseClient'
 
@@ -211,7 +212,17 @@ const isDesktopCollapsed = computed(() => isDesktop.value && sidebarCollapsed.va
 
 const syncDesktopState = (event?: MediaQueryList | MediaQueryListEvent) => {
   isDesktop.value = Boolean(event?.matches)
+
+  if (isDesktop.value) {
+    sidebarOpen.value = false
+  }
 }
+
+watch(() => route.fullPath, () => {
+  if (!isDesktop.value) {
+    sidebarOpen.value = false
+  }
+})
 
 onMounted(async () => {
   desktopMediaQuery = window.matchMedia('(min-width: 1024px)')
