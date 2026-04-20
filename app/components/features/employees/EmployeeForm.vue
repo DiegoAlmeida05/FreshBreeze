@@ -161,11 +161,10 @@
       <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <div>
           <label for="employee-role" class="mb-1.5 block text-sm font-medium text-foreground">Role</label>
-          <select id="employee-role" v-model="form.role" class="select-base !px-4 !py-3" :disabled="!isCreateMode">
+          <select id="employee-role" v-model="form.role" class="select-base !px-4 !py-3">
             <option value="worker">Worker</option>
             <option value="admin">Admin</option>
           </select>
-          <p v-if="!isCreateMode" class="mt-1 text-xs text-muted">Role can only be set during user creation.</p>
         </div>
 
         <div class="flex items-end">
@@ -207,6 +206,7 @@ export interface EmployeeFormPayload {
   hourly_rate_sunday: number
   hourly_rate_holiday: number
   active: boolean
+  role: 'admin' | 'worker'
 }
 
 export interface CreateEmployeeFormPayload {
@@ -306,7 +306,7 @@ function syncForm(): void {
   form.hourly_rate_sunday = formatRateNumber(current?.hourly_rate_sunday ?? 0)
   form.hourly_rate_holiday = formatRateNumber(current?.hourly_rate_holiday ?? 0)
   form.active = current?.active ?? true
-  form.role = 'worker'
+  form.role = current?.role ?? 'worker'
 
   clearErrors()
 }
@@ -436,6 +436,7 @@ function onSubmit(): void {
       hourly_rate_sunday: sundayRate,
       hourly_rate_holiday: holidayRate,
       active: form.active,
+      role: form.role,
     }
 
     emit('submit', payload)

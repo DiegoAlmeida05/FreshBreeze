@@ -6,12 +6,9 @@
         <h2 class="mt-1 text-2xl font-semibold text-foreground">Team Schedule</h2>
       </div>
 
-      <div class="w-[140px] shrink-0">
-        <div class="min-w-0 rounded-lg border border-primary-100 bg-surface/80 px-2 py-1.5 text-xs text-muted dark:border-white/10 dark:bg-white/5">
-          <p class="font-medium text-foreground">View</p>
-          <p class="mt-0.5 text-[10px]">Admin</p>
-          <p class="mt-0.5 text-[9px]">{{ selectedGroup === 'all' ? 'All teams' : 'Team ' + selectedGroup }}</p>
-          <p class="mt-0.5 text-[9px]">{{ scheduleItems.length }} task(s)</p>
+      <div class="shrink-0">
+        <div class="rounded-lg border border-primary-100 bg-surface/80 px-2 py-1 text-right text-[11px] font-semibold text-foreground dark:border-white/10 dark:bg-white/5">
+          {{ scheduleItems.length }} task(s)
         </div>
       </div>
     </div>
@@ -82,12 +79,9 @@
         </p>
       </div>
 
-      <div v-if="!showGroupFilter" class="w-[140px] shrink-0">
-        <div class="min-w-0 rounded-lg border border-primary-100 bg-surface/80 px-2 py-1.5 text-xs text-muted dark:border-white/10 dark:bg-white/5">
-          <p class="font-medium text-foreground">View</p>
-          <p class="mt-0.5 text-[10px]">Worker</p>
-          <p class="mt-0.5 text-[9px]">Assigned tasks</p>
-          <p class="mt-0.5 text-[9px]">{{ scheduleItems.length }} task(s)</p>
+      <div v-if="!showGroupFilter" class="shrink-0">
+        <div class="rounded-lg border border-primary-100 bg-surface/80 px-2 py-1 text-right text-[11px] font-semibold text-foreground dark:border-white/10 dark:bg-white/5">
+          {{ scheduleItems.length }} task(s)
         </div>
       </div>
     </div>
@@ -255,6 +249,7 @@ const error = ref<string | null>(null)
 const scheduleItems = ref<ScheduleItem[]>([])
 const availableGroups = ref<string[]>([])
 const holidayNamesByDate = ref<Record<string, string[]>>({})
+const scheduleRequestId = ref(0)
 
 const showGroupFilter = computed(() => props.mode === 'admin')
 
@@ -340,6 +335,8 @@ const displayDate = computed(() => {
 })
 
 async function loadSchedule(): Promise<void> {
+  const requestId = scheduleRequestId.value + 1
+  scheduleRequestId.value = requestId
   isLoading.value = true
   error.value = null
 
@@ -365,15 +362,25 @@ async function loadSchedule(): Promise<void> {
       return acc
     }, {})
 
+    if (requestId !== scheduleRequestId.value) {
+      return
+    }
+
     scheduleItems.value = result.scheduleItems
     availableGroups.value = result.availableGroups
   } catch (err) {
+    if (requestId !== scheduleRequestId.value) {
+      return
+    }
+
     error.value = err instanceof Error ? err.message : 'Failed to load schedule.'
     scheduleItems.value = []
     availableGroups.value = []
     holidayNamesByDate.value = {}
   } finally {
-    isLoading.value = false
+    if (requestId === scheduleRequestId.value) {
+      isLoading.value = false
+    }
   }
 }
 

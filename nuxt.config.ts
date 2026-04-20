@@ -3,8 +3,30 @@ const appBuildTimestamp = process.env.NUXT_PUBLIC_APP_UPDATED_AT ?? new Date().t
 
 export default defineNuxtConfig({
   compatibilityDate: '2025-07-15',
-  devtools: { enabled: true },
+  devtools: { enabled: process.env.NODE_ENV === 'development' },
   ssr: true,
+
+  nitro: {
+    compressPublicAssets: true,
+  },
+
+  routeRules: {
+    '/manifest.webmanifest': {
+      headers: {
+        'cache-control': 'public, max-age=3600, must-revalidate',
+      },
+    },
+    '/icons/**': {
+      headers: {
+        'cache-control': 'public, max-age=31536000, immutable',
+      },
+    },
+    '/logo/**': {
+      headers: {
+        'cache-control': 'public, max-age=31536000, immutable',
+      },
+    },
+  },
 
   app: {
     head: {
@@ -29,6 +51,8 @@ export default defineNuxtConfig({
     supabaseUrl: process.env.NUXT_PUBLIC_SUPABASE_URL ?? '',
     supabaseServiceRoleKey: process.env.SUPABASE_SECRET_KEY ?? '',
     openaiApiKey: process.env.OPENAI_API_KEY ?? '',
+    resendApiKey: process.env.RESEND_API_KEY ?? '',
+    resendFromEmail: process.env.RESEND_FROM_EMAIL ?? '',
     public: {
       supabaseUrl: process.env.NUXT_PUBLIC_SUPABASE_URL ?? '',
       supabaseAnonKey: process.env.NUXT_PUBLIC_SUPABASE_KEY ?? '',

@@ -145,13 +145,35 @@ interface ClientRow {
 export function useWorkerSchedule() {
   const supabase = useSupabaseClient()
   const auth = useAuth()
+  let cachedProfile: { id: string; role: string } | null = null
+  let profileRequest: Promise<{ id: string; role: string }> | null = null
+
+  async function getCachedProfile(): Promise<{ id: string; role: string }> {
+    if (cachedProfile) {
+      return cachedProfile
+    }
+
+    if (!profileRequest) {
+      profileRequest = auth.getProfile().then((profile) => ({
+        id: profile.id,
+        role: profile.role,
+      }))
+    }
+
+    try {
+      cachedProfile = await profileRequest
+      return cachedProfile
+    } finally {
+      profileRequest = null
+    }
+  }
 
   async function getSchedule(date: string, groupLabel?: string): Promise<WorkerScheduleResult> {
     const empty: WorkerScheduleResult = { scheduleItems: [], availableGroups: [] }
 
     if (!date) return empty
 
-    const profile = await auth.getProfile()
+    const profile = await getCachedProfile()
     const isAdmin = profile.role === 'admin'
 
     // Load the published route_plan for this date
@@ -262,7 +284,13 @@ export function useWorkerSchedule() {
     const properties = (propData ?? []) as PropertyRow[]
     const propertyMap = new Map(properties.map((p) => [p.id, p]))
 
-    const [{ data: propertyKeyData, error: propertyKeyError }, { data: propertyResourceData, error: propertyResourceError }] = await Promise.all([
+    const clientIds = [...new Set(properties.map((p) => p.client_id))]
+
+    const [
+      { data: propertyKeyData, error: propertyKeyError },
+      { data: propertyResourceData, error: propertyResourceError },
+      { data: clientData, error: clientError },
+    ] = await Promise.all([
       supabase
         .from('property_keys')
         .select('property_id, pickup_address')
@@ -275,10 +303,15 @@ export function useWorkerSchedule() {
         .in('property_id', propertyIds)
         .order('sort_order', { ascending: true })
         .order('created_at', { ascending: true }),
+      supabase
+        .from('clients')
+        .select('id, name, color')
+        .in('id', clientIds),
     ])
 
     if (propertyKeyError) throw new Error(propertyKeyError.message)
     if (propertyResourceError) throw new Error(propertyResourceError.message)
+    if (clientError) throw new Error(clientError.message)
 
     const propertyKeysById = new Map<string, PropertyKeyRow[]>()
     const propertyResourcesById = new Map<string, PropertyResourceRow[]>()
@@ -294,16 +327,6 @@ export function useWorkerSchedule() {
       current.push(row)
       propertyResourcesById.set(row.property_id, current)
     }
-
-    const clientIds = [...new Set(properties.map((p) => p.client_id))]
-
-    // Load clients (for color)
-    const { data: clientData, error: clientError } = await supabase
-      .from('clients')
-      .select('id, name, color')
-      .in('id', clientIds)
-
-    if (clientError) throw new Error(clientError.message)
 
     const clients = (clientData ?? []) as ClientRow[]
     const clientMap = new Map(clients.map((c) => [c.id, c]))

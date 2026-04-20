@@ -20,6 +20,31 @@
       </div>
     </div>
 
+    <div
+      v-if="!isLoading && !errorMessage && validStops.length > 0"
+      class="absolute right-2 top-2 z-10 flex items-center gap-1.5"
+    >
+      <button
+        type="button"
+        class="inline-flex items-center rounded-md border border-primary-200 bg-surface/90 px-2 py-1 text-[11px] font-semibold text-foreground shadow-sm transition hover:bg-primary-50 dark:border-white/15 dark:bg-black/45 dark:hover:bg-white/10"
+        title="Centralize route"
+        aria-label="Centralize route"
+        @click="recenterRoute"
+      >
+        Centralize
+      </button>
+
+      <button
+        type="button"
+        class="inline-flex items-center rounded-md border border-primary-200 bg-surface/90 px-2 py-1 text-[11px] font-semibold text-foreground shadow-sm transition hover:bg-primary-50 dark:border-white/15 dark:bg-black/45 dark:hover:bg-white/10"
+        title="Reset zoom"
+        aria-label="Reset zoom"
+        @click="resetZoomForInspection"
+      >
+        Reset Zoom
+      </button>
+    </div>
+
     <!-- Warning badge for missing coordinates -->
     <p v-if="missingCoordinatesCount > 0" class="pointer-events-none absolute bottom-2 right-2 rounded-full bg-black/50 px-2 py-0.5 text-[10px] font-medium text-white/90">
       {{ missingCoordinatesCount }} without coordinates
@@ -59,6 +84,7 @@ const mapRef = ref<HTMLElement | null>(null)
 const mapInstance = ref<any | null>(null)
 const markerInstances = ref<any[]>([])
 const directionsRenderer = ref<any | null>(null)
+const directionsResult = ref<any | null>(null)
 const geocodedPointsByStopId = ref<Record<string, { lat: number; lng: number }>>({})
 const isLoading = ref(true)
 const errorMessage = ref('')
@@ -111,6 +137,24 @@ function clearDirections(): void {
     directionsRenderer.value.setMap(null)
     directionsRenderer.value = null
   }
+
+  directionsResult.value = null
+}
+
+function contrastTextColor(hexColor: string): string {
+  const fallback = '#ffffff'
+  const match = /^#([0-9A-Fa-f]{6})$/.exec(hexColor)
+
+  if (!match?.[1]) {
+    return fallback
+  }
+
+  const r = Number.parseInt(match[1].slice(0, 2), 16)
+  const g = Number.parseInt(match[1].slice(2, 4), 16)
+  const b = Number.parseInt(match[1].slice(4, 6), 16)
+  const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255
+
+  return luminance > 0.62 ? '#0f172a' : '#ffffff'
 }
 
 function buildBaseRouteMetrics(): RoutePlannerTravelMetric[] {
@@ -238,6 +282,62 @@ function fitToStops(googleMaps: any): void {
   mapInstance.value.fitBounds(bounds, 56)
 }
 
+function fitToCompleteRoute(googleMaps: any): void {
+  if (!mapInstance.value) {
+    return
+  }
+
+  const routeBounds = directionsResult.value?.routes?.[0]?.bounds
+
+  if (routeBounds) {
+    mapInstance.value.fitBounds(routeBounds, {
+      top: 56,
+      right: 56,
+      bottom: 56,
+      left: 56,
+    })
+    return
+  }
+
+  fitToStops(googleMaps)
+}
+
+function recenterRoute(): void {
+  if (!import.meta.client || !window.google?.maps || !mapInstance.value) {
+    return
+  }
+
+  fitToCompleteRoute(window.google)
+}
+
+function resetZoomForInspection(): void {
+  if (!import.meta.client || !window.google?.maps || !mapInstance.value || validStops.value.length === 0) {
+    return
+  }
+
+  const routeBounds = directionsResult.value?.routes?.[0]?.bounds
+
+  if (routeBounds?.getCenter) {
+    mapInstance.value.setCenter(routeBounds.getCenter())
+    mapInstance.value.setZoom(12)
+    return
+  }
+
+  const googleMaps = window.google
+  const bounds = new googleMaps.maps.LatLngBounds()
+
+  for (const stop of validStops.value) {
+    if (stop.lat === null || stop.lng === null) {
+      continue
+    }
+
+    bounds.extend({ lat: stop.lat, lng: stop.lng })
+  }
+
+  mapInstance.value.setCenter(bounds.getCenter())
+  mapInstance.value.setZoom(12)
+}
+
 function renderMarkers(googleMaps: any): void {
   if (!mapInstance.value) {
     return
@@ -253,13 +353,14 @@ function renderMarkers(googleMaps: any): void {
     }
 
     const geoWarning = checkCoordinateDistance(stop.lat, stop.lng)
+    const markerFillColor = geoWarning.suspiciousDistance ? '#F59E0B' : normalizeMarkerColor(stop.markerColor)
     const icon: any = {
       path: googleMaps.maps.SymbolPath.CIRCLE,
-      fillColor: geoWarning.suspiciousDistance ? '#F59E0B' : normalizeMarkerColor(stop.markerColor),
+      fillColor: markerFillColor,
       fillOpacity: 1,
       strokeColor: geoWarning.suspiciousDistance ? '#D97706' : '#ffffff',
-      strokeWeight: geoWarning.suspiciousDistance ? 2 : 1.5,
-      scale: geoWarning.suspiciousDistance ? 12 : 11,
+      strokeWeight: geoWarning.suspiciousDistance ? 2.5 : 2,
+      scale: geoWarning.suspiciousDistance ? 13 : 12,
     }
 
     const marker = new googleMaps.maps.Marker({
@@ -267,10 +368,12 @@ function renderMarkers(googleMaps: any): void {
       position: { lat: stop.lat, lng: stop.lng },
       label: {
         text: String(stop.order),
-        color: geoWarning.suspiciousDistance ? '#92400E' : '#ffffff',
+        color: geoWarning.suspiciousDistance ? '#92400E' : contrastTextColor(markerFillColor),
         fontWeight: '700',
+        fontSize: '13px',
       },
       icon,
+      zIndex: 1000 + stop.order,
       title: geoWarning.suspiciousDistance
         ? `${stop.order}. ${stop.propertyName} - Possible location issue (${geoWarning.distanceLabel} from depot)`
         : `${stop.order}. ${stop.propertyName}`,
@@ -372,7 +475,7 @@ async function renderDirectionsAndMetrics(googleMaps: any): Promise<void> {
     directionsRenderer.value = new googleMaps.maps.DirectionsRenderer({
       map: mapInstance.value,
       suppressMarkers: true,
-      preserveViewport: false,
+      preserveViewport: true,
       polylineOptions: {
         strokeColor: '#0B63F3',
         strokeOpacity: 1,
@@ -383,6 +486,7 @@ async function renderDirectionsAndMetrics(googleMaps: any): Promise<void> {
 
     // SET THE DIRECTIONS - THIS RENDERS THE ROUTE LINE
     directionsRenderer.value.setDirections(directions)
+    directionsResult.value = directions
 
     // Calculate travel metrics from the response
     const routeLegs = directions.routes?.[0]?.legs ?? []
@@ -414,7 +518,7 @@ async function renderDirectionsAndMetrics(googleMaps: any): Promise<void> {
     emitRouteMetrics(baseMetrics.map((metric) => metricsByStopId[metric.stopId] ?? metric))
 
     // FIT BOUNDS AFTER DRAWING ROUTE
-    fitToStops(googleMaps)
+    fitToCompleteRoute(googleMaps)
   } catch (err) {
     // Error case: emit base metrics with geo warnings
     emitRouteMetrics(baseMetrics.map((m) => metricsByStopId[m.stopId] ?? m))

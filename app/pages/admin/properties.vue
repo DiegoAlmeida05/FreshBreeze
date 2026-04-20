@@ -166,7 +166,7 @@ definePageMeta({
 
 const { signOut } = useAuth()
 const { fetchClients } = useClients()
-const { fetchProperties, getPropertyById, createProperty, updateProperty, replacePropertyKeys, replacePropertyResources } = useProperties()
+const { fetchProperties, createProperty, updateProperty, replacePropertyKeys, replacePropertyResources } = useProperties()
 
 const properties = ref<PropertyDTO[]>([])
 const clients = ref<ClientDTO[]>([])
@@ -269,22 +269,11 @@ async function openEditForm(property: PropertyDTO): Promise<void> {
   pageError.value = ''
   pageSuccess.value = ''
 
-  try {
-    const loaded = await getPropertyById(property.id)
-
-    if (!loaded) {
-      pageError.value = 'Property not found.'
-      return
-    }
-
-    selectedProperty.value = loaded
-    editingPropertyId.value = loaded.id
-    isFormDirty.value = false
-    isDiscardConfirmOpen.value = false
-    isFormOpen.value = true
-  } catch (err: unknown) {
-    pageError.value = err instanceof Error ? err.message : 'Failed to load property.'
-  }
+  selectedProperty.value = property
+  editingPropertyId.value = property.id
+  isFormDirty.value = false
+  isDiscardConfirmOpen.value = false
+  isFormOpen.value = true
 }
 
 function closeForm(): void {

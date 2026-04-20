@@ -120,6 +120,7 @@
 
           <div class="modal-body">
             <EmployeeForm
+              :key="formInstanceKey"
               :mode="editingEmployeeId ? 'edit' : 'create'"
               :employee="selectedEmployee"
               :is-submitting="isSubmitting"
@@ -147,7 +148,7 @@ import type { CreateEmployeeFormPayload, EmployeeFormPayload } from '../../compo
 
 const { signOut, getProfile } = useAuth()
 const { createUser } = useCreateUser()
-const { getEmployees, getEmployeeById, updateEmployee } = useEmployees()
+const { getEmployees, getEmployeeById, updateEmployee, updateEmployeeUserRole } = useEmployees()
 
 const employees = ref<EmployeeDTO[]>([])
 const selectedEmployee = ref<EmployeeDTO | null>(null)
@@ -155,6 +156,8 @@ const editingEmployeeId = ref<string | null>(null)
 const isLoading = ref(false)
 const isSubmitting = ref(false)
 const isFormOpen = ref(false)
+const formInstanceKey = ref(0)
+const currentAdminProfileId = ref<string | null>(null)
 const canDeleteUsers = ref(false)
 const pageError = ref('')
 const pageSuccess = ref('')
@@ -223,8 +226,10 @@ async function loadPermissions(): Promise<void> {
   try {
     const profile = await getProfile()
     canDeleteUsers.value = profile.role === 'admin'
+    currentAdminProfileId.value = profile.id
   } catch {
     canDeleteUsers.value = false
+    currentAdminProfileId.value = null
   }
 }
 
@@ -244,6 +249,7 @@ async function loadEmployees(): Promise<void> {
 function openCreateForm(): void {
   selectedEmployee.value = null
   editingEmployeeId.value = null
+  formInstanceKey.value += 1
   pageError.value = ''
   pageSuccess.value = ''
   isFormOpen.value = true
@@ -263,6 +269,7 @@ async function openEditForm(employee: EmployeeDTO): Promise<void> {
 
     selectedEmployee.value = loaded
     editingEmployeeId.value = loaded.id
+    formInstanceKey.value += 1
     isFormOpen.value = true
   } catch (err: unknown) {
     pageError.value = err instanceof Error ? err.message : 'Failed to load employee.'
@@ -283,19 +290,38 @@ async function onSubmitForm(payload: EmployeeFormPayload | CreateEmployeeFormPay
   try {
     if (editingEmployeeId.value) {
       // Edit mode: update only the employees table
+      const editPayload = payload as EmployeeFormPayload
+
       const updatePayload: UpdateEmployeeDTO = {
-        full_name: payload.full_name,
-        email: payload.email,
-        phone: payload.phone,
-        address: payload.address,
-        abn: payload.abn,
-        hourly_rate_weekday: payload.hourly_rate_weekday,
-        hourly_rate_sunday: payload.hourly_rate_sunday,
-        hourly_rate_holiday: payload.hourly_rate_holiday,
-        active: payload.active,
+        full_name: editPayload.full_name,
+        email: editPayload.email,
+        phone: editPayload.phone,
+        address: editPayload.address,
+        abn: editPayload.abn,
+        hourly_rate_weekday: editPayload.hourly_rate_weekday,
+        hourly_rate_sunday: editPayload.hourly_rate_sunday,
+        hourly_rate_holiday: editPayload.hourly_rate_holiday,
+        active: editPayload.active,
       }
 
       await updateEmployee(editingEmployeeId.value, updatePayload)
+
+      const previousRole = selectedEmployee.value?.role ?? 'worker'
+      const nextRole = editPayload.role
+      const userId = selectedEmployee.value?.profile_id
+
+      if (nextRole !== previousRole) {
+        if (!userId) {
+          throw new Error('Cannot update role for this user because profile_id is missing.')
+        }
+
+        if (userId === currentAdminProfileId.value && nextRole !== 'admin') {
+          throw new Error('You cannot remove your own admin role.')
+        }
+
+        await updateEmployeeUserRole(userId, nextRole)
+      }
+
       pageSuccess.value = 'Employee updated successfully.'
     } else {
       // Create mode: call the secure API endpoint

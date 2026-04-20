@@ -84,6 +84,42 @@
             </svg>
             <span v-if="!isDesktopCollapsed">Schedule</span>
           </NuxtLink>
+
+          <NuxtLink
+            to="/worker/timesheet"
+            :title="isDesktopCollapsed ? 'Timesheet' : undefined"
+            class="flex items-center gap-3 rounded-xl border border-transparent px-3 py-2 text-sm font-medium transition"
+            active-class="border-primary-300/60 bg-gradient-to-r from-primary-500/15 to-primary-warm-500/10 text-primary-700 shadow-sm shadow-primary-500/10"
+            :class="[
+              isDesktopCollapsed ? 'justify-center px-0' : '',
+              route.path === '/worker/timesheet' ? '' : 'text-muted hover:border-primary-200/70 hover:bg-primary-500/10 hover:text-foreground',
+            ]"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M3 3v18h18" />
+              <path d="M7 14l3-3 3 2 4-5" />
+            </svg>
+            <span v-if="!isDesktopCollapsed">Timesheet</span>
+          </NuxtLink>
+
+          <NuxtLink
+            to="/worker/invoice"
+            :title="isDesktopCollapsed ? 'Invoice' : undefined"
+            class="flex items-center gap-3 rounded-xl border border-transparent px-3 py-2 text-sm font-medium transition"
+            active-class="border-primary-300/60 bg-gradient-to-r from-primary-500/15 to-primary-warm-500/10 text-primary-700 shadow-sm shadow-primary-500/10"
+            :class="[
+              isDesktopCollapsed ? 'justify-center px-0' : '',
+              route.path === '/worker/invoice' ? '' : 'text-muted hover:border-primary-200/70 hover:bg-primary-500/10 hover:text-foreground',
+            ]"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="3" y="3" width="18" height="18" rx="2" />
+              <path d="M7 8h10" />
+              <path d="M7 12h10" />
+              <path d="M7 16h7" />
+            </svg>
+            <span v-if="!isDesktopCollapsed">Invoice</span>
+          </NuxtLink>
         </slot>
       </nav>
 

@@ -1,6 +1,7 @@
 export interface EmployeeDTO {
   id: string
   profile_id: string | null
+  role: 'admin' | 'worker'
   full_name: string
   email: string | null
   phone: string | null

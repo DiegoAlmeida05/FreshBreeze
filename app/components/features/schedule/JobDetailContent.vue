@@ -47,7 +47,20 @@
         <div class="mt-3 grid grid-cols-1 gap-3 lg:grid-cols-3">
           <article class="rounded-lg border border-primary-100 bg-primary-50/35 p-3 dark:border-white/10 dark:bg-white/5">
             <p class="text-[11px] font-semibold uppercase tracking-wide text-muted">Property name</p>
-            <p class="mt-1 text-sm font-semibold text-foreground">{{ jobDetail.propertyName }}</p>
+            <div class="mt-1 flex items-center gap-2">
+              <p class="text-sm font-semibold text-foreground">{{ jobDetail.propertyName }}</p>
+              <button
+                type="button"
+                class="inline-flex h-7 gap-1 items-center rounded px-2 py-1 text-[11px] font-medium text-primary-600 transition hover:bg-primary-100/50 dark:text-primary-400 dark:hover:bg-white/10"
+                title="Copy property name"
+                @click="copyToClipboard(jobDetail.propertyName, 'property-name')"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="h-3 w-3">
+                  <path d="M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z" />
+                </svg>
+                {{ isCopied('property-name') ? 'Copied!' : 'Copy' }}
+              </button>
+            </div>
           </article>
 
           <article class="rounded-lg border border-primary-100 bg-primary-50/35 p-3 dark:border-white/10 dark:bg-white/5">
@@ -75,12 +88,12 @@
                 type="button"
                 class="inline-flex h-7 gap-1 items-center rounded px-2 py-1 text-[11px] font-medium text-primary-600 transition hover:bg-primary-100/50 dark:text-primary-400 dark:hover:bg-white/10"
                 title="Copy address"
-                @click="copyToClipboard(jobDetail.address)"
+                @click="copyToClipboard(jobDetail.address, 'property-address')"
               >
                 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="h-3 w-3">
                   <path d="M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z" />
                 </svg>
-                Copy
+                {{ isCopied('property-address') ? 'Copied!' : 'Copy' }}
               </button>
             </div>
           </article>
@@ -150,12 +163,12 @@
                   type="button"
                   class="inline-flex h-6 gap-1 items-center rounded px-1.5 py-0.5 text-[10px] font-medium text-primary-600 transition hover:bg-primary-100/50 dark:text-primary-400 dark:hover:bg-white/10"
                   title="Copy address"
-                  @click="copyToClipboard(item.pickupAddress)"
+                  @click="copyToClipboard(item.pickupAddress, `key-pickup-address-${index}`)"
                 >
                   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="h-3 w-3">
                     <path d="M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z" />
                   </svg>
-                  Copy
+                  {{ isCopied(`key-pickup-address-${index}`) ? 'Copied!' : 'Copy' }}
                 </button>
               </div>
               <p v-if="item.note" class="mt-1 text-xs text-muted">Note: {{ item.note }}</p>
@@ -290,7 +303,7 @@
         <div class="mb-3 flex items-center justify-between gap-2">
           <h3 class="text-sm font-semibold text-foreground">Reports</h3>
           <div class="flex items-center gap-2">
-            <span class="inline-flex rounded-full bg-primary-100 px-2.5 py-1 text-xs font-semibold text-primary-700 dark:bg-white/10 dark:text-white">{{ reports.length }}</span>
+            <span class="inline-flex rounded-full bg-primary-100 px-2.5 py-1 text-xs font-semibold text-primary-700 dark:bg-white/10 dark:text-white">{{ openReports.length }}</span>
             <button
               type="button"
               class="btn-primary !px-3 !py-1.5 text-xs"
@@ -320,7 +333,7 @@
           <div class="h-20 animate-pulse rounded-xl border border-primary-100 bg-primary-100/40" />
         </div>
 
-        <div v-else-if="reports.length === 0" class="rounded-lg border border-dashed border-primary-200/80 px-4 py-8 text-center text-sm text-muted">
+        <div v-else-if="openReports.length === 0" class="rounded-lg border border-dashed border-primary-200/80 px-4 py-8 text-center text-sm text-muted">
           No reports for this property.
         </div>
 
@@ -848,6 +861,8 @@ const isReportDetailModalOpen = ref(false)
 const selectedReportForDetail = ref<PropertyReportAdminListItemDTO | null>(null)
 const errorFeedbackTimer = ref<ReturnType<typeof setTimeout> | null>(null)
 const successFeedbackTimer = ref<ReturnType<typeof setTimeout> | null>(null)
+const copiedToken = ref<string | null>(null)
+const copyFeedbackTimer = ref<ReturnType<typeof setTimeout> | null>(null)
 
 watch(errorMessage, (message) => {
   if (errorFeedbackTimer.value) {
@@ -887,6 +902,9 @@ onBeforeUnmount(() => {
   }
   if (successFeedbackTimer.value) {
     clearTimeout(successFeedbackTimer.value)
+  }
+  if (copyFeedbackTimer.value) {
+    clearTimeout(copyFeedbackTimer.value)
   }
 })
 
@@ -1306,8 +1324,8 @@ async function onUpdateReport(payload: ReportFormPayload): Promise<void> {
     const removedGalleryPhotos = removedExistingReportPhotos.value.filter((item) => item.source === 'gallery')
     const removedLegacyPhotos = removedExistingReportPhotos.value.filter((item) => item.source === 'legacy')
 
-    for (const photo of removedLegacyPhotos) {
-      await deleteReportPhoto(photo.url)
+    if (removedLegacyPhotos.length > 0) {
+      await Promise.all(removedLegacyPhotos.map((photo) => deleteReportPhoto(photo.url)))
     }
 
     if (removedLegacyPhotos.length > 0) {
@@ -1315,9 +1333,7 @@ async function onUpdateReport(payload: ReportFormPayload): Promise<void> {
     }
 
     if (removedGalleryPhotos.length > 0) {
-      for (const photo of removedGalleryPhotos) {
-        await deleteReportPhoto(photo.url)
-      }
+      await Promise.all(removedGalleryPhotos.map((photo) => deleteReportPhoto(photo.url)))
 
       await deletePhotos(editingReportId.value, removedGalleryPhotos.map((photo) => photo.id))
     }
@@ -1489,7 +1505,11 @@ async function loadJobDetail(): Promise<void> {
 
     const property = propertyData as PropertyRow
 
-    const [{ data: propertyKeyData, error: propertyKeyError }, { data: propertyResourceData, error: propertyResourceError }] = await Promise.all([
+    const [
+      { data: propertyKeyData, error: propertyKeyError },
+      { data: propertyResourceData, error: propertyResourceError },
+      { data: clientData, error: clientError },
+    ] = await Promise.all([
       supabase
         .from('property_keys')
         .select('property_id, label, pickup_address, note, attachment_url')
@@ -1502,6 +1522,11 @@ async function loadJobDetail(): Promise<void> {
         .eq('property_id', property.id)
         .order('sort_order', { ascending: true })
         .order('created_at', { ascending: true }),
+      supabase
+        .from('clients')
+        .select('id, name')
+        .eq('id', property.client_id)
+        .maybeSingle(),
     ])
 
     if (propertyKeyError) {
@@ -1512,19 +1537,13 @@ async function loadJobDetail(): Promise<void> {
       throw new Error(propertyResourceError.message)
     }
 
-    const propertyKeys = (propertyKeyData ?? []) as PropertyKeyRow[]
-    const propertyResources = ((propertyResourceData ?? []) as PropertyResourceRow[])
-      .filter((item) => item.resource_type === 'link' && typeof item.url === 'string' && item.url.trim().length > 0)
-
-    const { data: clientData, error: clientError } = await supabase
-      .from('clients')
-      .select('id, name')
-      .eq('id', property.client_id)
-      .maybeSingle()
-
     if (clientError) {
       throw new Error(clientError.message)
     }
+
+    const propertyKeys = (propertyKeyData ?? []) as PropertyKeyRow[]
+    const propertyResources = ((propertyResourceData ?? []) as PropertyResourceRow[])
+      .filter((item) => item.resource_type === 'link' && typeof item.url === 'string' && item.url.trim().length > 0)
 
     const client = (clientData as ClientRow | null)
 
@@ -1617,6 +1636,8 @@ async function onCreateReport(payload: ReportFormPayload): Promise<void> {
   successMessage.value = ''
 
   try {
+    const pendingFiles = createPendingReportPhotos.value.map((item) => item.file)
+
     const newReport = await createReport({
       property_id: jobDetail.value.propertyId,
       daily_task_id: jobDetail.value.dailyTaskId,
@@ -1625,17 +1646,27 @@ async function onCreateReport(payload: ReportFormPayload): Promise<void> {
       description_pt: payload.descriptionPt,
     })
 
-    if (createPendingReportPhotos.value.length > 0) {
-      const filesToUpload = createPendingReportPhotos.value.map((item) => item.file)
-      const uploadedUrls = await uploadReportPhotos(filesToUpload)
-      await createPhotos(newReport.id, uploadedUrls)
-    }
-
+    // Close modal immediately after report row creation for a snappier mobile UX.
     resetCreateReportState()
     isCreateReportModalOpen.value = false
 
+    const optimisticReport: PropertyReportAdminListItemDTO = {
+      ...(newReport as PropertyReportAdminListItemDTO),
+      property_name: jobDetail.value.propertyName,
+      client_name: jobDetail.value.clientName,
+      created_by_name: currentProfile.value?.full_name ?? null,
+      resolved_by_name: null,
+    }
+    reports.value = [optimisticReport, ...reports.value.filter((item) => item.id !== optimisticReport.id)]
+
+    if (pendingFiles.length > 0) {
+      const uploadedUrls = await uploadReportPhotos(pendingFiles)
+      await createPhotos(newReport.id, uploadedUrls)
+    }
+
     successMessage.value = 'Report created successfully.'
-    await loadReports()
+    // Refresh in background so gallery/status metadata is fully up to date.
+    void loadReports()
   } catch (err) {
     errorMessage.value = err instanceof Error ? err.message : 'Failed to create report.'
   } finally {
@@ -1721,9 +1752,7 @@ async function confirmDeleteReport(): Promise<void> {
     const report = reports.value.find((item) => item.id === reportId)
     const photoUrls = report ? reportGallery(report) : []
 
-    for (const photoUrl of photoUrls) {
-      await deleteReportPhoto(photoUrl)
-    }
+    await Promise.all(photoUrls.map((photoUrl) => deleteReportPhoto(photoUrl)))
 
     await deleteReport(reportId)
     successMessage.value = 'Report deleted successfully.'
@@ -1766,11 +1795,65 @@ async function onAdminStatusChange(reportId: string, status: PropertyReportStatu
   }
 }
 
-function copyToClipboard(text: string): void {
-  navigator.clipboard.writeText(text).catch((err) => {
+function markCopied(token: string): void {
+  copiedToken.value = token
+
+  if (copyFeedbackTimer.value) {
+    clearTimeout(copyFeedbackTimer.value)
+  }
+
+  copyFeedbackTimer.value = setTimeout(() => {
+    copiedToken.value = null
+    copyFeedbackTimer.value = null
+  }, 1600)
+}
+
+function isCopied(token: string): boolean {
+  return copiedToken.value === token
+}
+
+async function copyToClipboard(text: string, token = 'default'): Promise<void> {
+  const value = text?.trim() ?? ''
+
+  if (!value) {
+    errorMessage.value = 'Nothing to copy.'
+    return
+  }
+
+  errorMessage.value = ''
+
+  try {
+    if (navigator?.clipboard?.writeText) {
+      await navigator.clipboard.writeText(value)
+      markCopied(token)
+      return
+    }
+  } catch {
+    // Fallback is handled below for browsers/devices that block Clipboard API.
+  }
+
+  try {
+    const textarea = document.createElement('textarea')
+    textarea.value = value
+    textarea.setAttribute('readonly', '')
+    textarea.style.position = 'fixed'
+    textarea.style.opacity = '0'
+    textarea.style.pointerEvents = 'none'
+    document.body.appendChild(textarea)
+    textarea.focus()
+    textarea.select()
+    const didCopy = document.execCommand('copy')
+    document.body.removeChild(textarea)
+
+    if (!didCopy) {
+      throw new Error('execCommand copy failed')
+    }
+
+    markCopied(token)
+  } catch (err) {
     errorMessage.value = 'Failed to copy to clipboard.'
     console.error(err)
-  })
+  }
 }
 
 function openNavigationSheet(target: { address?: string | null; lat?: number | null; lng?: number | null }): void {

@@ -3,10 +3,17 @@ import { useSupabaseClient } from './useSupabaseClient'
 
 const employeeSelectFieldsBase = 'id, profile_id, full_name, email, phone, address, abn, photo_url, hourly_rate_weekday, hourly_rate_sunday, hourly_rate_holiday, active, created_at, updated_at'
 
-function toEmployeeDTO(row: Record<string, unknown>): EmployeeDTO {
+type UserRole = 'admin' | 'worker'
+
+function normalizeRole(value: unknown): 'admin' | 'worker' {
+  return value === 'admin' ? 'admin' : 'worker'
+}
+
+function toEmployeeDTO(row: Record<string, unknown>, role: 'admin' | 'worker' = 'worker'): EmployeeDTO {
   return {
     id: String(row.id),
     profile_id: (row.profile_id ?? null) as string | null,
+    role,
     full_name: String(row.full_name ?? ''),
     email: (row.email ?? null) as string | null,
     phone: (row.phone ?? null) as string | null,
@@ -25,6 +32,53 @@ function toEmployeeDTO(row: Record<string, unknown>): EmployeeDTO {
 export function useEmployees() {
   const supabase = useSupabaseClient()
 
+  async function loadRoleMap(profileIds: string[]): Promise<Map<string, 'admin' | 'worker'>> {
+    const roleMap = new Map<string, 'admin' | 'worker'>()
+
+    if (profileIds.length === 0) {
+      return roleMap
+    }
+
+    const {
+      data: { session },
+    } = await supabase.auth.getSession()
+
+    if (!session?.access_token) {
+      throw new Error('No active session. Please log in first.')
+    }
+
+    const response = await fetch('/api/admin/profiles-roles', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${session.access_token}`,
+      },
+      body: JSON.stringify({ profileIds }),
+    })
+
+    if (!response.ok) {
+      let message = `API error: ${response.status}`
+
+      try {
+        const body = await response.json() as { statusMessage?: string; message?: string }
+        message = body.statusMessage || body.message || message
+      } catch {
+        // Keep default message when response is not JSON.
+      }
+
+      throw new Error(message)
+    }
+
+    const payload = await response.json() as { roles?: Record<string, UserRole> }
+    const roles = payload.roles ?? {}
+
+    for (const [id, role] of Object.entries(roles)) {
+      roleMap.set(id, normalizeRole(role))
+    }
+
+    return roleMap
+  }
+
   async function getEmployees(): Promise<EmployeeDTO[]> {
     const { data, error } = await supabase
       .from('employees')
@@ -35,7 +89,17 @@ export function useEmployees() {
       throw new Error(error.message)
     }
 
-    return (data ?? []).map((row) => toEmployeeDTO(row as Record<string, unknown>))
+    const employeeRows = (data ?? []) as Record<string, unknown>[]
+    const profileIds = employeeRows
+      .map((row) => row.profile_id)
+      .filter((value): value is string => typeof value === 'string' && value.trim().length > 0)
+
+    const roleMap = await loadRoleMap(profileIds)
+
+    return employeeRows.map((row) => {
+      const profileId = typeof row.profile_id === 'string' ? row.profile_id : null
+      return toEmployeeDTO(row, profileId ? (roleMap.get(profileId) ?? 'worker') : 'worker')
+    })
   }
 
   async function getEmployeeById(id: string): Promise<EmployeeDTO | null> {
@@ -49,7 +113,19 @@ export function useEmployees() {
       throw new Error(error.message)
     }
 
-    return data ? toEmployeeDTO(data as Record<string, unknown>) : null
+    if (!data) {
+      return null
+    }
+
+    const employeeRow = data as Record<string, unknown>
+    const profileId = typeof employeeRow.profile_id === 'string' ? employeeRow.profile_id : null
+
+    if (!profileId) {
+      return toEmployeeDTO(employeeRow, 'worker')
+    }
+
+    const roleMap = await loadRoleMap([profileId])
+    return toEmployeeDTO(employeeRow, roleMap.get(profileId) ?? 'worker')
   }
 
   async function createEmployee(payload: CreateEmployeeDTO): Promise<EmployeeDTO> {
@@ -63,7 +139,7 @@ export function useEmployees() {
       throw new Error(error?.message ?? 'Failed to create employee.')
     }
 
-    return toEmployeeDTO(data as Record<string, unknown>)
+    return toEmployeeDTO(data as Record<string, unknown>, 'worker')
   }
 
   async function updateEmployee(id: string, payload: UpdateEmployeeDTO): Promise<EmployeeDTO> {
@@ -78,7 +154,15 @@ export function useEmployees() {
       throw new Error(error?.message ?? 'Failed to update employee.')
     }
 
-    return toEmployeeDTO(data as Record<string, unknown>)
+    const employeeRow = data as Record<string, unknown>
+    const profileId = typeof employeeRow.profile_id === 'string' ? employeeRow.profile_id : null
+
+    if (!profileId) {
+      return toEmployeeDTO(employeeRow, 'worker')
+    }
+
+    const roleMap = await loadRoleMap([profileId])
+    return toEmployeeDTO(employeeRow, roleMap.get(profileId) ?? 'worker')
   }
 
   async function deleteEmployee(id: string): Promise<void> {
@@ -124,6 +208,38 @@ export function useEmployees() {
     }
   }
 
+  async function updateEmployeeUserRole(userId: string, role: 'admin' | 'worker'): Promise<void> {
+    const {
+      data: { session },
+    } = await supabase.auth.getSession()
+
+    if (!session?.access_token) {
+      throw new Error('No active session. Please log in first.')
+    }
+
+    const response = await fetch('/api/admin/update-user-role', {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${session.access_token}`,
+      },
+      body: JSON.stringify({ userId, role }),
+    })
+
+    if (!response.ok) {
+      let message = `API error: ${response.status}`
+
+      try {
+        const body = await response.json() as { statusMessage?: string; message?: string }
+        message = body.statusMessage || body.message || message
+      } catch {
+        // Keep default message when response is not JSON.
+      }
+
+      throw new Error(message)
+    }
+  }
+
   return {
     getEmployees,
     getEmployeeById,
@@ -131,5 +247,6 @@ export function useEmployees() {
     updateEmployee,
     deleteEmployee,
     deleteEmployeeUser,
+    updateEmployeeUserRole,
   }
 }
