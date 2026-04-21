@@ -208,7 +208,7 @@
       <!-- Page content -->
       <main
         ref="mainScrollContainer"
-        class="relative min-h-0 min-w-0 flex-1 overflow-x-hidden overflow-y-auto px-4 pb-24 pt-4 sm:px-6 sm:pb-24 sm:pt-4 lg:px-6 lg:pb-8 lg:pt-4"
+        class="relative min-h-0 min-w-0 flex-1 overflow-x-hidden overflow-y-auto px-4 pb-28 pt-4 sm:px-6 sm:pb-24 sm:pt-4 lg:px-6 lg:pb-8 lg:pt-4"
       >
         <div class="pointer-events-none absolute -left-16 top-8 h-56 w-56 rounded-full bg-primary-500/10 blur-3xl dark:bg-white/5" />
         <div class="pointer-events-none absolute -right-20 bottom-12 h-64 w-64 rounded-full bg-primary-warm-500/10 blur-3xl dark:bg-white/5" />
@@ -223,7 +223,10 @@
         class="fixed bottom-0 left-0 right-0 z-40 lg:hidden"
         aria-label="Main navigation"
       >
-        <div class="border-t border-border bg-white/90 backdrop-blur-xl dark:border-white/10 dark:bg-neutral-950/95">
+        <div
+          class="border-t border-border bg-white/90 backdrop-blur-xl dark:border-white/10 dark:bg-neutral-950/95"
+          style="padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 0.5rem);"
+        >
           <div class="flex items-stretch justify-around">
 
             <!-- Schedule -->
@@ -299,8 +302,6 @@
             </NuxtLink>
 
           </div>
-          <!-- iOS safe area spacing -->
-          <div class="h-safe-bottom" style="height: env(safe-area-inset-bottom, 0px);" />
         </div>
       </nav>
     </div>
