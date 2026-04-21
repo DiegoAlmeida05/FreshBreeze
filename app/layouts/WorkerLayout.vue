@@ -173,11 +173,11 @@
       <!-- Topbar -->
       <header class="shrink-0 px-4 pt-4 sm:px-6 lg:px-6">
         <div class="flex h-16 items-center rounded-[30px] border border-white/65 bg-white/72 px-4 shadow-[0_18px_40px_rgba(15,23,42,0.08)] backdrop-blur-xl sm:px-5 lg:px-6 dark:border-white/10 dark:bg-white/[0.03] dark:shadow-[0_24px_60px_rgba(0,0,0,0.38)]">
-          <!-- Hamburger (mobile) -->
+          <!-- Hamburger (desktop only — mobile uses bottom nav) -->
           <button
             id="worker-sidebar-toggle"
             type="button"
-            class="inline-flex items-center justify-center rounded-lg p-2 text-muted transition hover:bg-surface-soft hover:text-foreground lg:hidden"
+            class="hidden items-center justify-center rounded-lg p-2 text-muted transition hover:bg-surface-soft hover:text-foreground lg:inline-flex"
             :aria-expanded="sidebarOpen"
             aria-controls="worker-sidebar"
             @click="sidebarOpen = !sidebarOpen"
@@ -191,7 +191,7 @@
           </button>
 
           <!-- Page title / greeting -->
-          <div class="ml-2 flex min-w-0 flex-1 items-center gap-2 text-left lg:ml-0">
+          <div class="flex min-w-0 flex-1 items-center gap-2 text-left lg:ml-0">
             <div class="min-w-0">
               <p class="text-xs font-medium uppercase tracking-[0.2em] text-muted">Welcome</p>
               <h1 class="truncate text-base font-semibold text-foreground">{{ fullName || greetingName }}! 😎 🚀</h1>
@@ -206,7 +206,7 @@
       </header>
 
       <!-- Page content -->
-      <main class="relative min-h-0 min-w-0 flex-1 overflow-x-hidden overflow-y-auto px-4 pb-4 pt-4 sm:px-6 sm:pb-6 sm:pt-4 lg:px-6 lg:pb-8 lg:pt-4">
+      <main class="relative min-h-0 min-w-0 flex-1 overflow-x-hidden overflow-y-auto px-4 pb-24 pt-4 sm:px-6 sm:pb-24 sm:pt-4 lg:px-6 lg:pb-8 lg:pt-4">
         <div class="pointer-events-none absolute -left-16 top-8 h-56 w-56 rounded-full bg-primary-500/10 blur-3xl dark:bg-white/5" />
         <div class="pointer-events-none absolute -right-20 bottom-12 h-64 w-64 rounded-full bg-primary-warm-500/10 blur-3xl dark:bg-white/5" />
 
@@ -214,6 +214,92 @@
           <slot />
         </div>
       </main>
+
+      <!-- Bottom Navigation (mobile only) -->
+      <nav
+        class="fixed bottom-0 left-0 right-0 z-40 lg:hidden"
+        aria-label="Main navigation"
+      >
+        <div class="border-t border-border bg-white/90 backdrop-blur-xl dark:border-white/10 dark:bg-neutral-950/95">
+          <div class="flex items-stretch justify-around">
+
+            <!-- Schedule -->
+            <NuxtLink
+              to="/worker/schedule"
+              class="flex flex-1 flex-col items-center justify-center gap-0.5 px-2 py-3 text-center transition"
+              :class="route.path === '/worker/schedule' ? 'text-primary-600 dark:text-primary-400' : 'text-muted hover:text-foreground'"
+              aria-label="Schedule"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
+                <line x1="16" y1="2" x2="16" y2="6" />
+                <line x1="8" y1="2" x2="8" y2="6" />
+                <line x1="3" y1="10" x2="21" y2="10" />
+              </svg>
+              <span class="text-[10px] font-semibold leading-none">Schedule</span>
+            </NuxtLink>
+
+            <!-- Timesheet -->
+            <NuxtLink
+              to="/worker/timesheet"
+              class="flex flex-1 flex-col items-center justify-center gap-0.5 px-2 py-3 text-center transition"
+              :class="route.path === '/worker/timesheet' ? 'text-primary-600 dark:text-primary-400' : 'text-muted hover:text-foreground'"
+              aria-label="Timesheet"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M3 3v18h18" />
+                <path d="M7 14l3-3 3 2 4-5" />
+              </svg>
+              <span class="text-[10px] font-semibold leading-none">Timesheet</span>
+            </NuxtLink>
+
+            <!-- Invoice -->
+            <NuxtLink
+              to="/worker/invoice"
+              class="flex flex-1 flex-col items-center justify-center gap-0.5 px-2 py-3 text-center transition"
+              :class="route.path === '/worker/invoice' ? 'text-primary-600 dark:text-primary-400' : 'text-muted hover:text-foreground'"
+              aria-label="Invoice"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <rect x="3" y="3" width="18" height="18" rx="2" />
+                <path d="M7 8h10" />
+                <path d="M7 12h10" />
+                <path d="M7 16h7" />
+              </svg>
+              <span class="text-[10px] font-semibold leading-none">Invoice</span>
+            </NuxtLink>
+
+            <!-- Settings -->
+            <NuxtLink
+              to="/worker/settings"
+              class="flex flex-1 flex-col items-center justify-center gap-0.5 px-2 py-3 text-center transition"
+              :class="route.path === '/worker/settings' ? 'text-primary-600 dark:text-primary-400' : 'text-muted hover:text-foreground'"
+              aria-label="Settings"
+            >
+              <div class="relative h-5 w-5 shrink-0">
+                <img
+                  v-if="avatarUrl"
+                  :src="avatarUrl"
+                  alt=""
+                  class="h-5 w-5 rounded-full object-cover"
+                  :class="route.path === '/worker/settings' ? 'ring-2 ring-primary-500' : ''"
+                />
+                <div
+                  v-else
+                  class="flex h-5 w-5 items-center justify-center rounded-full bg-gradient-to-br from-primary-300 to-primary-500 text-[9px] font-bold text-white"
+                  :class="route.path === '/worker/settings' ? 'ring-2 ring-primary-500' : ''"
+                >
+                  {{ avatarInitial }}
+                </div>
+              </div>
+              <span class="text-[10px] font-semibold leading-none">Settings</span>
+            </NuxtLink>
+
+          </div>
+          <!-- iOS safe area spacing -->
+          <div class="h-safe-bottom" style="height: env(safe-area-inset-bottom, 0px);" />
+        </div>
+      </nav>
     </div>
   </div>
 </template>

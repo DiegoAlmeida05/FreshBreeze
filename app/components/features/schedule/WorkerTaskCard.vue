@@ -70,13 +70,13 @@
         </p>
       </div>
 
-      <div class="mt-1.5 flex items-start justify-between gap-3">
-        <div class="flex flex-wrap items-center gap-x-2.5 gap-y-1 text-[11px] text-muted">
+      <div class="mt-1.5 flex items-start justify-between gap-2">
+        <div class="min-w-0 flex-1 flex-wrap items-center gap-x-2.5 gap-y-1 text-[11px] text-muted">
           <span class="font-semibold text-foreground/90">{{ roomSummary }}</span>
         </div>
-        <div class="shrink-0 text-right text-[11px] font-semibold leading-tight text-foreground/90">
+        <div class="ml-1 shrink-0 whitespace-nowrap text-right text-[11px] font-semibold leading-tight text-foreground/90">
           <p>{{ item.cleaningMinutes }} min</p>
-          <p v-if="item.plannedStartTime && item.plannedEndTime">{{ item.plannedStartTime }} - {{ item.plannedEndTime }}</p>
+          <p v-if="item.plannedStartTime && item.plannedEndTime">{{ item.plannedStartTime }} – {{ item.plannedEndTime }}</p>
         </div>
       </div>
 
