@@ -173,23 +173,6 @@
       <!-- Topbar -->
       <header class="shrink-0 px-4 pt-4 sm:px-6 lg:px-6">
         <div class="flex h-16 items-center rounded-[30px] border border-white/65 bg-white/72 px-4 shadow-[0_18px_40px_rgba(15,23,42,0.08)] backdrop-blur-xl sm:px-5 lg:px-6 dark:border-white/10 dark:bg-white/[0.03] dark:shadow-[0_24px_60px_rgba(0,0,0,0.38)]">
-          <!-- Hamburger (desktop only — mobile uses bottom nav) -->
-          <button
-            id="worker-sidebar-toggle"
-            type="button"
-            class="hidden items-center justify-center rounded-lg p-2 text-muted transition hover:bg-surface-soft hover:text-foreground lg:inline-flex"
-            :aria-expanded="sidebarOpen"
-            aria-controls="worker-sidebar"
-            @click="sidebarOpen = !sidebarOpen"
-          >
-            <span class="sr-only">Open menu</span>
-            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <line x1="4" y1="6" x2="20" y2="6" />
-              <line x1="4" y1="12" x2="20" y2="12" />
-              <line x1="4" y1="18" x2="20" y2="18" />
-            </svg>
-          </button>
-
           <!-- Page title / greeting -->
           <div class="flex min-w-0 flex-1 items-center gap-2 text-left lg:ml-0">
             <div class="min-w-0">
@@ -208,7 +191,7 @@
       <!-- Page content -->
       <main
         ref="mainScrollContainer"
-        class="relative min-h-0 min-w-0 flex-1 overflow-x-hidden overflow-y-auto px-4 pb-28 pt-4 sm:px-6 sm:pb-24 sm:pt-4 lg:px-6 lg:pb-8 lg:pt-4"
+        class="relative min-h-0 min-w-0 flex-1 overflow-x-hidden overflow-y-auto px-4 pb-40 pt-4 sm:px-6 sm:pb-24 sm:pt-4 lg:px-6 lg:pb-8 lg:pt-4"
       >
         <div class="pointer-events-none absolute -left-16 top-8 h-56 w-56 rounded-full bg-primary-500/10 blur-3xl dark:bg-white/5" />
         <div class="pointer-events-none absolute -right-20 bottom-12 h-64 w-64 rounded-full bg-primary-warm-500/10 blur-3xl dark:bg-white/5" />
@@ -220,21 +203,30 @@
 
       <!-- Bottom Navigation (mobile only) -->
       <nav
-        class="fixed bottom-0 left-0 right-0 z-40 lg:hidden"
+        class="fixed left-0 right-0 z-40 px-4 lg:hidden"
+        style="bottom: calc(env(safe-area-inset-bottom, 0px) + 1rem);"
         aria-label="Main navigation"
       >
         <div
-          class="border-t border-border bg-white/90 backdrop-blur-xl dark:border-white/10 dark:bg-neutral-950/95"
-          style="padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 0.5rem);"
+          class="mx-auto w-full max-w-md rounded-[26px] border border-white/70 bg-white/85 p-2 shadow-[0_24px_50px_rgba(15,23,42,0.26)] backdrop-blur-xl dark:border-white/10 dark:bg-neutral-950/90"
         >
-          <div class="flex items-stretch justify-around">
+          <div class="relative grid grid-cols-4 gap-1">
+            <div
+              class="pointer-events-none absolute inset-y-0 left-0 w-1/4 p-0.5 transition-transform duration-300 ease-out"
+              :style="{ transform: `translateX(${activeNavIndex * 100}%)` }"
+              aria-hidden="true"
+            >
+              <div class="h-full rounded-2xl bg-primary-500/15 shadow-[inset_0_0_0_1px_rgba(0,119,230,0.22)] dark:bg-primary-500/20 dark:shadow-[inset_0_0_0_1px_rgba(96,165,250,0.35)]" />
+            </div>
 
             <!-- Schedule -->
             <NuxtLink
               to="/worker/schedule"
-              class="flex flex-1 flex-col items-center justify-center gap-0.5 px-2 py-3 text-center transition"
-              :class="route.path === '/worker/schedule' ? 'text-primary-600 dark:text-primary-400' : 'text-muted hover:text-foreground'"
+              prefetch
+              class="relative z-10 flex touch-manipulation flex-col items-center justify-center gap-1 rounded-2xl px-2 py-3 text-center transition-transform duration-75 active:scale-95"
+              :class="isNavActive('/worker/schedule') ? 'text-primary-700 dark:text-primary-300' : 'text-muted hover:bg-primary-500/10 hover:text-foreground'"
               aria-label="Schedule"
+              @pointerdown="onNavPress('/worker/schedule')"
             >
               <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                 <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
@@ -248,9 +240,11 @@
             <!-- Timesheet -->
             <NuxtLink
               to="/worker/timesheet"
-              class="flex flex-1 flex-col items-center justify-center gap-0.5 px-2 py-3 text-center transition"
-              :class="route.path === '/worker/timesheet' ? 'text-primary-600 dark:text-primary-400' : 'text-muted hover:text-foreground'"
+              prefetch
+              class="relative z-10 flex touch-manipulation flex-col items-center justify-center gap-1 rounded-2xl px-2 py-3 text-center transition-transform duration-75 active:scale-95"
+              :class="isNavActive('/worker/timesheet') ? 'text-primary-700 dark:text-primary-300' : 'text-muted hover:bg-primary-500/10 hover:text-foreground'"
               aria-label="Timesheet"
+              @pointerdown="onNavPress('/worker/timesheet')"
             >
               <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                 <path d="M3 3v18h18" />
@@ -262,9 +256,11 @@
             <!-- Invoice -->
             <NuxtLink
               to="/worker/invoice"
-              class="flex flex-1 flex-col items-center justify-center gap-0.5 px-2 py-3 text-center transition"
-              :class="route.path === '/worker/invoice' ? 'text-primary-600 dark:text-primary-400' : 'text-muted hover:text-foreground'"
+              prefetch
+              class="relative z-10 flex touch-manipulation flex-col items-center justify-center gap-1 rounded-2xl px-2 py-3 text-center transition-transform duration-75 active:scale-95"
+              :class="isNavActive('/worker/invoice') ? 'text-primary-700 dark:text-primary-300' : 'text-muted hover:bg-primary-500/10 hover:text-foreground'"
               aria-label="Invoice"
+              @pointerdown="onNavPress('/worker/invoice')"
             >
               <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                 <rect x="3" y="3" width="18" height="18" rx="2" />
@@ -278,9 +274,11 @@
             <!-- Settings -->
             <NuxtLink
               to="/worker/settings"
-              class="flex flex-1 flex-col items-center justify-center gap-0.5 px-2 py-3 text-center transition"
-              :class="route.path === '/worker/settings' ? 'text-primary-600 dark:text-primary-400' : 'text-muted hover:text-foreground'"
+              prefetch
+              class="relative z-10 flex touch-manipulation flex-col items-center justify-center gap-1 rounded-2xl px-2 py-3 text-center transition-transform duration-75 active:scale-95"
+              :class="isNavActive('/worker/settings') ? 'text-primary-700 dark:text-primary-300' : 'text-muted hover:bg-primary-500/10 hover:text-foreground'"
               aria-label="Settings"
+              @pointerdown="onNavPress('/worker/settings')"
             >
               <div class="relative h-5 w-5 shrink-0">
                 <img
@@ -318,10 +316,12 @@ const emit = defineEmits<{
 }>()
 
 const route = useRoute()
+const MOBILE_NAV_PATHS = ['/worker/schedule', '/worker/timesheet', '/worker/invoice', '/worker/settings'] as const
 const sidebarCollapsed = useState('worker-sidebar-collapsed', () => false)
 const sidebarOpen = ref(false)
 const isDesktop = ref(false)
 const mainScrollContainer = ref<HTMLElement | null>(null)
+const pressedNavPath = ref<string | null>(null)
 const greetingName = ref('there')
 const fullName = ref('')
 const profileEmail = ref('')
@@ -337,6 +337,25 @@ const avatarInitial = computed(() => {
 })
 
 const isDesktopCollapsed = computed(() => isDesktop.value && sidebarCollapsed.value)
+
+const activeNavIndex = computed(() => {
+  const currentPath = pressedNavPath.value ?? route.path
+
+  const index = MOBILE_NAV_PATHS.findIndex((basePath) => {
+    return currentPath === basePath || currentPath.startsWith(`${basePath}/`)
+  })
+
+  return index >= 0 ? index : 0
+})
+
+const isNavActive = (path: string) => {
+  const idx = MOBILE_NAV_PATHS.indexOf(path as typeof MOBILE_NAV_PATHS[number])
+  return idx === activeNavIndex.value
+}
+
+const onNavPress = (path: string) => {
+  pressedNavPath.value = path
+}
 
 const syncDesktopState = (event?: MediaQueryList | MediaQueryListEvent) => {
   isDesktop.value = Boolean(event?.matches)
@@ -380,6 +399,8 @@ const handleVisibilityChange = () => {
 }
 
 watch(() => route.fullPath, () => {
+  pressedNavPath.value = null
+
   if (!isDesktop.value) {
     sidebarOpen.value = false
   }
