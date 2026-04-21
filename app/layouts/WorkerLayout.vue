@@ -206,7 +206,10 @@
       </header>
 
       <!-- Page content -->
-      <main class="relative min-h-0 min-w-0 flex-1 overflow-x-hidden overflow-y-auto px-4 pb-24 pt-4 sm:px-6 sm:pb-24 sm:pt-4 lg:px-6 lg:pb-8 lg:pt-4">
+      <main
+        ref="mainScrollContainer"
+        class="relative min-h-0 min-w-0 flex-1 overflow-x-hidden overflow-y-auto px-4 pb-24 pt-4 sm:px-6 sm:pb-24 sm:pt-4 lg:px-6 lg:pb-8 lg:pt-4"
+      >
         <div class="pointer-events-none absolute -left-16 top-8 h-56 w-56 rounded-full bg-primary-500/10 blur-3xl dark:bg-white/5" />
         <div class="pointer-events-none absolute -right-20 bottom-12 h-64 w-64 rounded-full bg-primary-warm-500/10 blur-3xl dark:bg-white/5" />
 
@@ -317,6 +320,7 @@ const route = useRoute()
 const sidebarCollapsed = useState('worker-sidebar-collapsed', () => false)
 const sidebarOpen = ref(false)
 const isDesktop = ref(false)
+const mainScrollContainer = ref<HTMLElement | null>(null)
 const greetingName = ref('there')
 const fullName = ref('')
 const profileEmail = ref('')
@@ -324,6 +328,7 @@ const avatarUrl = ref('')
 const { getProfile } = useAuth()
 const supabase = useSupabaseClient()
 let desktopMediaQuery: MediaQueryList | null = null
+let rafId = 0
 
 const avatarInitial = computed(() => {
   const name = fullName.value || greetingName.value || 'U'
@@ -340,6 +345,39 @@ const syncDesktopState = (event?: MediaQueryList | MediaQueryListEvent) => {
   }
 }
 
+const resetLayoutViewportState = () => {
+  if (typeof window === 'undefined') return
+
+  // Mobile PWA/iOS can restore stale horizontal offset after reopening.
+  window.scrollTo({ top: 0, left: 0, behavior: 'auto' })
+  document.documentElement.scrollLeft = 0
+  document.body.scrollLeft = 0
+
+  if (mainScrollContainer.value) {
+    mainScrollContainer.value.scrollLeft = 0
+  }
+
+  if (desktopMediaQuery) {
+    syncDesktopState(desktopMediaQuery)
+  }
+}
+
+const handlePageShow = () => {
+  if (rafId) {
+    cancelAnimationFrame(rafId)
+  }
+
+  rafId = window.requestAnimationFrame(() => {
+    resetLayoutViewportState()
+  })
+}
+
+const handleVisibilityChange = () => {
+  if (document.visibilityState === 'visible') {
+    handlePageShow()
+  }
+}
+
 watch(() => route.fullPath, () => {
   if (!isDesktop.value) {
     sidebarOpen.value = false
@@ -350,6 +388,9 @@ onMounted(async () => {
   desktopMediaQuery = window.matchMedia('(min-width: 1024px)')
   syncDesktopState(desktopMediaQuery)
   desktopMediaQuery.addEventListener('change', syncDesktopState)
+  window.addEventListener('pageshow', handlePageShow)
+  document.addEventListener('visibilitychange', handleVisibilityChange)
+  handlePageShow()
 
   try {
     const profile = await getProfile()
@@ -372,6 +413,12 @@ onMounted(async () => {
 })
 
 onBeforeUnmount(() => {
+  if (rafId) {
+    cancelAnimationFrame(rafId)
+  }
+
   desktopMediaQuery?.removeEventListener('change', syncDesktopState)
+  window.removeEventListener('pageshow', handlePageShow)
+  document.removeEventListener('visibilitychange', handleVisibilityChange)
 })
 </script>
