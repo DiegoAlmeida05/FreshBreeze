@@ -98,6 +98,147 @@
           </form>
         </div>
 
+        <!-- Worker-only financial profile section -->
+        <div v-if="isWorker" class="border-b border-primary-100/80 px-6 py-8 sm:px-8 dark:border-white/10">
+          <h3 class="mb-6 text-lg font-semibold text-foreground">Worker Profile (Finance & Rates)</h3>
+
+          <form class="space-y-6" novalidate @submit.prevent="onUpdateWorkerProfile">
+            <div>
+              <h4 class="mb-4 text-sm font-medium text-foreground">Worker Information</h4>
+              <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <div>
+                  <label for="worker-legal-name" class="mb-1.5 block text-sm font-medium text-foreground">Legal name</label>
+                  <input
+                    id="worker-legal-name"
+                    v-model="workerForm.legal_name"
+                    type="text"
+                    class="input-base dark:border-white/10 dark:bg-white/5"
+                    placeholder="Your legal name"
+                  />
+                </div>
+                <div>
+                  <label for="worker-abn" class="mb-1.5 block text-sm font-medium text-foreground">ABN</label>
+                  <input
+                    id="worker-abn"
+                    v-model="workerForm.abn"
+                    type="text"
+                    class="input-base dark:border-white/10 dark:bg-white/5"
+                    placeholder="Australian Business Number"
+                  />
+                </div>
+                <div>
+                  <label for="worker-invoice-email" class="mb-1.5 block text-sm font-medium text-foreground">Invoice email</label>
+                  <input
+                    id="worker-invoice-email"
+                    v-model="workerForm.invoice_email"
+                    type="email"
+                    class="input-base dark:border-white/10 dark:bg-white/5"
+                    placeholder="invoice@example.com"
+                  />
+                </div>
+                <div>
+                  <label for="worker-invoice-phone" class="mb-1.5 block text-sm font-medium text-foreground">Invoice phone</label>
+                  <input
+                    id="worker-invoice-phone"
+                    v-model="workerForm.invoice_phone"
+                    type="text"
+                    class="input-base dark:border-white/10 dark:bg-white/5"
+                    placeholder="Phone number"
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div>
+              <h4 class="mb-4 text-sm font-medium text-foreground">Payment Details</h4>
+              <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <div>
+                  <label for="worker-bsb" class="mb-1.5 block text-sm font-medium text-foreground">BSB</label>
+                  <input
+                    id="worker-bsb"
+                    v-model="workerForm.payment_bsb"
+                    type="text"
+                    class="input-base dark:border-white/10 dark:bg-white/5"
+                    placeholder="Bank State Branch"
+                  />
+                </div>
+                <div>
+                  <label for="worker-account" class="mb-1.5 block text-sm font-medium text-foreground">Account number</label>
+                  <input
+                    id="worker-account"
+                    v-model="workerForm.payment_account"
+                    type="text"
+                    class="input-base dark:border-white/10 dark:bg-white/5"
+                    placeholder="Account number"
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div>
+              <h4 class="mb-4 text-sm font-medium text-foreground">Hourly Rates (AUD)</h4>
+              <div class="grid grid-cols-1 gap-4 sm:grid-cols-3">
+                <div>
+                  <label for="worker-rate-weekday" class="mb-1.5 block text-sm font-medium text-foreground">Weekday rate</label>
+                  <input
+                    id="worker-rate-weekday"
+                    v-model.number="workerForm.hourly_rate_weekday_override"
+                    type="text"
+                    inputmode="decimal"
+                    class="input-base dark:border-white/10 dark:bg-white/5"
+                    placeholder="40.00"
+                  />
+                </div>
+                <div>
+                  <label for="worker-rate-sunday" class="mb-1.5 block text-sm font-medium text-foreground">Sunday rate</label>
+                  <input
+                    id="worker-rate-sunday"
+                    v-model.number="workerForm.hourly_rate_sunday_override"
+                    type="text"
+                    inputmode="decimal"
+                    class="input-base dark:border-white/10 dark:bg-white/5"
+                    placeholder="45.00"
+                  />
+                </div>
+                <div>
+                  <label for="worker-rate-holiday" class="mb-1.5 block text-sm font-medium text-foreground">Holiday rate</label>
+                  <input
+                    id="worker-rate-holiday"
+                    v-model.number="workerForm.hourly_rate_holiday_override"
+                    type="text"
+                    inputmode="decimal"
+                    class="input-base dark:border-white/10 dark:bg-white/5"
+                    placeholder="50.00"
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div>
+              <h4 class="mb-4 text-sm font-medium text-foreground">Signature</h4>
+              <p class="mb-3 text-xs text-muted">Draw or upload your signature for invoices</p>
+              <WorkerSignaturePad @signature-change="onWorkerSignatureChange" />
+
+              <div class="mt-3 rounded-lg border border-primary-100 bg-primary-50/50 p-3 dark:border-white/10 dark:bg-white/[0.02]">
+                <p class="text-xs font-medium text-foreground">Current signature preview</p>
+                <img
+                  v-if="workerForm.signature_data_url"
+                  :src="workerForm.signature_data_url"
+                  alt="Current signature"
+                  class="mt-2 h-16 w-auto max-w-full rounded border border-border bg-white object-contain p-1"
+                >
+                <p v-else class="mt-2 text-xs text-muted">No signature saved yet.</p>
+              </div>
+            </div>
+
+            <div class="flex flex-wrap items-center justify-end gap-2 pt-2">
+              <button type="submit" class="btn-primary" :disabled="isUpdatingWorkerProfile">
+                {{ isUpdatingWorkerProfile ? 'Saving...' : 'Save worker profile' }}
+              </button>
+            </div>
+          </form>
+        </div>
+
         <div class="border-b border-primary-100/80 px-6 py-8 sm:px-8 dark:border-white/10">
           <h3 class="mb-6 text-lg font-semibold text-foreground">Change Password</h3>
 
@@ -191,18 +332,21 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref } from 'vue'
+import { computed, onMounted, reactive, ref, watch } from 'vue'
 import BaseFeedbackBanner from '../../components/ui/BaseFeedbackBanner.vue'
+import WorkerSignaturePad from '../../components/features/worker/WorkerSignaturePad.vue'
 import { useAuth } from '../../composables/useAuth'
 import { useEditProfile } from '../../composables/useEditProfile'
 import { useSupabaseClient } from '../../composables/useSupabaseClient'
 import { useTheme } from '../../composables/useTheme'
 import { useUploadAvatar } from '../../composables/useUploadAvatar'
+import { useWorkerProfileSettings } from '../../composables/useWorkerProfileSettings'
 
 const { signOut, getCurrentUser, getProfile } = useAuth()
 const { updateProfile, updatePassword } = useEditProfile()
 const { isDark: isDarkMode, toggleTheme } = useTheme()
 const { uploadAvatar } = useUploadAvatar()
+const { getSettings: getWorkerSettings, saveSettings: saveWorkerSettings } = useWorkerProfileSettings()
 const supabase = useSupabaseClient()
 const route = useRoute()
 
@@ -216,10 +360,30 @@ interface PersistedFeedback {
 }
 
 const isDark = computed(() => isDarkMode.value)
+const isWorker = ref(false)
 
 const profileForm = reactive({
   full_name: '',
   email: '',
+})
+
+const workerForm = reactive({
+  legal_name: '',
+  abn: '',
+  invoice_email: '',
+  invoice_phone: '',
+  payment_bsb: '',
+  payment_account: '',
+  hourly_rate_weekday_override: 40,
+  hourly_rate_sunday_override: 45,
+  hourly_rate_holiday_override: 50,
+  signature_data_url: '',
+})
+
+const workerInvoiceDefaults = reactive({
+  default_recipient_name: '',
+  default_recipient_email: '',
+  default_recipient_phone: '',
 })
 
 const passwordForm = reactive({
@@ -230,6 +394,7 @@ const passwordForm = reactive({
 const isUpdating = ref(false)
 const isUpdatingPassword = ref(false)
 const isUploadingAvatar = ref(false)
+const isUpdatingWorkerProfile = ref(false)
 const feedbackTone = ref<FeedbackTone>('info')
 const feedbackTitle = ref('')
 const feedbackMessage = ref('')
@@ -254,6 +419,7 @@ const passwordMismatch = computed(() => {
 
 onMounted(async () => {
   await loadProfileData()
+  await loadWorkerProfileData()
   restorePersistedFeedback()
 })
 
@@ -336,6 +502,7 @@ async function loadProfileData(): Promise<void> {
       return
     }
 
+    isWorker.value = profile.role === 'worker'
     profileForm.full_name = profile.full_name || ''
     profileForm.email = profile.email || ''
 
@@ -352,6 +519,33 @@ async function loadProfileData(): Promise<void> {
     avatarUrl.value = profileData?.photo_url || ''
   } catch (err: unknown) {
     setFeedback('error', 'Could not load profile', err instanceof Error ? err.message : 'Failed to load profile.')
+  }
+}
+
+async function loadWorkerProfileData(): Promise<void> {
+  if (!isWorker.value) {
+    return
+  }
+
+  try {
+    clearFeedback()
+    const data = await getWorkerSettings()
+
+    workerForm.legal_name = data.legal_name
+    workerForm.abn = data.abn
+    workerForm.invoice_email = data.invoice_email
+    workerForm.invoice_phone = data.invoice_phone
+    workerForm.payment_bsb = data.payment_bsb
+    workerForm.payment_account = data.payment_account
+    workerForm.hourly_rate_weekday_override = data.hourly_rate_weekday_override
+    workerForm.hourly_rate_sunday_override = data.hourly_rate_sunday_override
+    workerForm.hourly_rate_holiday_override = data.hourly_rate_holiday_override
+    workerInvoiceDefaults.default_recipient_name = data.default_recipient_name
+    workerInvoiceDefaults.default_recipient_email = data.default_recipient_email
+    workerInvoiceDefaults.default_recipient_phone = data.default_recipient_phone
+    workerForm.signature_data_url = data.signature_data_url
+  } catch (error: unknown) {
+    setFeedback('error', 'Worker profile unavailable', error instanceof Error ? error.message : 'Could not load worker profile.')
   }
 }
 
@@ -382,6 +576,44 @@ async function onUpdateProfile(): Promise<void> {
     setFeedback('error', 'Update failed', err instanceof Error ? err.message : 'Failed to update profile.')
   } finally {
     isUpdating.value = false
+  }
+}
+
+function onWorkerSignatureChange(dataUrl: string): void {
+  workerForm.signature_data_url = dataUrl
+  setFeedback('info', 'Signature updated', 'Signature staged. Save worker profile to persist.', 3000)
+}
+
+async function onUpdateWorkerProfile(): Promise<void> {
+  isUpdatingWorkerProfile.value = true
+  clearFeedback()
+
+  try {
+    await saveWorkerSettings({
+      id: null,
+      employee_id: '',
+      legal_name: workerForm.legal_name,
+      abn: workerForm.abn,
+      invoice_email: workerForm.invoice_email,
+      invoice_phone: workerForm.invoice_phone,
+      payment_bsb: workerForm.payment_bsb,
+      payment_account: workerForm.payment_account,
+      hourly_rate_weekday_override: Number(workerForm.hourly_rate_weekday_override || 0),
+      hourly_rate_sunday_override: Number(workerForm.hourly_rate_sunday_override || 0),
+      hourly_rate_holiday_override: Number(workerForm.hourly_rate_holiday_override || 0),
+      default_recipient_name: workerInvoiceDefaults.default_recipient_name,
+      default_recipient_email: workerInvoiceDefaults.default_recipient_email,
+      default_recipient_phone: workerInvoiceDefaults.default_recipient_phone,
+      signature_data_url: workerForm.signature_data_url,
+      created_at: null,
+      updated_at: null,
+    })
+
+    setFeedback('success', 'Worker profile saved', 'Your worker profile was updated successfully.', 3000)
+  } catch (error: unknown) {
+    setFeedback('error', 'Save failed', error instanceof Error ? error.message : 'Could not save worker profile.')
+  } finally {
+    isUpdatingWorkerProfile.value = false
   }
 }
 
@@ -451,4 +683,11 @@ async function onSignOut(): Promise<void> {
   await signOut()
   await navigateTo('/login')
 }
+
+// Watch isWorker to load worker profile when ready
+watch(isWorker, async (newVal) => {
+  if (newVal) {
+    await loadWorkerProfileData()
+  }
+})
 </script>
