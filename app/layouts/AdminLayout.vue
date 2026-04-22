@@ -418,9 +418,10 @@ const emit = defineEmits<{
 
 const runtimeConfig = useRuntimeConfig()
 const route = useRoute()
+const shellLayoutMode = useState<'mobile' | 'desktop'>('app-shell-layout-mode', () => 'mobile')
 const sidebarCollapsed = useState('admin-sidebar-collapsed', () => false)
 const sidebarOpen = ref(false)
-const isDesktop = ref(false)
+const isDesktop = ref(shellLayoutMode.value === 'desktop')
 const mainScrollContainer = ref<HTMLElement | null>(null)
 const greetingName = ref('there')
 const fullName = ref('')
@@ -465,6 +466,7 @@ const isDesktopCollapsed = computed(() => isDesktop.value && sidebarCollapsed.va
 
 const syncDesktopState = (event?: MediaQueryList | MediaQueryListEvent) => {
   isDesktop.value = Boolean(event?.matches)
+  shellLayoutMode.value = isDesktop.value ? 'desktop' : 'mobile'
 
   if (isDesktop.value) {
     sidebarOpen.value = false

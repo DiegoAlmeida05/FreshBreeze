@@ -1,4 +1,5 @@
 import { defineNuxtRouteMiddleware, navigateTo } from '#app'
+import { useAuthBootstrap } from '../composables/useAuthBootstrap'
 import { useSupabaseClient } from '../composables/useSupabaseClient'
 
 const REMEMBER_MODE_KEY = 'auth-remember-mode'
@@ -37,6 +38,9 @@ export default defineNuxtRouteMiddleware(async (to) => {
   }
 
   const supabase = useSupabaseClient()
+  const { waitForAuthBootstrap } = useAuthBootstrap()
+
+  await waitForAuthBootstrap()
 
   const rememberMode = localStorage.getItem(REMEMBER_MODE_KEY)
   const hasSessionMarker = sessionStorage.getItem(SESSION_ACTIVE_KEY) === '1'

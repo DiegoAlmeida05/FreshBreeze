@@ -125,12 +125,13 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, ref, watch } from 'vue'
+import { onMounted, ref } from 'vue'
 import type { ProfileDTO } from '../../shared/types/ProfileDTO'
 import BaseFeedbackBanner from '../components/ui/BaseFeedbackBanner.vue'
 import AuthActionButton from '../components/login/AuthActionButton.vue'
 import AuthTextField from '../components/login/AuthTextField.vue'
 import { useAuth } from '../composables/useAuth'
+import { useAuthBootstrap } from '../composables/useAuthBootstrap'
 import { useTheme } from '../composables/useTheme'
 
 const REMEMBER_MODE_KEY = 'auth-remember-mode'
@@ -138,6 +139,7 @@ const LAST_ROUTE_STORAGE_KEY = 'last-app-route'
 
 const { isDark, toggleTheme } = useTheme()
 const { signIn, getProfile } = useAuth()
+const { isAuthBootstrapping, waitForAuthBootstrap: waitForSharedAuthBootstrap } = useAuthBootstrap()
 
 const loginEmail = ref('')
 const loginPassword = ref('')
@@ -145,7 +147,6 @@ const remember = ref(false)
 const isLoading = ref(false)
 const loginError = ref('')
 const isBootstrapping = ref(true)
-const isAuthBootstrapping = useState<boolean>('auth-bootstrap-loading', () => true)
 
 onMounted(() => {
   if (!import.meta.client) {
@@ -169,23 +170,7 @@ async function bootstrapAuthFlow(): Promise<void> {
 }
 
 async function waitForAuthBootstrap(): Promise<void> {
-  if (!import.meta.client || !isAuthBootstrapping.value) {
-    return
-  }
-
-  await new Promise<void>((resolve) => {
-    const stop = watch(isAuthBootstrapping, (loading) => {
-      if (!loading) {
-        stop()
-        resolve()
-      }
-    })
-
-    setTimeout(() => {
-      stop()
-      resolve()
-    }, 2000)
-  })
+  await waitForSharedAuthBootstrap(2000)
 }
 
 async function redirectIfAlreadyAuthenticated(): Promise<void> {

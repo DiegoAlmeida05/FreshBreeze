@@ -322,9 +322,10 @@ const emit = defineEmits<{
 const runtimeConfig = useRuntimeConfig()
 const route = useRoute()
 const MOBILE_NAV_PATHS = ['/worker/schedule', '/worker/timesheet', '/worker/invoice', '/worker/settings'] as const
+const shellLayoutMode = useState<'mobile' | 'desktop'>('app-shell-layout-mode', () => 'mobile')
 const sidebarCollapsed = useState('worker-sidebar-collapsed', () => false)
 const sidebarOpen = ref(false)
-const isDesktop = ref(false)
+const isDesktop = ref(shellLayoutMode.value === 'desktop')
 const mainScrollContainer = ref<HTMLElement | null>(null)
 const pressedNavPath = ref<string | null>(null)
 const greetingName = ref('there')
@@ -389,6 +390,7 @@ const onNavPress = (path: string) => {
 
 const syncDesktopState = (event?: MediaQueryList | MediaQueryListEvent) => {
   isDesktop.value = Boolean(event?.matches)
+  shellLayoutMode.value = isDesktop.value ? 'desktop' : 'mobile'
 
   if (isDesktop.value) {
     sidebarOpen.value = false
