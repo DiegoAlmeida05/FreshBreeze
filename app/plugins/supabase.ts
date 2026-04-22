@@ -10,11 +10,19 @@ export default defineNuxtPlugin(() => {
   )
 
   if (import.meta.client) {
+    const bootstrapFallbackTimeoutId = window.setTimeout(() => {
+      if (isAuthBootstrapping.value) {
+        isAuthBootstrapping.value = false
+        console.info('[auth-bootstrap]', 'plugin fallback timeout forced resolve', { timeoutMs: 1800 })
+      }
+    }, 1800)
+
     void supabaseClient.auth.getSession()
       .catch(() => {
         // Session restore failures are handled by auth flow guards.
       })
       .finally(() => {
+        window.clearTimeout(bootstrapFallbackTimeoutId)
         isAuthBootstrapping.value = false
       })
 

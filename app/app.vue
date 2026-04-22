@@ -36,10 +36,26 @@ const startupReady = useState<boolean>('app-startup-ready', () => false)
 const shellLayoutMode = useState<'mobile' | 'desktop'>('app-shell-layout-mode', () => 'mobile')
 const { waitForAuthBootstrap } = useAuthBootstrap()
 
+const STARTUP_HARD_TIMEOUT_MS = 2000
+const STARTUP_DEBUG = true
+
 let rafId = 0
 let timeoutIds: number[] = []
 let previousScrollRestoration: History['scrollRestoration'] | null = null
 let startupResolvePromise: Promise<void> | null = null
+
+const logStartup = (message: string, extra?: Record<string, unknown>) => {
+  if (!import.meta.client || !STARTUP_DEBUG) {
+    return
+  }
+
+  if (extra) {
+    console.info('[startup-gate]', message, extra)
+    return
+  }
+
+  console.info('[startup-gate]', message)
+}
 
 const requiresProtectedShell = computed(() => {
   return route.path.startsWith('/admin') || route.path.startsWith('/worker')
@@ -54,7 +70,7 @@ const syncShellLayoutMode = () => {
     return
   }
 
-  shellLayoutMode.value = window.matchMedia('(min-width: 1024px)').matches ? 'desktop' : 'mobile'
+  shellLayoutMode.value = window.innerWidth >= 1024 ? 'desktop' : 'mobile'
 }
 
 const waitForAnimationFrames = async (count: number) => {
@@ -65,6 +81,45 @@ const waitForAnimationFrames = async (count: number) => {
       })
     })
   }
+}
+
+const forceStartupReady = (reason: string) => {
+  syncShellLayoutMode()
+
+  if (!startupReady.value) {
+    startupReady.value = true
+    logStartup('forced render fallback', {
+      reason,
+      route: route.fullPath,
+      authBootstrapping: useState<boolean>('auth-bootstrap-loading', () => false).value,
+      shellLayoutMode: shellLayoutMode.value,
+    })
+  }
+}
+
+const withTimeout = async (label: string, task: () => Promise<void>, timeoutMs: number): Promise<void> => {
+  let resolved = false
+
+  await Promise.race([
+    (async () => {
+      try {
+        await task()
+        resolved = true
+      } catch (error) {
+        logStartup(`${label} failed`, {
+          error: error instanceof Error ? error.message : String(error),
+        })
+      }
+    })(),
+    new Promise<void>((resolve) => {
+      window.setTimeout(() => {
+        if (!resolved) {
+          logStartup(`${label} timeout`, { timeoutMs })
+        }
+        resolve()
+      }, timeoutMs)
+    }),
+  ])
 }
 
 const resolveStartup = async () => {
@@ -78,15 +133,52 @@ const resolveStartup = async () => {
   }
 
   startupResolvePromise = (async () => {
+    const hardTimeoutId = window.setTimeout(() => {
+      forceStartupReady('hard-timeout')
+    }, STARTUP_HARD_TIMEOUT_MS)
+
     try {
-      await router.isReady()
+      logStartup('startup begin', {
+        route: route.fullPath,
+        protected: requiresProtectedShell.value,
+      })
+
+      await withTimeout('router-ready', async () => {
+        await router.isReady()
+      }, 1200)
+
+      logStartup('router resolved')
       syncShellLayoutMode()
-      await waitForAuthBootstrap()
-      await waitForAnimationFrames(2)
+
+      await withTimeout('auth-bootstrap', async () => {
+        await waitForAuthBootstrap(1500)
+      }, 1600)
+
+      logStartup('auth bootstrap resolved', {
+        authBootstrapping: useState<boolean>('auth-bootstrap-loading', () => false).value,
+      })
+
+      await withTimeout('animation-frames', async () => {
+        await waitForAnimationFrames(2)
+      }, 120)
+
       syncShellLayoutMode()
       scheduleViewportReset()
-      startupReady.value = true
+
+      if (!startupReady.value) {
+        startupReady.value = true
+        logStartup('startup ready', {
+          shellLayoutMode: shellLayoutMode.value,
+          route: route.fullPath,
+        })
+      }
+    } catch (error) {
+      logStartup('unexpected startup error', {
+        error: error instanceof Error ? error.message : String(error),
+      })
+      forceStartupReady('startup-exception')
     } finally {
+      window.clearTimeout(hardTimeoutId)
       startupResolvePromise = null
     }
   })()
