@@ -386,7 +386,7 @@
       </header>
 
       <!-- Page content -->
-      <main :class="[
+      <main ref="mainScrollContainer" :class="[
         'relative min-h-0 min-w-0 flex-1 overflow-x-hidden overflow-y-auto',
         isFullscreenMode ? 'p-0' : 'px-4 pb-4 pt-4 sm:px-6 sm:pb-6 sm:pt-4 lg:px-6 lg:pb-8 lg:pt-4',
       ]">
@@ -421,6 +421,7 @@ const route = useRoute()
 const sidebarCollapsed = useState('admin-sidebar-collapsed', () => false)
 const sidebarOpen = ref(false)
 const isDesktop = ref(false)
+const mainScrollContainer = ref<HTMLElement | null>(null)
 const greetingName = ref('there')
 const fullName = ref('')
 const profileEmail = ref('')
@@ -428,6 +429,7 @@ const avatarUrl = ref('')
 const { getProfile } = useAuth()
 const supabase = useSupabaseClient()
 let desktopMediaQuery: MediaQueryList | null = null
+let rafId = 0
 
 const avatarInitial = computed(() => {
   const name = fullName.value || greetingName.value || 'U'
@@ -469,16 +471,56 @@ const syncDesktopState = (event?: MediaQueryList | MediaQueryListEvent) => {
   }
 }
 
+const resetLayoutViewportState = () => {
+  window.scrollTo({ top: 0, left: 0, behavior: 'auto' })
+  document.scrollingElement?.scrollTo({ top: 0, left: 0, behavior: 'auto' })
+  document.documentElement.scrollLeft = 0
+  document.body.scrollLeft = 0
+
+  if (mainScrollContainer.value) {
+    mainScrollContainer.value.scrollLeft = 0
+  }
+
+  if (desktopMediaQuery) {
+    syncDesktopState(desktopMediaQuery)
+  }
+}
+
+const scheduleLayoutViewportReset = () => {
+  if (rafId) {
+    cancelAnimationFrame(rafId)
+  }
+
+  rafId = window.requestAnimationFrame(() => {
+    resetLayoutViewportState()
+  })
+}
+
+const handlePageShow = () => {
+  scheduleLayoutViewportReset()
+}
+
+const handleVisibilityChange = () => {
+  if (document.visibilityState === 'visible') {
+    scheduleLayoutViewportReset()
+  }
+}
+
 watch(() => route.fullPath, () => {
   if (!isDesktop.value) {
     sidebarOpen.value = false
   }
+
+  scheduleLayoutViewportReset()
 })
 
 onMounted(async () => {
   desktopMediaQuery = window.matchMedia('(min-width: 1024px)')
   syncDesktopState(desktopMediaQuery)
   desktopMediaQuery.addEventListener('change', syncDesktopState)
+  window.addEventListener('pageshow', handlePageShow)
+  document.addEventListener('visibilitychange', handleVisibilityChange)
+  scheduleLayoutViewportReset()
 
   try {
     const profile = await getProfile()
@@ -501,6 +543,12 @@ onMounted(async () => {
 })
 
 onBeforeUnmount(() => {
+  if (rafId) {
+    cancelAnimationFrame(rafId)
+  }
+
   desktopMediaQuery?.removeEventListener('change', syncDesktopState)
+  window.removeEventListener('pageshow', handlePageShow)
+  document.removeEventListener('visibilitychange', handleVisibilityChange)
 })
 </script>

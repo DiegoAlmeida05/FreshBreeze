@@ -47,19 +47,21 @@
         <div class="mt-3 grid grid-cols-1 gap-3 lg:grid-cols-3">
           <article class="rounded-lg border border-primary-100 bg-primary-50/35 p-3 dark:border-white/10 dark:bg-white/5">
             <p class="text-[11px] font-semibold uppercase tracking-wide text-muted">Property name</p>
-            <div class="mt-1 flex items-center gap-2">
-              <p class="text-sm font-semibold text-foreground">{{ jobDetail.propertyName }}</p>
-              <button
-                type="button"
-                class="inline-flex h-7 gap-1 items-center rounded px-2 py-1 text-[11px] font-medium text-primary-600 transition hover:bg-primary-100/50 dark:text-primary-400 dark:hover:bg-white/10"
-                title="Copy property name"
-                @click="copyToClipboard(jobDetail.propertyName, 'property-name')"
-              >
-                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="h-3 w-3">
-                  <path d="M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z" />
-                </svg>
-                {{ isCopied('property-name') ? 'Copied!' : 'Copy' }}
-              </button>
+            <div class="mt-1 flex flex-col items-start gap-2 sm:flex-row sm:items-center sm:justify-between">
+              <p class="max-w-full break-words text-sm font-semibold text-foreground">{{ jobDetail.propertyName }}</p>
+              <div class="flex w-full flex-wrap gap-2 sm:w-auto sm:justify-end">
+                <button
+                  type="button"
+                  class="inline-flex h-7 items-center gap-1 rounded px-2 py-1 text-[11px] font-medium text-primary-600 transition hover:bg-primary-100/50 dark:text-primary-400 dark:hover:bg-white/10"
+                  title="Copy property name"
+                  @click="copyToClipboard(jobDetail.propertyName, 'property-name')"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="h-3 w-3">
+                    <path d="M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z" />
+                  </svg>
+                  {{ isCopied('property-name') ? 'Copied!' : 'Copy' }}
+                </button>
+              </div>
             </div>
           </article>
 
@@ -70,11 +72,11 @@
 
           <article class="rounded-lg border border-primary-100 bg-primary-50/35 p-3 dark:border-white/10 dark:bg-white/5 lg:col-span-1">
             <p class="text-[11px] font-semibold uppercase tracking-wide text-muted">Address</p>
-            <p class="mt-1 text-sm font-semibold text-foreground">{{ jobDetail.address }}</p>
-            <div class="mt-2 flex items-center gap-2">
+            <p class="mt-1 break-words text-sm font-semibold text-foreground">{{ jobDetail.address }}</p>
+            <div class="mt-2 flex flex-wrap items-center gap-2">
               <button
                 type="button"
-                class="inline-flex h-7 gap-1 items-center rounded px-2 py-1 text-[11px] font-medium text-primary-600 transition hover:bg-primary-100/50 dark:text-primary-400 dark:hover:bg-white/10"
+                class="inline-flex h-7 items-center gap-1 rounded px-2 py-1 text-[11px] font-medium text-primary-600 transition hover:bg-primary-100/50 dark:text-primary-400 dark:hover:bg-white/10"
                 title="Open navigation options"
                 :disabled="(jobDetail.lat === null || jobDetail.lng === null) && !jobDetail.address.trim()"
                 @click="openNavigationSheet({ address: jobDetail.address, lat: jobDetail.lat, lng: jobDetail.lng })"
@@ -86,7 +88,7 @@
               </button>
               <button
                 type="button"
-                class="inline-flex h-7 gap-1 items-center rounded px-2 py-1 text-[11px] font-medium text-primary-600 transition hover:bg-primary-100/50 dark:text-primary-400 dark:hover:bg-white/10"
+                class="inline-flex h-7 items-center gap-1 rounded px-2 py-1 text-[11px] font-medium text-primary-600 transition hover:bg-primary-100/50 dark:text-primary-400 dark:hover:bg-white/10"
                 title="Copy address"
                 @click="copyToClipboard(jobDetail.address, 'property-address')"
               >
@@ -99,8 +101,7 @@
           </article>
         </div>
 
-        <div class="mt-3 overflow-x-auto pb-1">
-          <div class="grid min-w-[660px] grid-cols-6 gap-2">
+        <div class="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-6">
             <article class="rounded-lg border border-border bg-background px-2 py-1.5 text-center">
               <p class="text-[9px] uppercase tracking-wide text-muted">Bathrooms</p>
               <p class="mt-0.5 text-base font-semibold leading-none text-foreground">{{ jobDetail.bathrooms }}</p>
@@ -125,7 +126,6 @@
               <p class="text-[9px] uppercase tracking-wide text-muted">Task type</p>
               <p class="mt-0.5 text-base font-semibold leading-none text-foreground">{{ jobDetail.taskType }}</p>
             </article>
-          </div>
         </div>
 
         <div class="mt-4 rounded-lg border border-primary-100 bg-primary-50/35 p-3 dark:border-white/10 dark:bg-white/5">
