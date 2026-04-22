@@ -29,12 +29,33 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, watch } from 'vue'
 import { useAuthBootstrap } from './composables/useAuthBootstrap'
+import { useSupabaseClient } from './composables/useSupabaseClient'
+
+interface LaunchContextState {
+  isStandalone: boolean
+  isColdStart: boolean
+  coldStartPending: boolean
+  instanceId: string
+}
+
+interface BootstrapProfile {
+  role: 'admin' | 'worker'
+  active: boolean
+}
 
 const route = useRoute()
 const router = useRouter()
+const supabase = useSupabaseClient()
 const startupReady = useState<boolean>('app-startup-ready', () => false)
 const shellLayoutMode = useState<'mobile' | 'desktop'>('app-shell-layout-mode', () => 'mobile')
 const authBootstrapState = useState<boolean>('auth-bootstrap-loading', () => import.meta.client)
+const launchContext = useState<LaunchContextState>('app-launch-context', () => ({
+  isStandalone: false,
+  isColdStart: false,
+  coldStartPending: false,
+  instanceId: '',
+}))
+const startupRoutePolicyApplied = useState<boolean>('app-startup-route-policy-applied', () => false)
 const shellHeartbeat = useState<{ layout: 'admin' | 'worker' | null, path: string, at: number }>('app-shell-heartbeat', () => ({
   layout: null,
   path: '',
@@ -86,6 +107,10 @@ const resolveSafeAuthenticatedRoute = (path: string): string => {
   }
 
   return '/worker/schedule'
+}
+
+const resolveSafeRouteForRole = (role: BootstrapProfile['role']): string => {
+  return role === 'admin' ? '/admin' : '/worker/schedule'
 }
 
 const shouldShowStartupShell = computed(() => {
@@ -185,6 +210,65 @@ const schedulePostAuthFallback = (source: string) => {
   }, 1400)
 }
 
+const applyColdStartLandingOnce = async () => {
+  if (!import.meta.client || startupRoutePolicyApplied.value) {
+    return
+  }
+
+  startupRoutePolicyApplied.value = true
+
+  const shouldApplyColdStartLanding = launchContext.value.isStandalone && launchContext.value.isColdStart
+
+  logStartup('startup landing policy check', {
+    route: route.fullPath,
+    isStandalone: launchContext.value.isStandalone,
+    isColdStart: launchContext.value.isColdStart,
+    shouldApplyColdStartLanding,
+  })
+
+  if (!shouldApplyColdStartLanding) {
+    return
+  }
+
+  const userResult = await Promise.race([
+    supabase.auth.getUser(),
+    new Promise<{ data: { user: null }, error: null }>((resolve) => {
+      window.setTimeout(() => resolve({ data: { user: null }, error: null }), 1200)
+    }),
+  ])
+
+  if (userResult.error || !userResult.data.user) {
+    return
+  }
+
+  const profileResult = await Promise.race([
+    supabase
+      .from('profiles')
+      .select('role, active')
+      .eq('id', userResult.data.user.id)
+      .maybeSingle<BootstrapProfile>(),
+    new Promise<{ data: null, error: null }>((resolve) => {
+      window.setTimeout(() => resolve({ data: null, error: null }), 1200)
+    }),
+  ])
+
+  if (profileResult.error || !profileResult.data || !profileResult.data.active) {
+    return
+  }
+
+  const safeRoute = resolveSafeRouteForRole(profileResult.data.role)
+
+  logStartup('startup landing policy resolved', {
+    currentRoute: route.fullPath,
+    safeRoute,
+    role: profileResult.data.role,
+  })
+
+  if (route.path !== safeRoute) {
+    await navigateTo(safeRoute, { replace: true })
+  }
+}
+
 const forceStartupReady = (reason: string) => {
   syncShellLayoutMode()
 
@@ -261,6 +345,10 @@ const resolveStartup = async () => {
       logStartup('auth bootstrap resolved', {
         authBootstrapping: authBootstrapState.value,
       })
+
+      await withTimeout('cold-start-landing', async () => {
+        await applyColdStartLandingOnce()
+      }, 1600)
 
       await withTimeout('animation-frames', async () => {
         await waitForAnimationFrames(2)
