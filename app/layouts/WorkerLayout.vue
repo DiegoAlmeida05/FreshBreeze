@@ -172,7 +172,7 @@
     <div class="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden lg:mb-3 lg:mr-3 lg:mt-3">
       <!-- Topbar -->
       <header class="shrink-0 px-4 pt-4 sm:px-6 lg:px-6">
-        <div class="flex h-16 items-center rounded-[30px] border border-white/65 bg-white/72 px-4 shadow-[0_18px_40px_rgba(15,23,42,0.08)] backdrop-blur-xl sm:px-5 lg:px-6 dark:border-white/10 dark:bg-white/[0.03] dark:shadow-[0_24px_60px_rgba(0,0,0,0.38)]">
+        <div class="relative flex h-16 items-center rounded-[30px] border border-white/65 bg-white/72 px-4 shadow-[0_18px_40px_rgba(15,23,42,0.08)] backdrop-blur-xl sm:px-5 lg:px-6 dark:border-white/10 dark:bg-white/[0.03] dark:shadow-[0_24px_60px_rgba(0,0,0,0.38)]">
           <!-- Page title / greeting -->
           <div class="flex min-w-0 flex-1 items-center gap-2 text-left lg:ml-0">
             <div class="min-w-0">
@@ -185,6 +185,10 @@
           <div class="ml-2 flex shrink-0 items-center gap-2">
             <slot name="topbar-actions" />
           </div>
+
+          <p v-if="appUpdatedLabel" class="pointer-events-none absolute bottom-0.5 right-4 text-[9px] font-medium tracking-tight text-muted/70 sm:right-5 lg:right-6">
+            Updated {{ appUpdatedLabel }}
+          </p>
         </div>
       </header>
 
@@ -315,6 +319,7 @@ const emit = defineEmits<{
   signout: []
 }>()
 
+const runtimeConfig = useRuntimeConfig()
 const route = useRoute()
 const MOBILE_NAV_PATHS = ['/worker/schedule', '/worker/timesheet', '/worker/invoice', '/worker/settings'] as const
 const sidebarCollapsed = useState('worker-sidebar-collapsed', () => false)
@@ -336,6 +341,29 @@ let restoreDocumentStyles: (() => void) | null = null
 const avatarInitial = computed(() => {
   const name = fullName.value || greetingName.value || 'U'
   return name.charAt(0).toUpperCase()
+})
+
+const appUpdatedLabel = computed(() => {
+  const rawValue = runtimeConfig.public.appUpdatedAt as string | undefined
+
+  if (!rawValue) {
+    return ''
+  }
+
+  const parsedDate = new Date(rawValue)
+
+  if (Number.isNaN(parsedDate.getTime())) {
+    return ''
+  }
+
+  return parsedDate.toLocaleString('en-US', {
+    month: 'short',
+    day: '2-digit',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: true,
+  })
 })
 
 const isDesktopCollapsed = computed(() => isDesktop.value && sidebarCollapsed.value)
