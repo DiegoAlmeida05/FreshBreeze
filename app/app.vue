@@ -34,6 +34,12 @@ const route = useRoute()
 const router = useRouter()
 const startupReady = useState<boolean>('app-startup-ready', () => false)
 const shellLayoutMode = useState<'mobile' | 'desktop'>('app-shell-layout-mode', () => 'mobile')
+const authBootstrapState = useState<boolean>('auth-bootstrap-loading', () => import.meta.client)
+const shellHeartbeat = useState<{ layout: 'admin' | 'worker' | null, path: string, at: number }>('app-shell-heartbeat', () => ({
+  layout: null,
+  path: '',
+  at: 0,
+}))
 const { waitForAuthBootstrap } = useAuthBootstrap()
 
 const STARTUP_HARD_TIMEOUT_MS = 2000
@@ -43,6 +49,7 @@ let rafId = 0
 let timeoutIds: number[] = []
 let previousScrollRestoration: History['scrollRestoration'] | null = null
 let startupResolvePromise: Promise<void> | null = null
+let postAuthFallbackTimeoutId: number | null = null
 
 const logStartup = (message: string, extra?: Record<string, unknown>) => {
   if (!import.meta.client || !STARTUP_DEBUG) {
@@ -60,6 +67,26 @@ const logStartup = (message: string, extra?: Record<string, unknown>) => {
 const requiresProtectedShell = computed(() => {
   return route.path.startsWith('/admin') || route.path.startsWith('/worker')
 })
+
+const resolveExpectedLayout = (path: string): 'admin' | 'worker' | null => {
+  if (path.startsWith('/admin')) {
+    return 'admin'
+  }
+
+  if (path.startsWith('/worker')) {
+    return 'worker'
+  }
+
+  return null
+}
+
+const resolveSafeAuthenticatedRoute = (path: string): string => {
+  if (path.startsWith('/admin')) {
+    return '/admin'
+  }
+
+  return '/worker/schedule'
+}
 
 const shouldShowStartupShell = computed(() => {
   return requiresProtectedShell.value && !startupReady.value
@@ -83,6 +110,81 @@ const waitForAnimationFrames = async (count: number) => {
   }
 }
 
+const clearPostAuthFallback = () => {
+  if (postAuthFallbackTimeoutId) {
+    window.clearTimeout(postAuthFallbackTimeoutId)
+    postAuthFallbackTimeoutId = null
+  }
+}
+
+const schedulePostAuthFallback = (source: string) => {
+  if (!import.meta.client || !startupReady.value || !requiresProtectedShell.value) {
+    clearPostAuthFallback()
+    return
+  }
+
+  const expectedLayout = resolveExpectedLayout(route.path)
+
+  if (!expectedLayout) {
+    clearPostAuthFallback()
+    return
+  }
+
+  clearPostAuthFallback()
+
+  const routeSnapshot = route.fullPath
+  const checkStartedAt = Date.now()
+
+  logStartup('post-auth mount check scheduled', {
+    source,
+    route: routeSnapshot,
+    expectedLayout,
+    shellLayoutMode: shellLayoutMode.value,
+    authBootstrapping: authBootstrapState.value,
+  })
+
+  postAuthFallbackTimeoutId = window.setTimeout(async () => {
+    const heartbeat = shellHeartbeat.value
+    const sameRoute = route.fullPath === routeSnapshot
+    const mountedForCurrentRoute = (
+      heartbeat.layout === expectedLayout
+      && heartbeat.path === route.fullPath
+      && heartbeat.at >= checkStartedAt
+    )
+
+    logStartup('post-auth mount check result', {
+      route: route.fullPath,
+      sameRoute,
+      expectedLayout,
+      heartbeatLayout: heartbeat.layout,
+      heartbeatPath: heartbeat.path,
+      heartbeatAt: heartbeat.at,
+      mountedForCurrentRoute,
+      shellLayoutMode: shellLayoutMode.value,
+      authBootstrapping: authBootstrapState.value,
+    })
+
+    if (!sameRoute || !requiresProtectedShell.value || mountedForCurrentRoute) {
+      return
+    }
+
+    const fallbackRoute = resolveSafeAuthenticatedRoute(route.path)
+
+    logStartup('post-auth fallback navigation', {
+      from: route.fullPath,
+      to: fallbackRoute,
+      reason: 'authenticated-layout-not-mounted',
+    })
+
+    if (route.path !== fallbackRoute) {
+      await navigateTo(fallbackRoute, { replace: true })
+      return
+    }
+
+    window.location.replace(fallbackRoute)
+  }, 1400)
+}
+
 const forceStartupReady = (reason: string) => {
   syncShellLayoutMode()
 
@@ -91,9 +193,11 @@ const forceStartupReady = (reason: string) => {
     logStartup('forced render fallback', {
       reason,
       route: route.fullPath,
-      authBootstrapping: useState<boolean>('auth-bootstrap-loading', () => false).value,
+      authBootstrapping: authBootstrapState.value,
       shellLayoutMode: shellLayoutMode.value,
     })
+
+    schedulePostAuthFallback(`startup-forced:${reason}`)
   }
 }
 
@@ -155,7 +259,7 @@ const resolveStartup = async () => {
       }, 1600)
 
       logStartup('auth bootstrap resolved', {
-        authBootstrapping: useState<boolean>('auth-bootstrap-loading', () => false).value,
+        authBootstrapping: authBootstrapState.value,
       })
 
       await withTimeout('animation-frames', async () => {
@@ -170,7 +274,11 @@ const resolveStartup = async () => {
         logStartup('startup ready', {
           shellLayoutMode: shellLayoutMode.value,
           route: route.fullPath,
+          expectedLayout: resolveExpectedLayout(route.path),
+          authBootstrapping: authBootstrapState.value,
         })
+
+        schedulePostAuthFallback('startup-ready')
       }
     } catch (error) {
       logStartup('unexpected startup error', {
@@ -254,11 +362,15 @@ onMounted(() => {
 watch(() => route.fullPath, () => {
   if (!startupReady.value) {
     void resolveStartup()
+    return
   }
+
+  schedulePostAuthFallback('route-change')
 })
 
 onBeforeUnmount(() => {
   clearScheduledResets()
+  clearPostAuthFallback()
 
   window.removeEventListener('pageshow', handlePageShow)
   window.removeEventListener('resize', handleViewportGeometryChange)

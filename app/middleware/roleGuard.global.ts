@@ -75,6 +75,18 @@ function resolveRouteAfterAuth(role: AuthProfile['role']): string {
   return role === 'admin' ? '/admin' : '/worker/schedule'
 }
 
+function resolveLayoutFromPath(path: string): 'admin' | 'worker' | 'public' {
+  if (path.startsWith('/admin')) {
+    return 'admin'
+  }
+
+  if (path.startsWith('/worker')) {
+    return 'worker'
+  }
+
+  return 'public'
+}
+
 export default defineNuxtRouteMiddleware(async (to) => {
   if (import.meta.server) {
     return
@@ -92,7 +104,16 @@ export default defineNuxtRouteMiddleware(async (to) => {
     const supabase = useSupabaseClient()
     const { waitForAuthBootstrap } = useAuthBootstrap()
 
+    logRoleGuard('guard start', {
+      route: to.fullPath,
+      restoredLayout: resolveLayoutFromPath(to.path),
+    })
+
     await waitForAuthBootstrap(1400)
+
+    logRoleGuard('bootstrap settled', {
+      route: to.fullPath,
+    })
 
     const rememberMode = getStorageItem(localStorage, REMEMBER_MODE_KEY)
     const hasSessionMarker = getStorageItem(sessionStorage, SESSION_ACTIVE_KEY) === '1'
@@ -156,8 +177,24 @@ export default defineNuxtRouteMiddleware(async (to) => {
     }
 
     if (isLoginRoute) {
-      return navigateTo(resolveRouteAfterAuth(profile.role))
+      const targetRoute = resolveRouteAfterAuth(profile.role)
+
+      logRoleGuard('authenticated login redirect', {
+        from: to.fullPath,
+        to: targetRoute,
+        role: profile.role,
+        active: profile.active,
+      })
+
+      return navigateTo(targetRoute)
     }
+
+    logRoleGuard('authenticated route restore', {
+      route: to.fullPath,
+      role: profile.role,
+      active: profile.active,
+      layout: resolveLayoutFromPath(to.path),
+    })
 
     if (isAdminRoute && profile.role !== 'admin') {
       return navigateTo('/worker/schedule')

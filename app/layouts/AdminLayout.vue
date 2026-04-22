@@ -419,6 +419,11 @@ const emit = defineEmits<{
 const runtimeConfig = useRuntimeConfig()
 const route = useRoute()
 const shellLayoutMode = useState<'mobile' | 'desktop'>('app-shell-layout-mode', () => 'mobile')
+const shellHeartbeat = useState<{ layout: 'admin' | 'worker' | null, path: string, at: number }>('app-shell-heartbeat', () => ({
+  layout: null,
+  path: '',
+  at: 0,
+}))
 const sidebarCollapsed = useState('admin-sidebar-collapsed', () => false)
 const sidebarOpen = ref(false)
 const isDesktop = ref(shellLayoutMode.value === 'desktop')
@@ -463,6 +468,21 @@ const appUpdatedLabel = computed(() => {
 })
 
 const isDesktopCollapsed = computed(() => isDesktop.value && sidebarCollapsed.value)
+
+const markAdminShellHeartbeat = (reason: string) => {
+  shellHeartbeat.value = {
+    layout: 'admin',
+    path: route.fullPath,
+    at: Date.now(),
+  }
+
+  console.info('[shell-heartbeat]', 'admin-layout-mounted', {
+    reason,
+    route: route.fullPath,
+    shellLayoutMode: shellLayoutMode.value,
+    isDesktop: isDesktop.value,
+  })
+}
 
 const syncDesktopState = (event?: MediaQueryList | MediaQueryListEvent) => {
   isDesktop.value = Boolean(event?.matches)
@@ -509,6 +529,8 @@ const handleVisibilityChange = () => {
 }
 
 watch(() => route.fullPath, () => {
+  markAdminShellHeartbeat('route-change')
+
   if (!isDesktop.value) {
     sidebarOpen.value = false
   }
@@ -517,6 +539,8 @@ watch(() => route.fullPath, () => {
 })
 
 onMounted(async () => {
+  markAdminShellHeartbeat('mounted')
+
   desktopMediaQuery = window.matchMedia('(min-width: 1024px)')
   syncDesktopState(desktopMediaQuery)
   desktopMediaQuery.addEventListener('change', syncDesktopState)

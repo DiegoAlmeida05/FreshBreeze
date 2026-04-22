@@ -323,6 +323,11 @@ const runtimeConfig = useRuntimeConfig()
 const route = useRoute()
 const MOBILE_NAV_PATHS = ['/worker/schedule', '/worker/timesheet', '/worker/invoice', '/worker/settings'] as const
 const shellLayoutMode = useState<'mobile' | 'desktop'>('app-shell-layout-mode', () => 'mobile')
+const shellHeartbeat = useState<{ layout: 'admin' | 'worker' | null, path: string, at: number }>('app-shell-heartbeat', () => ({
+  layout: null,
+  path: '',
+  at: 0,
+}))
 const sidebarCollapsed = useState('worker-sidebar-collapsed', () => false)
 const sidebarOpen = ref(false)
 const isDesktop = ref(shellLayoutMode.value === 'desktop')
@@ -386,6 +391,21 @@ const isNavActive = (path: string) => {
 
 const onNavPress = (path: string) => {
   pressedNavPath.value = path
+}
+
+const markWorkerShellHeartbeat = (reason: string) => {
+  shellHeartbeat.value = {
+    layout: 'worker',
+    path: route.fullPath,
+    at: Date.now(),
+  }
+
+  console.info('[shell-heartbeat]', 'worker-layout-mounted', {
+    reason,
+    route: route.fullPath,
+    shellLayoutMode: shellLayoutMode.value,
+    isDesktop: isDesktop.value,
+  })
 }
 
 const syncDesktopState = (event?: MediaQueryList | MediaQueryListEvent) => {
@@ -473,6 +493,7 @@ const handleViewportGeometryChange = () => {
 
 watch(() => route.fullPath, () => {
   pressedNavPath.value = null
+  markWorkerShellHeartbeat('route-change')
 
   if (!isDesktop.value) {
     sidebarOpen.value = false
@@ -480,6 +501,8 @@ watch(() => route.fullPath, () => {
 })
 
 onMounted(async () => {
+  markWorkerShellHeartbeat('mounted')
+
   restoreDocumentStyles = lockDocumentHorizontalScroll()
 
   desktopMediaQuery = window.matchMedia('(min-width: 1024px)')
