@@ -62,7 +62,7 @@ async function withTimeout<T>(label: string, task: () => Promise<T>, timeoutMs: 
 }
 
 function resolveRouteAfterAuth(role: AuthProfile['role']): string {
-  const lastRoute = localStorage.getItem('last-app-route')
+  const lastRoute = getStorageItem(localStorage, 'last-app-route')
 
   if (role === 'admin' && lastRoute?.startsWith('/admin')) {
     return lastRoute
@@ -105,6 +105,8 @@ export default defineNuxtRouteMiddleware(async (to) => {
       if (isAdminRoute || isWorkerRoute) {
         return navigateTo('/login')
       }
+
+      return
     }
 
     const userResult = await withTimeout(
@@ -143,7 +145,14 @@ export default defineNuxtRouteMiddleware(async (to) => {
       void withTimeout('inactive-signout', async () => {
         await supabase.auth.signOut()
       }, 900, undefined)
-      return navigateTo('/login')
+
+      if (isAdminRoute || isWorkerRoute) {
+        return navigateTo('/login')
+      }
+
+      // Never block the login route: if profile validation fails,
+      // allow rendering the login page instead of redirecting to itself.
+      return
     }
 
     if (isLoginRoute) {
