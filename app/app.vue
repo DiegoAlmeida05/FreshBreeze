@@ -450,10 +450,7 @@ onMounted(() => {
 watch(() => route.fullPath, () => {
   if (!startupReady.value) {
     void resolveStartup()
-    return
   }
-
-  schedulePostAuthFallback('route-change')
 })
 
 onBeforeUnmount(() => {

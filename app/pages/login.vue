@@ -137,9 +137,23 @@ import { useTheme } from '../composables/useTheme'
 const REMEMBER_MODE_KEY = 'auth-remember-mode'
 const LAST_ROUTE_STORAGE_KEY = 'last-app-route'
 
+interface LaunchContextState {
+  isStandalone: boolean
+  isColdStart: boolean
+  coldStartPending: boolean
+  instanceId: string
+}
+
 const { isDark, toggleTheme } = useTheme()
 const { signIn, getProfile } = useAuth()
 const { isAuthBootstrapping, waitForAuthBootstrap: waitForSharedAuthBootstrap } = useAuthBootstrap()
+const launchContext = useState<LaunchContextState>('app-launch-context', () => ({
+  isStandalone: false,
+  isColdStart: false,
+  coldStartPending: false,
+  instanceId: '',
+}))
+const startupRoutePolicyApplied = useState<boolean>('app-startup-route-policy-applied', () => false)
 
 const loginEmail = ref('')
 const loginPassword = ref('')
@@ -188,6 +202,17 @@ async function redirectIfAlreadyAuthenticated(): Promise<void> {
 }
 
 function resolveRouteAfterAuth(profile: ProfileDTO): string {
+  const shouldUseSafeStartupLanding = (
+    !startupRoutePolicyApplied.value
+    && launchContext.value.isStandalone
+    && launchContext.value.isColdStart
+  )
+
+  if (shouldUseSafeStartupLanding) {
+    startupRoutePolicyApplied.value = true
+    return profile.role === 'admin' ? '/admin' : '/worker/schedule'
+  }
+
   if (!import.meta.client) {
     return profile.role === 'admin' ? '/admin' : '/worker/schedule'
   }
