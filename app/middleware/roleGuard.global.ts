@@ -5,10 +5,19 @@ import { useSupabaseClient } from '../composables/useSupabaseClient'
 const REMEMBER_MODE_KEY = 'auth-remember-mode'
 const SESSION_ACTIVE_KEY = 'auth-session-active'
 const AUTH_GUARD_TIMEOUT_MS = 1800
+const RUNTIME_INSTANCE_KEY = 'app-runtime-instance-id'
+const COLD_START_PENDING_KEY = 'app-cold-start-pending'
 
 interface AuthProfile {
   role: 'admin' | 'worker'
   active: boolean
+}
+
+interface LaunchContext {
+  isStandalone: boolean
+  isColdStart: boolean
+  coldStartPending: boolean
+  instanceId: string
 }
 
 function logRoleGuard(message: string, extra?: Record<string, unknown>): void {
@@ -30,6 +39,83 @@ function getStorageItem(storage: Storage, key: string): string | null {
   } catch {
     return null
   }
+}
+
+function setStorageItem(storage: Storage, key: string, value: string): void {
+  try {
+    storage.setItem(key, value)
+  } catch {
+    // Ignore storage write failures to avoid blocking auth guard.
+  }
+}
+
+function removeStorageItem(storage: Storage, key: string): void {
+  try {
+    storage.removeItem(key)
+  } catch {
+    // Ignore storage remove failures to avoid blocking auth guard.
+  }
+}
+
+function detectStandaloneMode(): boolean {
+  const iosStandalone = (window.navigator as Navigator & { standalone?: boolean }).standalone === true
+  return iosStandalone || window.matchMedia('(display-mode: standalone)').matches
+}
+
+function ensureLaunchContextState(): LaunchContext {
+  const launchContextState = useState<LaunchContext>('app-launch-context', () => ({
+    isStandalone: false,
+    isColdStart: false,
+    coldStartPending: false,
+    instanceId: '',
+  }))
+
+  if (launchContextState.value.instanceId) {
+    return launchContextState.value
+  }
+
+  const storedInstanceId = getStorageItem(sessionStorage, RUNTIME_INSTANCE_KEY)
+  const isColdStart = !storedInstanceId
+  const instanceId = storedInstanceId ?? `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`
+
+  setStorageItem(sessionStorage, RUNTIME_INSTANCE_KEY, instanceId)
+
+  if (isColdStart) {
+    setStorageItem(sessionStorage, COLD_START_PENDING_KEY, '1')
+  }
+
+  launchContextState.value = {
+    isStandalone: detectStandaloneMode(),
+    isColdStart,
+    coldStartPending: getStorageItem(sessionStorage, COLD_START_PENDING_KEY) === '1',
+    instanceId,
+  }
+
+  return launchContextState.value
+}
+
+function defaultRouteForRole(role: AuthProfile['role']): string {
+  return role === 'admin' ? '/admin' : '/worker/schedule'
+}
+
+function shouldApplyColdStartPolicy(launchContext: LaunchContext): boolean {
+  return launchContext.isStandalone && launchContext.coldStartPending
+}
+
+function markColdStartPolicyHandled(): void {
+  const launchContextState = useState<LaunchContext>('app-launch-context', () => ({
+    isStandalone: false,
+    isColdStart: false,
+    coldStartPending: false,
+    instanceId: '',
+  }))
+
+  launchContextState.value = {
+    ...launchContextState.value,
+    coldStartPending: false,
+  }
+
+  removeStorageItem(sessionStorage, COLD_START_PENDING_KEY)
 }
 
 async function withTimeout<T>(label: string, task: () => Promise<T>, timeoutMs: number, fallback: T): Promise<T> {
@@ -72,7 +158,7 @@ function resolveRouteAfterAuth(role: AuthProfile['role']): string {
     return lastRoute
   }
 
-  return role === 'admin' ? '/admin' : '/worker/schedule'
+  return defaultRouteForRole(role)
 }
 
 function resolveLayoutFromPath(path: string): 'admin' | 'worker' | 'public' {
@@ -103,10 +189,12 @@ export default defineNuxtRouteMiddleware(async (to) => {
   try {
     const supabase = useSupabaseClient()
     const { waitForAuthBootstrap } = useAuthBootstrap()
+    const launchContext = ensureLaunchContextState()
 
     logRoleGuard('guard start', {
       route: to.fullPath,
       restoredLayout: resolveLayoutFromPath(to.path),
+      launchContext,
     })
 
     await waitForAuthBootstrap(1400)
@@ -177,16 +265,43 @@ export default defineNuxtRouteMiddleware(async (to) => {
     }
 
     if (isLoginRoute) {
-      const targetRoute = resolveRouteAfterAuth(profile.role)
+      const shouldForceRoleLanding = shouldApplyColdStartPolicy(launchContext)
+      const targetRoute = shouldForceRoleLanding
+        ? defaultRouteForRole(profile.role)
+        : resolveRouteAfterAuth(profile.role)
+
+      if (shouldForceRoleLanding) {
+        markColdStartPolicyHandled()
+      }
 
       logRoleGuard('authenticated login redirect', {
         from: to.fullPath,
         to: targetRoute,
         role: profile.role,
         active: profile.active,
+        shouldForceRoleLanding,
       })
 
       return navigateTo(targetRoute)
+    }
+
+    const shouldForceRoleLanding = shouldApplyColdStartPolicy(launchContext)
+    const safeDefaultRoute = defaultRouteForRole(profile.role)
+
+    if (shouldForceRoleLanding) {
+      markColdStartPolicyHandled()
+
+      logRoleGuard('cold-start role landing', {
+        from: to.fullPath,
+        to: safeDefaultRoute,
+        role: profile.role,
+        isStandalone: launchContext.isStandalone,
+        isColdStart: launchContext.isColdStart,
+      })
+
+      if (to.path !== safeDefaultRoute) {
+        return navigateTo(safeDefaultRoute, { replace: true })
+      }
     }
 
     logRoleGuard('authenticated route restore', {
@@ -194,6 +309,8 @@ export default defineNuxtRouteMiddleware(async (to) => {
       role: profile.role,
       active: profile.active,
       layout: resolveLayoutFromPath(to.path),
+      coldStartPolicyApplied: shouldForceRoleLanding,
+      shellLayoutMode: useState<'mobile' | 'desktop'>('app-shell-layout-mode', () => 'mobile').value,
     })
 
     if (isAdminRoute && profile.role !== 'admin') {
