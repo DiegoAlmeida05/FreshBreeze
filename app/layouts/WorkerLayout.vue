@@ -1,5 +1,5 @@
 <template>
-  <div class="flex h-screen w-full min-w-0 overflow-hidden bg-gradient-to-br from-surface-soft via-primary-50/30 to-primary-warm-50/30 dark:bg-black dark:bg-none">
+  <div class="fixed inset-0 flex min-h-0 w-full min-w-0 overflow-hidden bg-gradient-to-br from-surface-soft via-primary-50/30 to-primary-warm-50/30 dark:bg-black dark:bg-none">
     <!-- Sidebar overlay (mobile) -->
     <div
       v-if="sidebarOpen && !isDesktop"
@@ -330,6 +330,8 @@ const { getProfile } = useAuth()
 const supabase = useSupabaseClient()
 let desktopMediaQuery: MediaQueryList | null = null
 let rafId = 0
+let viewportResetTimeoutId: number | null = null
+let restoreDocumentStyles: (() => void) | null = null
 
 const avatarInitial = computed(() => {
   const name = fullName.value || greetingName.value || 'U'
@@ -370,6 +372,7 @@ const resetLayoutViewportState = () => {
 
   // Mobile PWA/iOS can restore stale horizontal offset after reopening.
   window.scrollTo({ top: 0, left: 0, behavior: 'auto' })
+  document.scrollingElement?.scrollTo({ top: 0, left: 0, behavior: 'auto' })
   document.documentElement.scrollLeft = 0
   document.body.scrollLeft = 0
 
@@ -398,6 +401,46 @@ const handleVisibilityChange = () => {
   }
 }
 
+const lockDocumentHorizontalScroll = () => {
+  const html = document.documentElement
+  const body = document.body
+
+  const prevHtmlOverflowX = html.style.overflowX
+  const prevHtmlWidth = html.style.width
+  const prevHtmlMaxWidth = html.style.maxWidth
+  const prevBodyOverflowX = body.style.overflowX
+  const prevBodyWidth = body.style.width
+  const prevBodyMaxWidth = body.style.maxWidth
+
+  html.style.overflowX = 'hidden'
+  html.style.width = '100%'
+  html.style.maxWidth = '100%'
+  body.style.overflowX = 'hidden'
+  body.style.width = '100%'
+  body.style.maxWidth = '100%'
+
+  return () => {
+    html.style.overflowX = prevHtmlOverflowX
+    html.style.width = prevHtmlWidth
+    html.style.maxWidth = prevHtmlMaxWidth
+    body.style.overflowX = prevBodyOverflowX
+    body.style.width = prevBodyWidth
+    body.style.maxWidth = prevBodyMaxWidth
+  }
+}
+
+const handleViewportGeometryChange = () => {
+  handlePageShow()
+
+  if (viewportResetTimeoutId) {
+    window.clearTimeout(viewportResetTimeoutId)
+  }
+
+  viewportResetTimeoutId = window.setTimeout(() => {
+    resetLayoutViewportState()
+  }, 120)
+}
+
 watch(() => route.fullPath, () => {
   pressedNavPath.value = null
 
@@ -407,10 +450,14 @@ watch(() => route.fullPath, () => {
 })
 
 onMounted(async () => {
+  restoreDocumentStyles = lockDocumentHorizontalScroll()
+
   desktopMediaQuery = window.matchMedia('(min-width: 1024px)')
   syncDesktopState(desktopMediaQuery)
   desktopMediaQuery.addEventListener('change', syncDesktopState)
   window.addEventListener('pageshow', handlePageShow)
+  window.addEventListener('resize', handleViewportGeometryChange, { passive: true })
+  window.addEventListener('orientationchange', handleViewportGeometryChange)
   document.addEventListener('visibilitychange', handleVisibilityChange)
   handlePageShow()
 
@@ -439,8 +486,15 @@ onBeforeUnmount(() => {
     cancelAnimationFrame(rafId)
   }
 
+  if (viewportResetTimeoutId) {
+    window.clearTimeout(viewportResetTimeoutId)
+  }
+
   desktopMediaQuery?.removeEventListener('change', syncDesktopState)
   window.removeEventListener('pageshow', handlePageShow)
+  window.removeEventListener('resize', handleViewportGeometryChange)
+  window.removeEventListener('orientationchange', handleViewportGeometryChange)
   document.removeEventListener('visibilitychange', handleVisibilityChange)
+  restoreDocumentStyles?.()
 })
 </script>
