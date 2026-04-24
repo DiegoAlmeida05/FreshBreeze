@@ -1,5 +1,9 @@
 <template>
-  <div class="fixed inset-0 flex min-h-0 w-full min-w-0 overflow-hidden bg-gradient-to-br from-surface-soft via-primary-50/30 to-primary-warm-50/30 dark:bg-black dark:bg-none">
+  <div v-if="!layoutReady" class="fixed inset-0 flex min-h-0 w-full min-w-0 items-center justify-center overflow-hidden bg-gradient-to-br from-surface-soft via-primary-50/30 to-primary-warm-50/30 dark:bg-black dark:bg-none">
+    <div class="sr-only" aria-live="polite">Loading workspace...</div>
+  </div>
+
+  <div v-else class="fixed inset-0 flex min-h-0 w-full min-w-0 overflow-hidden bg-gradient-to-br from-surface-soft via-primary-50/30 to-primary-warm-50/30 dark:bg-black dark:bg-none">
     <!-- Sidebar overlay (mobile) -->
     <div
       v-if="sidebarOpen && !isDesktop"
@@ -337,6 +341,8 @@ const greetingName = ref('there')
 const fullName = ref('')
 const profileEmail = ref('')
 const avatarUrl = ref('')
+const layoutReady = ref(false)
+const hasMounted = ref(false)
 const { getProfile } = useAuth()
 const supabase = useSupabaseClient()
 let desktopMediaQuery: MediaQueryList | null = null
@@ -394,18 +400,19 @@ const onNavPress = (path: string) => {
 }
 
 const markWorkerShellHeartbeat = (reason: string) => {
+  if (!import.meta.client) {
+    return
+  }
+
   shellHeartbeat.value = {
     layout: 'worker',
     path: route.fullPath,
     at: Date.now(),
   }
 
-  console.info('[shell-heartbeat]', 'worker-layout-mounted', {
-    reason,
-    route: route.fullPath,
-    shellLayoutMode: shellLayoutMode.value,
-    isDesktop: isDesktop.value,
-  })
+  // Signal that authenticated app shell is visibly mounted.
+  window.__APP_MOUNTED__ = true
+  document.getElementById('__nuxt')?.setAttribute('data-app-mounted', '1')
 }
 
 const syncDesktopState = (event?: MediaQueryList | MediaQueryListEvent) => {
@@ -492,6 +499,10 @@ const handleViewportGeometryChange = () => {
 }
 
 watch(() => route.fullPath, () => {
+  if (!hasMounted.value) {
+    return
+  }
+
   pressedNavPath.value = null
   markWorkerShellHeartbeat('route-change')
 
@@ -501,6 +512,11 @@ watch(() => route.fullPath, () => {
 })
 
 onMounted(async () => {
+  hasMounted.value = true
+  window.requestAnimationFrame(() => {
+    layoutReady.value = true
+  })
+
   markWorkerShellHeartbeat('mounted')
 
   restoreDocumentStyles = lockDocumentHorizontalScroll()

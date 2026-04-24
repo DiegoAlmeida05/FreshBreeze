@@ -1,26 +1,10 @@
 <template>
-  <div class="page-shell relative overflow-hidden">
+  <div v-if="showLoginForm" class="page-shell relative overflow-hidden">
     <div class="pointer-events-none absolute -left-20 top-10 h-72 w-72 rounded-full bg-primary-500/20 blur-3xl" />
     <div class="pointer-events-none absolute -right-24 bottom-10 h-80 w-80 rounded-full bg-primary-warm-500/20 blur-3xl" />
 
     <div class="page-container relative flex min-h-[calc(100vh-4rem)] items-center justify-start">
       <section
-        v-if="isBootstrapping"
-        class="w-full max-w-md rounded-3xl border border-border bg-surface px-6 py-10 text-center shadow-elevated"
-      >
-        <img
-          src="/logo/logo_escrito_transparente.png"
-          alt="FreshBreeze"
-          class="mx-auto h-auto w-full max-w-[220px] object-contain"
-        />
-        <div class="mt-6 flex items-center justify-center gap-2 text-sm text-muted">
-          <div class="h-4 w-4 animate-spin rounded-full border-2 border-primary-500 border-t-transparent" />
-          Restoring your session...
-        </div>
-      </section>
-
-      <section
-        v-else
         class="block w-full overflow-hidden rounded-3xl border border-border bg-surface shadow-elevated text-left lg:grid lg:grid-cols-2 lg:max-w-5xl"
       >
         <article class="relative hidden overflow-hidden border-b border-border p-8 lg:block lg:border-b-0 lg:border-r">
@@ -122,6 +106,8 @@
       </section>
     </div>
   </div>
+
+  <div v-else class="sr-only" aria-live="polite">Checking session...</div>
 </template>
 
 <script setup lang="ts">
@@ -137,30 +123,16 @@ import { useTheme } from '../composables/useTheme'
 const REMEMBER_MODE_KEY = 'auth-remember-mode'
 const LAST_ROUTE_STORAGE_KEY = 'last-app-route'
 
-interface LaunchContextState {
-  isStandalone: boolean
-  isColdStart: boolean
-  coldStartPending: boolean
-  instanceId: string
-}
-
 const { isDark, toggleTheme } = useTheme()
 const { signIn, getProfile } = useAuth()
-const { isAuthBootstrapping, waitForAuthBootstrap: waitForSharedAuthBootstrap } = useAuthBootstrap()
-const launchContext = useState<LaunchContextState>('app-launch-context', () => ({
-  isStandalone: false,
-  isColdStart: false,
-  coldStartPending: false,
-  instanceId: '',
-}))
-const startupRoutePolicyApplied = useState<boolean>('app-startup-route-policy-applied', () => false)
+const { waitForAuthBootstrap: waitForSharedAuthBootstrap } = useAuthBootstrap()
 
 const loginEmail = ref('')
 const loginPassword = ref('')
 const remember = ref(false)
 const isLoading = ref(false)
 const loginError = ref('')
-const isBootstrapping = ref(true)
+const showLoginForm = ref(false)
 
 onMounted(() => {
   if (!import.meta.client) {
@@ -176,10 +148,10 @@ onMounted(() => {
 async function bootstrapAuthFlow(): Promise<void> {
   await waitForAuthBootstrap()
 
-  try {
-    await redirectIfAlreadyAuthenticated()
-  } finally {
-    isBootstrapping.value = false
+  const redirected = await redirectIfAlreadyAuthenticated()
+
+  if (!redirected) {
+    showLoginForm.value = true
   }
 }
 
@@ -187,29 +159,41 @@ async function waitForAuthBootstrap(): Promise<void> {
   await waitForSharedAuthBootstrap(2000)
 }
 
-async function redirectIfAlreadyAuthenticated(): Promise<void> {
+async function redirectIfAlreadyAuthenticated(): Promise<boolean> {
   try {
     const profile = await getProfile()
 
     if (!profile.active) {
-      return
+      return false
     }
 
     await navigateTo(resolveRouteAfterAuth(profile))
+    return true
   } catch {
     // No valid session yet: keep the user on the login page.
+    return false
   }
 }
 
-function resolveRouteAfterAuth(profile: ProfileDTO): string {
-  const shouldUseSafeStartupLanding = (
-    !startupRoutePolicyApplied.value
-    && launchContext.value.isStandalone
-    && launchContext.value.isColdStart
+function isStandaloneMode(): boolean {
+  return (
+    (typeof navigator !== 'undefined' &&
+      (navigator as Navigator & { standalone?: boolean }).standalone === true) ||
+    window.matchMedia('(display-mode: standalone)').matches
   )
+}
 
-  if (shouldUseSafeStartupLanding) {
-    startupRoutePolicyApplied.value = true
+function isStandaloneColdStart(): boolean {
+  if (!isStandaloneMode()) {
+    return false
+  }
+
+  return Boolean((window as Window & { __PWA_COLD_START__?: boolean }).__PWA_COLD_START__)
+}
+
+function resolveRouteAfterAuth(profile: ProfileDTO): string {
+  // In standalone (PWA), force safe role route only on true cold start.
+  if (isStandaloneColdStart()) {
     return profile.role === 'admin' ? '/admin' : '/worker/schedule'
   }
 

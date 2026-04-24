@@ -2,9 +2,10 @@ import { watch } from 'vue'
 
 export function useAuthBootstrap() {
   const isAuthBootstrapping = useState<boolean>('auth-bootstrap-loading', () => import.meta.client)
+  const AUTH_BOOTSTRAP_DEBUG = false
 
   const logAuthBootstrap = (message: string, extra?: Record<string, unknown>) => {
-    if (!import.meta.client) {
+    if (!import.meta.client || !AUTH_BOOTSTRAP_DEBUG) {
       return
     }
 

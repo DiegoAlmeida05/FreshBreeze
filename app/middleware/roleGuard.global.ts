@@ -5,6 +5,7 @@ import { useSupabaseClient } from '../composables/useSupabaseClient'
 const REMEMBER_MODE_KEY = 'auth-remember-mode'
 const SESSION_ACTIVE_KEY = 'auth-session-active'
 const AUTH_GUARD_TIMEOUT_MS = 1800
+const ROLE_GUARD_DEBUG = false
 
 interface AuthProfile {
   role: 'admin' | 'worker'
@@ -12,7 +13,7 @@ interface AuthProfile {
 }
 
 function logRoleGuard(message: string, extra?: Record<string, unknown>): void {
-  if (!import.meta.client) {
+  if (!import.meta.client || !ROLE_GUARD_DEBUG) {
     return
   }
 
@@ -65,7 +66,28 @@ async function withTimeout<T>(label: string, task: () => Promise<T>, timeoutMs: 
   return Promise.race([taskResult, timeoutResult])
 }
 
+function isStandaloneMode(): boolean {
+  return (
+    (typeof navigator !== 'undefined' &&
+      (navigator as Navigator & { standalone?: boolean }).standalone === true) ||
+    window.matchMedia('(display-mode: standalone)').matches
+  )
+}
+
+function isStandaloneColdStart(): boolean {
+  if (!isStandaloneMode()) {
+    return false
+  }
+
+  return Boolean((window as Window & { __PWA_COLD_START__?: boolean }).__PWA_COLD_START__)
+}
+
 function resolveRouteAfterAuth(role: AuthProfile['role']): string {
+  // In standalone (PWA), force safe route only on true cold start.
+  if (isStandaloneColdStart()) {
+    return defaultRouteForRole(role)
+  }
+
   const lastRoute = getStorageItem(localStorage, 'last-app-route')
 
   if (role === 'admin' && lastRoute?.startsWith('/admin')) {

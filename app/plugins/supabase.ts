@@ -13,7 +13,6 @@ export default defineNuxtPlugin(() => {
     const bootstrapFallbackTimeoutId = window.setTimeout(() => {
       if (isAuthBootstrapping.value) {
         isAuthBootstrapping.value = false
-        console.info('[auth-bootstrap]', 'plugin fallback timeout forced resolve', { timeoutMs: 1800 })
       }
     }, 1800)
 
