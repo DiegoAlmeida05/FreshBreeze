@@ -30,7 +30,7 @@
               v-model="form.reportDate"
               type="date"
               class="input-base"
-              :disabled="!isEditMode || loading"
+              :disabled="!isEditMode || loading || !props.canEditReportDate"
             >
           </div>
           <div>
@@ -80,20 +80,66 @@
 
         <div class="mt-4">
           <p class="mb-2 text-xs font-semibold uppercase tracking-wide text-muted">Photos</p>
-          <div v-if="photoUrls.length === 0" class="rounded-lg border border-dashed border-primary-200/80 px-3 py-4 text-xs text-muted">
+
+          <div v-if="isEditMode && canEdit && props.canManagePhotos" class="mb-3 space-y-2">
+            <input
+              id="report-detail-photos"
+              type="file"
+              multiple
+              accept="image/png,image/jpeg,image/jpg,image/webp"
+              class="input-base"
+              :disabled="loading || currentPhotoUrls.length >= 5"
+              @change="onPhotosChange"
+            >
+            <p class="text-[11px] text-muted">You can keep up to 5 photos per report.</p>
+          </div>
+
+          <div v-if="currentPhotoUrls.length === 0" class="rounded-lg border border-dashed border-primary-200/80 px-3 py-4 text-xs text-muted">
             No photos available for this report.
           </div>
+
           <div v-else class="flex flex-wrap gap-2">
-            <button
-              v-for="(url, index) in photoUrls"
-              :key="`${report.id}-photo-${index}`"
-              type="button"
-              class="overflow-hidden rounded-md border border-primary-100 transition hover:opacity-90 focus:outline-none focus:ring-2 focus:ring-primary-400"
-              :aria-label="`View report photo ${index + 1}`"
-              @click="openLightbox(url)"
-            >
-              <img :src="url" :alt="`Report photo ${index + 1}`" class="h-20 w-20 object-cover">
-            </button>
+            <div v-for="photo in existingPhotosDraft" :key="photo.id" class="relative">
+              <button
+                type="button"
+                class="overflow-hidden rounded-md border border-primary-100 transition hover:opacity-90 focus:outline-none focus:ring-2 focus:ring-primary-400"
+                aria-label="View report photo"
+                @click="openLightbox(photo.url)"
+              >
+                <img :src="photo.url" alt="Report photo" class="h-20 w-20 object-cover">
+              </button>
+
+              <button
+                v-if="isEditMode && canEdit && props.canManagePhotos"
+                type="button"
+                class="absolute -right-1 -top-1 flex h-5 w-5 items-center justify-center rounded-full bg-black/70 text-[10px] font-bold text-white"
+                aria-label="Remove existing photo"
+                @click="removeExistingPhoto(photo.id)"
+              >
+                ×
+              </button>
+            </div>
+
+            <div v-for="photo in pendingPhotos" :key="photo.id" class="relative">
+              <button
+                type="button"
+                class="overflow-hidden rounded-md border border-primary-100 transition hover:opacity-90 focus:outline-none focus:ring-2 focus:ring-primary-400"
+                aria-label="View pending photo"
+                @click="openLightbox(photo.previewUrl)"
+              >
+                <img :src="photo.previewUrl" alt="Pending report photo" class="h-20 w-20 object-cover">
+              </button>
+
+              <button
+                v-if="isEditMode && canEdit && props.canManagePhotos"
+                type="button"
+                class="absolute -right-1 -top-1 flex h-5 w-5 items-center justify-center rounded-full bg-black/70 text-[10px] font-bold text-white"
+                aria-label="Remove pending photo"
+                @click="removePendingPhoto(photo.id)"
+              >
+                ×
+              </button>
+            </div>
           </div>
         </div>
 
@@ -168,18 +214,35 @@
 import { computed, reactive, ref, watch } from 'vue'
 import type { PropertyReportAdminListItemDTO, PropertyReportStatus } from '../../../../shared/types/PropertyReportDTO'
 
+interface EditablePhotoItem {
+  id: string
+  url: string
+  source?: 'gallery' | 'legacy'
+}
+
+interface PendingPhotoItem {
+  id: string
+  file: File
+  previewUrl: string
+}
+
 interface ReportDetailForm {
   reportDate: string
   title: string
   descriptionPt: string
   status: PropertyReportStatus
+  addedPhotos?: File[]
+  removedPhotoIds?: string[]
 }
 
 interface Props {
   modelValue: boolean
   report: PropertyReportAdminListItemDTO | null
   photoUrls: string[]
+  editablePhotos?: EditablePhotoItem[]
   canEdit: boolean
+  canEditReportDate?: boolean
+  canManagePhotos?: boolean
   loading: boolean
 }
 
@@ -188,7 +251,11 @@ interface Emits {
   save: [payload: ReportDetailForm]
 }
 
-const props = defineProps<Props>()
+const props = withDefaults(defineProps<Props>(), {
+  canEditReportDate: false,
+  canManagePhotos: false,
+  editablePhotos: () => [],
+})
 const emit = defineEmits<Emits>()
 
 const form = reactive<ReportDetailForm>({
@@ -200,11 +267,27 @@ const form = reactive<ReportDetailForm>({
 
 const isEditMode = ref(false)
 const lightboxUrl = ref<string | null>(null)
+const pendingPhotos = ref<PendingPhotoItem[]>([])
+const existingPhotosDraft = ref<EditablePhotoItem[]>([])
+const removedPhotoIds = ref<string[]>([])
+
+const canEdit = computed(() => props.canEdit)
 
 const isFormValid = computed(() => {
   return form.reportDate.trim().length > 0
     && form.title.trim().length > 0
     && form.descriptionPt.trim().length > 0
+})
+
+const currentPhotoUrls = computed(() => {
+  const existing = existingPhotosDraft.value.map((photo) => photo.url)
+  const pending = pendingPhotos.value.map((photo) => photo.previewUrl)
+
+  if (existing.length > 0 || pending.length > 0) {
+    return [...existing, ...pending]
+  }
+
+  return props.photoUrls
 })
 
 watch(
@@ -218,9 +301,21 @@ watch(
     form.title = report.title
     form.descriptionPt = report.description_pt
     form.status = report.status
+    existingPhotosDraft.value = props.editablePhotos.map((photo) => ({ ...photo }))
+    clearPendingPhotos()
+    removedPhotoIds.value = []
     isEditMode.value = false
   },
   { immediate: true },
+)
+
+watch(
+  () => props.editablePhotos,
+  (photos) => {
+    if (!isEditMode.value) {
+      existingPhotosDraft.value = photos.map((photo) => ({ ...photo }))
+    }
+  },
 )
 
 watch(
@@ -228,6 +323,8 @@ watch(
   (open) => {
     if (!open) {
       lightboxUrl.value = null
+      clearPendingPhotos()
+      removedPhotoIds.value = []
       isEditMode.value = false
     }
   },
@@ -242,6 +339,9 @@ function cancelEdit(): void {
   form.title = props.report.title
   form.descriptionPt = props.report.description_pt
   form.status = props.report.status
+  existingPhotosDraft.value = props.editablePhotos.map((photo) => ({ ...photo }))
+  clearPendingPhotos()
+  removedPhotoIds.value = []
   isEditMode.value = false
 }
 
@@ -251,7 +351,62 @@ function submit(): void {
     title: form.title.trim(),
     descriptionPt: form.descriptionPt.trim(),
     status: form.status,
+    addedPhotos: pendingPhotos.value.map((photo) => photo.file),
+    removedPhotoIds: [...removedPhotoIds.value],
   })
+}
+
+function onPhotosChange(event: Event): void {
+  const input = event.target as HTMLInputElement
+  const files = Array.from(input.files ?? [])
+  input.value = ''
+
+  if (files.length === 0) {
+    return
+  }
+
+  const remaining = Math.max(0, 5 - existingPhotosDraft.value.length - pendingPhotos.value.length)
+  const accepted = files.slice(0, remaining)
+
+  for (const file of accepted) {
+    pendingPhotos.value.push({
+      id: `${Date.now()}-${Math.random()}`,
+      file,
+      previewUrl: URL.createObjectURL(file),
+    })
+  }
+}
+
+function removePendingPhoto(photoId: string): void {
+  const index = pendingPhotos.value.findIndex((photo) => photo.id === photoId)
+
+  if (index === -1) {
+    return
+  }
+
+  const [removed] = pendingPhotos.value.splice(index, 1)
+  if (removed) {
+    URL.revokeObjectURL(removed.previewUrl)
+  }
+}
+
+function removeExistingPhoto(photoId: string): void {
+  const index = existingPhotosDraft.value.findIndex((photo) => photo.id === photoId)
+
+  if (index === -1) {
+    return
+  }
+
+  existingPhotosDraft.value.splice(index, 1)
+  removedPhotoIds.value.push(photoId)
+}
+
+function clearPendingPhotos(): void {
+  for (const photo of pendingPhotos.value) {
+    URL.revokeObjectURL(photo.previewUrl)
+  }
+
+  pendingPhotos.value = []
 }
 
 function formatDateTime(value: string): string {

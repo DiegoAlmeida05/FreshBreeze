@@ -103,12 +103,8 @@
 
         <div class="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-6">
             <article class="rounded-lg border border-border bg-background px-2 py-1.5 text-center">
-              <p class="text-[9px] uppercase tracking-wide text-muted">Bathrooms</p>
-              <p class="mt-0.5 text-base font-semibold leading-none text-foreground">{{ jobDetail.bathrooms }}</p>
-            </article>
-            <article class="rounded-lg border border-border bg-background px-2 py-1.5 text-center">
-              <p class="text-[9px] uppercase tracking-wide text-muted">Single beds</p>
-              <p class="mt-0.5 text-base font-semibold leading-none text-foreground">{{ jobDetail.bedsSingle }}</p>
+              <p class="text-[9px] uppercase tracking-wide text-muted">Task type</p>
+              <p class="mt-0.5 text-base font-semibold leading-none text-foreground">{{ jobDetail.taskType }}</p>
             </article>
             <article class="rounded-lg border border-border bg-background px-2 py-1.5 text-center">
               <p class="text-[9px] uppercase tracking-wide text-muted">Queen beds</p>
@@ -119,99 +115,15 @@
               <p class="mt-0.5 text-base font-semibold leading-none text-foreground">{{ jobDetail.bedsKing }}</p>
             </article>
             <article class="rounded-lg border border-border bg-background px-2 py-1.5 text-center">
-              <p class="text-[9px] uppercase tracking-wide text-muted">Has key</p>
-              <p class="mt-0.5 text-base font-semibold leading-none text-foreground">{{ jobDetail.hasKey ? 'Yes' : 'No' }}</p>
+              <p class="text-[9px] uppercase tracking-wide text-muted">Single beds</p>
+              <p class="mt-0.5 text-base font-semibold leading-none text-foreground">{{ jobDetail.bedsSingle }}</p>
             </article>
             <article class="rounded-lg border border-border bg-background px-2 py-1.5 text-center">
-              <p class="text-[9px] uppercase tracking-wide text-muted">Task type</p>
-              <p class="mt-0.5 text-base font-semibold leading-none text-foreground">{{ jobDetail.taskType }}</p>
+              <p class="text-[9px] uppercase tracking-wide text-muted">Bathrooms</p>
+              <p class="mt-0.5 text-base font-semibold leading-none text-foreground">{{ jobDetail.bathrooms }}</p>
             </article>
         </div>
 
-        <div class="mt-4 rounded-lg border border-primary-100 bg-primary-50/35 p-3 dark:border-white/10 dark:bg-white/5">
-          <p class="mb-2 text-xs font-semibold uppercase tracking-wide text-muted">Keys</p>
-
-          <div class="space-y-1.5 text-xs text-muted">
-            <p><span class="font-medium text-foreground/80">Has key:</span> {{ jobDetail.hasKey ? 'Yes' : 'No' }}</p>
-            <p v-if="jobDetail.keyPickupAddress">
-              <span class="font-medium text-foreground/80">Key pickup address:</span> {{ jobDetail.keyPickupAddress }}
-            </p>
-            <p v-if="!jobDetail.hasKey && jobDetail.propertyKeys.length === 0 && keyPhotoUrls.length === 0 && !jobDetail.keyPhotoUrl">No key details available.</p>
-          </div>
-
-          <div v-if="jobDetail.propertyKeys.length > 0" class="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
-            <article
-              v-for="(item, index) in jobDetail.propertyKeys"
-              :key="`${jobDetail.propertyId}-key-${index}`"
-              class="rounded-lg border border-border/70 bg-background px-3 py-2"
-            >
-              <p class="text-xs font-semibold text-foreground">{{ item.label || `Key ${index + 1}` }}</p>
-              <p v-if="item.pickupAddress" class="mt-1 text-xs text-muted">Pickup: {{ item.pickupAddress }}</p>
-              <div v-if="item.pickupAddress" class="mt-1.5 flex flex-wrap gap-1">
-                <button
-                  type="button"
-                  class="inline-flex h-6 gap-1 items-center rounded px-1.5 py-0.5 text-[10px] font-medium text-primary-600 transition hover:bg-primary-100/50 dark:text-primary-400 dark:hover:bg-white/10"
-                  title="Open navigation options"
-                  @click="openNavigationSheet({ address: item.pickupAddress })"
-                >
-                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="h-3 w-3">
-                    <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm3.5-9c.83 0 1.5-.67 1.5-1.5S16.33 8 15.5 8 14 8.67 14 9.5s.67 1.5 1.5 1.5zm-7 0c.83 0 1.5-.67 1.5-1.5S9.33 8 8.5 8 7 8.67 7 9.5 7.67 11 8.5 11zm3.5 6.5c2.33 0 4.31-1.46 5.11-3.5H6.89c.8 2.04 2.78 3.5 5.11 3.5z" />
-                  </svg>
-                  Go
-                </button>
-                <button
-                  type="button"
-                  class="inline-flex h-6 gap-1 items-center rounded px-1.5 py-0.5 text-[10px] font-medium text-primary-600 transition hover:bg-primary-100/50 dark:text-primary-400 dark:hover:bg-white/10"
-                  title="Copy address"
-                  @click="copyToClipboard(item.pickupAddress, `key-pickup-address-${index}`)"
-                >
-                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="h-3 w-3">
-                    <path d="M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z" />
-                  </svg>
-                  {{ isCopied(`key-pickup-address-${index}`) ? 'Copied!' : 'Copy' }}
-                </button>
-              </div>
-              <p v-if="item.note" class="mt-1 text-xs text-muted">Note: {{ item.note }}</p>
-              <button
-                v-if="item.attachmentUrl"
-                type="button"
-                class="mt-2 overflow-hidden rounded-md border border-primary-100 transition hover:opacity-90 focus:outline-none focus:ring-2 focus:ring-primary-400"
-                :aria-label="`View key attachment ${index + 1}`"
-                @click="openLightbox(item.attachmentUrl)"
-              >
-                <img :src="item.attachmentUrl" :alt="`Key attachment ${index + 1}`" class="h-12 w-12 object-cover" />
-              </button>
-            </article>
-          </div>
-
-          <div v-if="keyPhotoUrls.length > 0" class="mt-3">
-            <p class="mb-2 text-xs font-semibold text-foreground">Key photos</p>
-            <div class="flex flex-wrap gap-2">
-              <button
-                v-for="(url, idx) in keyPhotoUrls"
-                :key="idx"
-                type="button"
-                class="overflow-hidden rounded-md border border-primary-100 transition hover:opacity-90 focus:outline-none focus:ring-2 focus:ring-primary-400"
-                :aria-label="`View key photo ${idx + 1}`"
-                @click="openLightbox(url)"
-              >
-                <img :src="url" :alt="`Key photo ${idx + 1}`" class="h-12 w-12 object-cover" />
-              </button>
-            </div>
-          </div>
-
-          <div v-else-if="jobDetail.keyPhotoUrl" class="mt-3">
-            <p class="mb-2 text-xs font-semibold text-foreground">Key photo</p>
-            <button
-              type="button"
-              class="overflow-hidden rounded-md border border-primary-100 transition hover:opacity-90 focus:outline-none focus:ring-2 focus:ring-primary-400"
-              aria-label="View key photo"
-              @click="openLightbox(jobDetail.keyPhotoUrl!)"
-            >
-              <img :src="jobDetail.keyPhotoUrl" alt="Property key photo" class="h-12 w-12 object-cover" />
-            </button>
-          </div>
-        </div>
       </section>
 
       <div class="grid grid-cols-1 gap-4 xl:grid-cols-2">
@@ -221,7 +133,8 @@
           <div class="mt-3 space-y-2 text-sm text-muted">
             <p><span class="font-medium text-foreground/80">Guest name:</span> {{ jobDetail.guestName || 'N/A' }}</p>
             <p><span class="font-medium text-foreground/80">Guest check-in:</span> {{ jobDetail.guestCheckinDate || 'N/A' }}</p>
-            <p><span class="font-medium text-foreground/80">Extras:</span> {{ extrasSummary }}</p>
+            <p v-if="extraItemsSummary.length > 0"><span class="font-medium text-foreground/80">Extras:</span> {{ extraItemsSummary.join(' · ') }}</p>
+            <p v-else><span class="font-medium text-foreground/80">Extras:</span> {{ extrasSummary }}</p>
             <p><span class="font-medium text-foreground/80">Property notes:</span> {{ jobDetail.propertyNotes || 'N/A' }}</p>
             <div v-if="jobDetail.link1 || jobDetail.link2" class="space-y-1">
               <p class="font-medium text-foreground/80">Property links:</p>
@@ -298,6 +211,90 @@
           </div>
         </section>
       </div>
+
+      <section class="rounded-xl border border-border bg-surface p-4 shadow-card">
+        <p class="mb-2 text-xs font-semibold uppercase tracking-wide text-muted">Keys</p>
+
+        <div class="space-y-1.5 text-xs text-muted">
+          <p v-if="jobDetail.keyPickupAddress">
+            <span class="font-medium text-foreground/80">Key pickup address:</span> {{ jobDetail.keyPickupAddress }}
+          </p>
+          <p v-if="!jobDetail.hasKey && jobDetail.propertyKeys.length === 0 && keyPhotoUrls.length === 0 && !jobDetail.keyPhotoUrl">No key details available.</p>
+        </div>
+
+        <div v-if="jobDetail.propertyKeys.length > 0" class="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
+          <article
+            v-for="(item, index) in jobDetail.propertyKeys"
+            :key="`${jobDetail.propertyId}-key-${index}`"
+            class="rounded-lg border border-border/70 bg-background px-3 py-2"
+          >
+            <p class="text-xs font-semibold text-foreground">{{ item.label || `Key ${index + 1}` }}</p>
+            <p v-if="item.pickupAddress" class="mt-1 text-xs text-muted">Pickup: {{ item.pickupAddress }}</p>
+            <div v-if="item.pickupAddress" class="mt-1.5 flex flex-wrap gap-1">
+              <button
+                type="button"
+                class="inline-flex h-6 gap-1 items-center rounded px-1.5 py-0.5 text-[10px] font-medium text-primary-600 transition hover:bg-primary-100/50 dark:text-primary-400 dark:hover:bg-white/10"
+                title="Open navigation options"
+                @click="openNavigationSheet({ address: item.pickupAddress })"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="h-3 w-3">
+                  <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm3.5-9c.83 0 1.5-.67 1.5-1.5S16.33 8 15.5 8 14 8.67 14 9.5s.67 1.5 1.5 1.5zm-7 0c.83 0 1.5-.67 1.5-1.5S9.33 8 8.5 8 7 8.67 7 9.5 7.67 11 8.5 11zm3.5 6.5c2.33 0 4.31-1.46 5.11-3.5H6.89c.8 2.04 2.78 3.5 5.11 3.5z" />
+                </svg>
+                Go
+              </button>
+              <button
+                type="button"
+                class="inline-flex h-6 gap-1 items-center rounded px-1.5 py-0.5 text-[10px] font-medium text-primary-600 transition hover:bg-primary-100/50 dark:text-primary-400 dark:hover:bg-white/10"
+                title="Copy address"
+                @click="copyToClipboard(item.pickupAddress, `key-pickup-address-${index}`)"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="h-3 w-3">
+                  <path d="M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z" />
+                </svg>
+                {{ isCopied(`key-pickup-address-${index}`) ? 'Copied!' : 'Copy' }}
+              </button>
+            </div>
+            <p v-if="item.note" class="mt-1 text-xs text-muted">Note: {{ item.note }}</p>
+            <button
+              v-if="item.attachmentUrl"
+              type="button"
+              class="mt-2 overflow-hidden rounded-md border border-primary-100 transition hover:opacity-90 focus:outline-none focus:ring-2 focus:ring-primary-400"
+              :aria-label="`View key attachment ${index + 1}`"
+              @click="openLightbox(item.attachmentUrl)"
+            >
+              <img :src="item.attachmentUrl" :alt="`Key attachment ${index + 1}`" class="h-12 w-12 object-cover" />
+            </button>
+          </article>
+        </div>
+
+        <div v-if="keyPhotoUrls.length > 0" class="mt-3">
+          <p class="mb-2 text-xs font-semibold text-foreground">Key photos</p>
+          <div class="flex flex-wrap gap-2">
+            <button
+              v-for="(url, idx) in keyPhotoUrls"
+              :key="idx"
+              type="button"
+              class="overflow-hidden rounded-md border border-primary-100 transition hover:opacity-90 focus:outline-none focus:ring-2 focus:ring-primary-400"
+              :aria-label="`View key photo ${idx + 1}`"
+              @click="openLightbox(url)"
+            >
+              <img :src="url" :alt="`Key photo ${idx + 1}`" class="h-12 w-12 object-cover" />
+            </button>
+          </div>
+        </div>
+
+        <div v-else-if="jobDetail.keyPhotoUrl" class="mt-3">
+          <p class="mb-2 text-xs font-semibold text-foreground">Key photo</p>
+          <button
+            type="button"
+            class="overflow-hidden rounded-md border border-primary-100 transition hover:opacity-90 focus:outline-none focus:ring-2 focus:ring-primary-400"
+            aria-label="View key photo"
+            @click="openLightbox(jobDetail.keyPhotoUrl!)"
+          >
+            <img :src="jobDetail.keyPhotoUrl" alt="Property key photo" class="h-12 w-12 object-cover" />
+          </button>
+        </div>
+      </section>
 
       <section class="rounded-xl border border-border bg-surface p-4 shadow-card">
         <div class="mb-3 flex items-center justify-between gap-2">
@@ -574,7 +571,10 @@
           v-model="isReportDetailModalOpen"
           :report="selectedReportForDetail"
           :photo-urls="selectedReportForDetail ? reportGallery(selectedReportForDetail) : []"
+          :editable-photos="selectedReportForDetail ? getEditableExistingPhotos(selectedReportForDetail) : []"
           :can-edit="selectedReportForDetail ? canEditReport(selectedReportForDetail) : false"
+          :can-edit-report-date="isAdmin"
+          :can-manage-photos="selectedReportForDetail ? canEditReport(selectedReportForDetail) : false"
           :loading="isUpdatingReport"
           @update:model-value="(value) => { if (!value) { isReportDetailModalOpen = false; selectedReportForDetail = null } }"
           @save="onSaveReportDetail"
@@ -661,6 +661,7 @@ import ReportDetailModal from '../reports/ReportDetailModal.vue'
 import BaseConfirmModal from '../../ui/BaseConfirmModal.vue'
 import BaseFeedbackBanner from '../../ui/BaseFeedbackBanner.vue'
 import { useAuth } from '../../../composables/useAuth'
+import { useDailyTaskExtraItems } from '../../../composables/useDailyTaskExtraItems'
 import { useSupabaseClient } from '../../../composables/useSupabaseClient'
 import { usePropertyReports } from '../../../composables/usePropertyReports'
 import { usePropertyReportPhotos } from '../../../composables/usePropertyReportPhotos'
@@ -669,6 +670,7 @@ import { useUploadReportPhoto } from '../../../composables/useUploadReportPhoto'
 import { assertAllowedImageType } from '../../../utils/optimizeImage'
 import { buildVisibleTaskTags } from '../../../utils/visualTaskTags'
 import type { ProfileDTO } from '../../../../shared/types/ProfileDTO'
+import type { DailyTaskExtraItemDTO } from '../../../../shared/types/PricingItemDTO'
 import type { PropertyReportDTO, PropertyReportAdminListItemDTO, PropertyReportStatus } from '../../../../shared/types/PropertyReportDTO'
 
 interface PendingPhotoItem {
@@ -755,11 +757,11 @@ interface DailyTaskRow {
   tags: unknown
   task_type: string | null
   notes: string | null
-  extra_towels_qty: number | null
-  extra_beds_single: number | null
-  extra_beds_queen: number | null
-  extra_beds_king: number | null
-  extra_chocolates_qty: number | null
+  extra_towel_qty: number | null
+  extra_linen_single_qty: number | null
+  extra_linen_queen_qty: number | null
+  extra_linen_king_qty: number | null
+  extra_chocolate_qty: number | null
 }
 
 interface PropertyRow {
@@ -819,6 +821,7 @@ const props = defineProps<Props>()
 
 const supabase = useSupabaseClient()
 const { getProfile } = useAuth()
+const { getTaskExtraItems } = useDailyTaskExtraItems()
 const { getReportsByProperty, createReport, deleteReport, resolveReport, updateReportStatus, updateReport, setReportPrimaryPhoto } = usePropertyReports()
 const { getPhotosByReportIds, createPhotos, deletePhotos } = usePropertyReportPhotos()
 const { getPhotosByPropertyId } = usePropertyKeyPhotos()
@@ -850,6 +853,7 @@ const editPendingReportPhotos = ref<PendingPhotoItem[]>([])
 const editingExistingReportPhotos = ref<ExistingReportPhotoItem[]>([])
 const removedExistingReportPhotos = ref<ExistingReportPhotoItem[]>([])
 const reportPhotosByReportId = ref<Record<string, ExistingReportPhotoItem[]>>({})
+const taskExtraItems = ref<DailyTaskExtraItemDTO[]>([])
 const keyPhotoUrls = ref<string[]>([])
 const lightboxUrl = ref<string | null>(null)
 const isNavigationSheetOpen = ref(false)
@@ -1029,7 +1033,14 @@ function openReportDetail(report: PropertyReportAdminListItemDTO): void {
   isReportDetailModalOpen.value = true
 }
 
-async function onSaveReportDetail(payload: { reportDate: string; title: string; descriptionPt: string; status: PropertyReportStatus }): Promise<void> {
+async function onSaveReportDetail(payload: {
+  reportDate: string
+  title: string
+  descriptionPt: string
+  status: PropertyReportStatus
+  addedPhotos?: File[]
+  removedPhotoIds?: string[]
+}): Promise<void> {
   if (!selectedReportForDetail.value || !canEditReport(selectedReportForDetail.value)) {
     return
   }
@@ -1039,14 +1050,38 @@ async function onSaveReportDetail(payload: { reportDate: string; title: string; 
   successMessage.value = ''
 
   try {
+    const effectiveReportDate = isAdmin.value
+      ? payload.reportDate
+      : selectedReportForDetail.value.report_date
+
+    const originalPhotos = getEditableExistingPhotos(selectedReportForDetail.value)
+    const removedPhotos = originalPhotos.filter((photo) => (payload.removedPhotoIds ?? []).includes(photo.id))
+    const removedGalleryPhotos = removedPhotos.filter((photo) => photo.source === 'gallery')
+    const removedLegacyPhotos = removedPhotos.filter((photo) => photo.source === 'legacy')
+
     await updateReport(selectedReportForDetail.value.id, {
-      report_date: payload.reportDate,
+      report_date: effectiveReportDate,
       title: payload.title,
       description_pt: payload.descriptionPt,
     })
 
     if (selectedReportForDetail.value.status !== payload.status) {
       await updateReportStatus(selectedReportForDetail.value.id, payload.status)
+    }
+
+    if (removedLegacyPhotos.length > 0) {
+      await Promise.all(removedLegacyPhotos.map((photo) => deleteReportPhoto(photo.url)))
+      await setReportPrimaryPhoto(selectedReportForDetail.value.id, null)
+    }
+
+    if (removedGalleryPhotos.length > 0) {
+      await Promise.all(removedGalleryPhotos.map((photo) => deleteReportPhoto(photo.url)))
+      await deletePhotos(selectedReportForDetail.value.id, removedGalleryPhotos.map((photo) => photo.id))
+    }
+
+    if ((payload.addedPhotos?.length ?? 0) > 0) {
+      const uploadedUrls = await uploadReportPhotos(payload.addedPhotos ?? [])
+      await createPhotos(selectedReportForDetail.value.id, uploadedUrls)
     }
 
     successMessage.value = 'Report updated successfully.'
@@ -1193,6 +1228,12 @@ const extrasSummary = computed(() => {
   }
 
   return parts.length > 0 ? parts.join(' · ') : 'No extras'
+})
+
+const extraItemsSummary = computed(() => {
+  return taskExtraItems.value
+    .filter((item) => item.quantity > 0)
+    .map((item) => `+ ${item.quantity}x ${item.pricing_item?.name ?? 'Item'}`)
 })
 
 function normalizeTags(value: unknown): string[] {
@@ -1439,6 +1480,7 @@ async function loadTeamMembers(routeGroupId: string): Promise<void> {
 async function loadJobDetail(): Promise<void> {
   isLoading.value = true
   errorMessage.value = ''
+  taskExtraItems.value = []
 
   try {
     const { data: stopData, error: stopError } = await supabase
@@ -1453,6 +1495,7 @@ async function loadJobDetail(): Promise<void> {
 
     if (!stopData) {
       jobDetail.value = null
+      taskExtraItems.value = []
       return
     }
 
@@ -1466,7 +1509,7 @@ async function loadJobDetail(): Promise<void> {
         .maybeSingle(),
       supabase
         .from('daily_tasks')
-        .select('id, date, property_id, guest_name, guest_checkin_date, tags, task_type, notes, extra_towels_qty, extra_beds_single, extra_beds_queen, extra_beds_king, extra_chocolates_qty')
+        .select('id, date, property_id, guest_name, guest_checkin_date, tags, task_type, notes, extra_towel_qty, extra_linen_single_qty, extra_linen_queen_qty, extra_linen_king_qty, extra_chocolate_qty')
         .eq('id', routeStop.daily_task_id)
         .maybeSingle(),
     ])
@@ -1481,6 +1524,7 @@ async function loadJobDetail(): Promise<void> {
 
     if (!taskData) {
       jobDetail.value = null
+      taskExtraItems.value = []
       return
     }
 
@@ -1500,6 +1544,7 @@ async function loadJobDetail(): Promise<void> {
 
     if (!propertyData) {
       jobDetail.value = null
+      taskExtraItems.value = []
       return
     }
 
@@ -1580,23 +1625,33 @@ async function loadJobDetail(): Promise<void> {
       tags: buildVisibleTaskTags(normalizeTags(task.tags), normalizeTags(property.default_tags)),
       taskType: task.task_type === 'BSB' ? 'BSB' : 'NORMAL',
       taskNotes: task.notes,
-      extraTowelsQty: Number(task.extra_towels_qty ?? 0),
-      extraBedsSingle: Number(task.extra_beds_single ?? 0),
-      extraBedsQueen: Number(task.extra_beds_queen ?? 0),
-      extraBedsKing: Number(task.extra_beds_king ?? 0),
-      extraChocolatesQty: Number(task.extra_chocolates_qty ?? 0),
+      extraTowelsQty: Number(task.extra_towel_qty ?? 0),
+      extraBedsSingle: Number(task.extra_linen_single_qty ?? 0),
+      extraBedsQueen: Number(task.extra_linen_queen_qty ?? 0),
+      extraBedsKing: Number(task.extra_linen_king_qty ?? 0),
+      extraChocolatesQty: Number(task.extra_chocolate_qty ?? 0),
     }
 
     await Promise.all([
       loadTeamMembers(routeStop.route_group_id),
       loadReports(),
       loadKeyPhotos(),
+      loadTaskExtraItems(task.id),
     ])
   } catch (err) {
     teamMembers.value = []
+    taskExtraItems.value = []
     errorMessage.value = err instanceof Error ? err.message : 'Failed to load job detail.'
   } finally {
     isLoading.value = false
+  }
+}
+
+async function loadTaskExtraItems(taskId: string): Promise<void> {
+  try {
+    taskExtraItems.value = await getTaskExtraItems(taskId)
+  } catch {
+    taskExtraItems.value = []
   }
 }
 

@@ -179,35 +179,7 @@
         </div>
 
         <div class="rounded-xl border border-border/80 bg-surface p-3.5">
-          <p class="mb-2 text-xs font-semibold uppercase tracking-wide text-muted">Default extras</p>
-          <div class="grid grid-cols-2 gap-3">
-            <div>
-              <label for="property-extra-towels-default-qty" class="mb-1.5 block text-xs font-medium text-foreground">Extra towels</label>
-              <input
-                id="property-extra-towels-default-qty"
-                v-model.number="form.extra_towels_default_qty"
-                type="number"
-                min="0"
-                step="1"
-                class="input-base text-center tabular-nums"
-                placeholder="0"
-                required
-              />
-            </div>
-            <div>
-              <label for="property-extra-dishcloths-default-qty" class="mb-1.5 block text-xs font-medium text-foreground">Extra dishcloths</label>
-              <input
-                id="property-extra-dishcloths-default-qty"
-                v-model.number="form.extra_dishcloths_default_qty"
-                type="number"
-                min="0"
-                step="1"
-                class="input-base text-center tabular-nums"
-                placeholder="0"
-                required
-              />
-            </div>
-          </div>
+          <p class="mb-2 text-xs font-semibold uppercase tracking-wide text-muted">Operational flags</p>
 
           <label class="mt-3 inline-flex cursor-pointer items-center gap-2 text-xs font-semibold uppercase tracking-wide text-muted">
             <input
@@ -218,6 +190,7 @@
             />
             Include chocolate
           </label>
+          <p class="mt-2 text-xs text-muted">Operational only: does not generate invoice charges unless Chocolate is selected as a pricing item.</p>
         </div>
       </div>
 
@@ -239,6 +212,287 @@
         <div v-if="form.notes.trim()" class="mt-3 overflow-hidden rounded-lg border border-primary-100 bg-primary-50/35 dark:bg-white/5">
           <p class="border-b border-primary-100 px-3 py-2 text-xs font-semibold uppercase tracking-wide text-muted">Preview</p>
           <pre class="whitespace-pre-wrap px-3 py-3 text-xs text-foreground">{{ form.notes }}</pre>
+        </div>
+      </div>
+    </section>
+
+    <section class="form-section space-y-4">
+      <div>
+        <h3 class="form-section-title">Item Pricing</h3>
+        <p class="mt-1 text-xs text-muted">Select pricing items to define what is included in each clean and which recurring extras apply.</p>
+      </div>
+
+      <!-- Amenities toggle -->
+      <div class="rounded-xl border border-border/80 bg-surface p-3.5">
+        <label class="flex cursor-pointer items-center gap-3">
+          <input
+            id="property-includes-amenities"
+            v-model="form.includes_amenities"
+            type="checkbox"
+            class="h-4 w-4 rounded border-border text-primary-500 focus:ring-primary-500"
+          />
+          <div>
+            <p class="text-sm font-semibold text-foreground">Includes amenities</p>
+            <p class="text-xs text-muted">When unchecked, all amenities items and amenities pack fee are ignored for this property.</p>
+          </div>
+        </label>
+      </div>
+
+      <!-- Pack fees -->
+      <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+        <div class="rounded-xl border border-border/80 bg-surface p-3.5">
+          <p class="mb-3 text-xs font-semibold uppercase tracking-wide text-muted">Pack fees</p>
+          <p class="mb-3 text-xs text-muted">Applied once per group (never multiplied by quantity).</p>
+          <div class="space-y-3">
+            <div>
+              <label for="property-linen-pack-fee" class="mb-1.5 block text-xs font-medium text-foreground">Linen pack fee</label>
+              <div class="relative">
+                <span class="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted">$</span>
+                <input
+                  id="property-linen-pack-fee"
+                  v-model="form.linen_pack_fee"
+                  type="text"
+                  inputmode="decimal"
+                  class="input-base pl-7 pr-3 text-right tabular-nums"
+                  placeholder="0.00"
+                />
+              </div>
+              <p v-if="errors.linen_pack_fee" class="mt-1 text-xs text-error-600">{{ errors.linen_pack_fee }}</p>
+            </div>
+            <div>
+              <label for="property-amenities-pack-fee" class="mb-1.5 block text-xs font-medium text-foreground">Amenities pack fee</label>
+              <div class="relative">
+                <span class="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted">$</span>
+                <input
+                  id="property-amenities-pack-fee"
+                  v-model="form.amenities_pack_fee"
+                  type="text"
+                  inputmode="decimal"
+                  class="input-base pl-7 pr-3 text-right tabular-nums"
+                  placeholder="0.00"
+                />
+              </div>
+              <p v-if="errors.amenities_pack_fee" class="mt-1 text-xs text-error-600">{{ errors.amenities_pack_fee }}</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Base items -->
+      <div>
+        <div class="mb-2 flex items-center justify-between gap-2">
+          <div>
+            <p class="text-sm font-semibold text-foreground">Base items</p>
+            <p class="text-xs text-muted">Included in every clean for this property.</p>
+          </div>
+        </div>
+
+        <div v-if="form.base_items.length === 0" class="rounded-xl border border-dashed border-border/80 bg-muted/20 px-4 py-4 text-sm text-muted">
+          No base items added.
+        </div>
+
+        <div v-else class="mb-3 space-y-2">
+          <div
+            v-for="(entry, index) in form.base_items"
+            :key="entry.id"
+            class="flex items-center gap-2 rounded-lg border border-border/80 bg-surface p-2.5"
+          >
+            <div class="relative flex-1">
+              <input
+                v-model="entry.item_search_query"
+                type="text"
+                class="input-base !py-1.5 text-sm"
+                placeholder="Search item..."
+                autocomplete="off"
+                @focus="activePricingItemPickerEntryId = entry.id"
+                @input="onPricingItemSearchInput(entry)"
+                @blur="onPricingItemSearchBlur(entry)"
+              />
+
+              <div
+                v-if="activePricingItemPickerEntryId === entry.id"
+                class="absolute z-20 mt-1 max-h-56 w-full overflow-y-auto rounded-lg border border-primary-100 bg-surface p-1 shadow-lg dark:border-white/10"
+              >
+                <button
+                  v-for="pricingItem in getFilteredPricingItems(entry.item_search_query, entry.pricing_item_id)"
+                  :key="pricingItem.id"
+                  type="button"
+                  class="block w-full rounded-md px-2 py-2 text-left text-sm text-foreground transition hover:bg-primary-50/70 dark:hover:bg-white/10"
+                  @mousedown.prevent="selectPricingItem(entry, pricingItem)"
+                >
+                  <p class="font-medium">{{ pricingItem.name }}</p>
+                  <p class="text-xs text-muted">{{ pricingItem.category }} · ${{ pricingItem.unit_price.toFixed(2) }}</p>
+                </button>
+
+                <p v-if="getFilteredPricingItems(entry.item_search_query, entry.pricing_item_id).length === 0" class="px-2 py-2 text-xs text-muted">
+                  No items found.
+                </p>
+              </div>
+            </div>
+            <input
+              v-model.number="entry.quantity"
+              type="number"
+              min="1"
+              step="1"
+              class="input-base w-20 text-center !py-1.5 tabular-nums"
+              placeholder="1"
+              aria-label="Quantity"
+            />
+            <div class="hidden min-w-[108px] text-right text-xs text-muted sm:block">
+              ${{ lineTotalForPropertyItem(entry.pricing_item_id, entry.quantity).toFixed(2) }}
+            </div>
+            <button
+              type="button"
+              class="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-error-600 transition hover:bg-error-100/50 dark:text-error-400 dark:hover:bg-error-500/10"
+              aria-label="Remove base item"
+              @click="removeBaseItem(index)"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="h-4 w-4">
+                <path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-9l-1 1H5v2h14V4z" />
+              </svg>
+            </button>
+          </div>
+        </div>
+
+        <button
+          type="button"
+          class="btn-outline !px-3 !py-1.5 text-xs"
+          :disabled="isLoadingPricingItems || availablePricingItemsForProperty.length === 0"
+          @click="addBaseItem"
+        >
+          {{ isLoadingPricingItems ? 'Loading items...' : '+ Add base item' }}
+        </button>
+
+        <button
+          type="button"
+          class="btn-outline !px-3 !py-1.5 text-xs"
+          :disabled="isLoadingPricingSets || availablePricingSetsForProperty.length === 0"
+          @click="openApplySetModal('base')"
+        >
+          {{ isLoadingPricingSets ? 'Loading sets...' : '+ Apply set' }}
+        </button>
+      </div>
+
+      <!-- Default extra items -->
+      <div>
+        <div class="mb-2">
+          <p class="text-sm font-semibold text-foreground">Default extra items</p>
+          <p class="text-xs text-muted">Recurring extras added on top of the base for this property.</p>
+        </div>
+
+        <div v-if="form.default_extra_items.length === 0" class="rounded-xl border border-dashed border-border/80 bg-muted/20 px-4 py-4 text-sm text-muted">
+          No default extra items added.
+        </div>
+
+        <div v-else class="mb-3 space-y-2">
+          <div
+            v-for="(entry, index) in form.default_extra_items"
+            :key="entry.id"
+            class="flex items-center gap-2 rounded-lg border border-border/80 bg-surface p-2.5"
+          >
+            <div class="relative flex-1">
+              <input
+                v-model="entry.item_search_query"
+                type="text"
+                class="input-base !py-1.5 text-sm"
+                placeholder="Search item..."
+                autocomplete="off"
+                @focus="activePricingItemPickerEntryId = entry.id"
+                @input="onPricingItemSearchInput(entry)"
+                @blur="onPricingItemSearchBlur(entry)"
+              />
+
+              <div
+                v-if="activePricingItemPickerEntryId === entry.id"
+                class="absolute z-20 mt-1 max-h-56 w-full overflow-y-auto rounded-lg border border-primary-100 bg-surface p-1 shadow-lg dark:border-white/10"
+              >
+                <button
+                  v-for="pricingItem in getFilteredPricingItems(entry.item_search_query, entry.pricing_item_id)"
+                  :key="pricingItem.id"
+                  type="button"
+                  class="block w-full rounded-md px-2 py-2 text-left text-sm text-foreground transition hover:bg-primary-50/70 dark:hover:bg-white/10"
+                  @mousedown.prevent="selectPricingItem(entry, pricingItem)"
+                >
+                  <p class="font-medium">{{ pricingItem.name }}</p>
+                  <p class="text-xs text-muted">{{ pricingItem.category }} · ${{ pricingItem.unit_price.toFixed(2) }}</p>
+                </button>
+
+                <p v-if="getFilteredPricingItems(entry.item_search_query, entry.pricing_item_id).length === 0" class="px-2 py-2 text-xs text-muted">
+                  No items found.
+                </p>
+              </div>
+            </div>
+            <input
+              v-model.number="entry.quantity"
+              type="number"
+              min="1"
+              step="1"
+              class="input-base w-20 text-center !py-1.5 tabular-nums"
+              placeholder="1"
+              aria-label="Quantity"
+            />
+            <div class="hidden min-w-[108px] text-right text-xs text-muted sm:block">
+              ${{ lineTotalForPropertyItem(entry.pricing_item_id, entry.quantity).toFixed(2) }}
+            </div>
+            <button
+              type="button"
+              class="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-error-600 transition hover:bg-error-100/50 dark:text-error-400 dark:hover:bg-error-500/10"
+              aria-label="Remove default extra item"
+              @click="removeDefaultExtraItem(index)"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="h-4 w-4">
+                <path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-9l-1 1H5v2h14V4z" />
+              </svg>
+            </button>
+          </div>
+        </div>
+
+        <button
+          type="button"
+          class="btn-outline !px-3 !py-1.5 text-xs"
+          :disabled="isLoadingPricingItems || availablePricingItemsForProperty.length === 0"
+          @click="addDefaultExtraItem"
+        >
+          {{ isLoadingPricingItems ? 'Loading items...' : '+ Add default extra item' }}
+        </button>
+
+        <button
+          type="button"
+          class="btn-outline !px-3 !py-1.5 text-xs"
+          :disabled="isLoadingPricingSets || availablePricingSetsForProperty.length === 0"
+          @click="openApplySetModal('default_extra')"
+        >
+          {{ isLoadingPricingSets ? 'Loading sets...' : '+ Apply set' }}
+        </button>
+      </div>
+
+      <div class="rounded-xl border border-border/80 bg-surface p-3.5">
+        <p class="mb-3 text-xs font-semibold uppercase tracking-wide text-muted">Pricing preview</p>
+        <div class="grid grid-cols-1 gap-3 text-sm sm:grid-cols-2">
+          <div class="rounded-lg border border-border/70 bg-muted/10 p-3">
+            <p class="text-xs font-semibold uppercase tracking-wide text-muted">Base</p>
+            <p class="mt-2 flex items-center justify-between"><span>Linen</span><span class="tabular-nums">${{ propertyPricingPreview.baseLinen.toFixed(2) }}</span></p>
+            <p class="mt-1 flex items-center justify-between"><span>Amenities</span><span class="tabular-nums">${{ propertyPricingPreview.baseAmenities.toFixed(2) }}</span></p>
+          </div>
+          <div class="rounded-lg border border-border/70 bg-muted/10 p-3">
+            <p class="text-xs font-semibold uppercase tracking-wide text-muted">Default extras</p>
+            <p class="mt-2 flex items-center justify-between"><span>Linen</span><span class="tabular-nums">${{ propertyPricingPreview.extraLinen.toFixed(2) }}</span></p>
+            <p class="mt-1 flex items-center justify-between"><span>Amenities</span><span class="tabular-nums">${{ propertyPricingPreview.extraAmenities.toFixed(2) }}</span></p>
+          </div>
+        </div>
+        <div class="mt-3 grid grid-cols-1 gap-3 text-sm sm:grid-cols-2">
+          <div class="rounded-lg border border-border/70 bg-muted/10 p-3">
+            <p class="text-xs font-semibold uppercase tracking-wide text-muted">Pack fees applied</p>
+            <p class="mt-2 text-xs text-muted">Linen base: {{ propertyPricingPreview.baseLinen > 0 ? 'Yes' : 'No' }}</p>
+            <p class="mt-1 text-xs text-muted">Linen extras: {{ propertyPricingPreview.extraLinen > 0 ? 'Yes' : 'No' }}</p>
+            <p class="mt-1 text-xs text-muted">Amenities base: {{ form.includes_amenities && propertyPricingPreview.baseAmenities > 0 ? 'Yes' : 'No' }}</p>
+            <p class="mt-1 text-xs text-muted">Amenities extras: {{ form.includes_amenities && propertyPricingPreview.extraAmenities > 0 ? 'Yes' : 'No' }}</p>
+          </div>
+          <div class="rounded-lg border border-border/70 bg-muted/10 p-3">
+            <p class="text-xs font-semibold uppercase tracking-wide text-muted">Totals with pack fees</p>
+            <p class="mt-2 flex items-center justify-between"><span>Linen total</span><span class="tabular-nums">${{ propertyPricingPreview.linenTotal.toFixed(2) }}</span></p>
+            <p class="mt-1 flex items-center justify-between"><span>Amenities total</span><span class="tabular-nums">${{ propertyPricingPreview.amenitiesTotal.toFixed(2) }}</span></p>
+          </div>
         </div>
       </div>
     </section>
@@ -570,6 +824,35 @@
         {{ isSubmitting ? 'Saving...' : submitLabel }}
       </button>
     </div>
+
+    <Teleport to="body">
+      <div v-if="isApplySetModalOpen" class="modal-backdrop z-[100]" @click.self="closeApplySetModal">
+        <div class="modal-surface max-w-md">
+          <div class="modal-header">
+            <h3 class="text-base font-semibold text-foreground">Apply set to {{ applySetScopeLabel }}</h3>
+            <button type="button" class="btn-outline !px-3 !py-1.5" @click="closeApplySetModal">Close</button>
+          </div>
+          <div class="modal-body space-y-4">
+            <div>
+              <label for="property-apply-set" class="mb-1.5 block text-sm font-medium text-foreground">Set</label>
+              <select id="property-apply-set" v-model="selectedPricingSetId" class="select-base">
+                <option value="">Select set</option>
+                <option v-for="pricingSet in availablePricingSetsForProperty" :key="pricingSet.id" :value="pricingSet.id">
+                  {{ pricingSet.name }} · {{ pricingSet.items.length }} item(s)
+                </option>
+              </select>
+            </div>
+
+            <p class="text-xs text-muted">The selected set expands into pricing items in this section. Existing item quantities are summed.</p>
+
+            <div class="flex justify-end gap-2">
+              <button type="button" class="btn-outline" @click="closeApplySetModal">Cancel</button>
+              <button type="button" class="btn-primary" :disabled="!selectedPricingSetId" @click="applySelectedPricingSet">Apply set</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </Teleport>
   </form>
 </template>
 
@@ -577,6 +860,8 @@
 import { useState } from '#imports'
 import { computed, onMounted, reactive, ref, watch } from 'vue'
 import type { ClientDTO } from '../../../../shared/types/ClientDTO'
+import type { PricingItemDTO, PropertyPricingItemDTO, PropertyPricingItemInput, PropertyPricingItemScope } from '../../../../shared/types/PricingItemDTO'
+import type { PricingSetDTO } from '../../../../shared/types/PricingSetDTO'
 import type {
   CreatePropertyDTO,
   CreatePropertyKeyDTO,
@@ -586,8 +871,12 @@ import type {
   PropertyTags,
   UpdatePropertyDTO,
 } from '../../../../shared/types/PropertyDTO'
+import { usePricingItems } from '../../../composables/usePricingItems'
+import { usePricingSets } from '../../../composables/usePricingSets'
 import { useClients } from '../../../composables/useClients'
+import { usePropertyPricingItems } from '../../../composables/usePropertyPricingItems'
 import { useUploadPropertyKeyPhoto } from '../../../composables/useUploadPropertyKeyPhoto'
+import { calculatePricingItems } from '../../../utils/calculatePricingItems'
 import { assertAllowedImageType } from '../../../utils/optimizeImage'
 
 export type PropertyFormMode = 'create' | 'edit'
@@ -608,8 +897,16 @@ interface FormPropertyResource {
   attachment_url: string
 }
 
+interface FormComboEntry {
+  id: string
+  pricing_item_id: string
+  item_search_query: string
+  quantity: number
+}
+
 export interface PropertyFormSubmitPayload {
   property: PropertyFormPayload
+  pricingItems: PropertyPricingItemInput[]
   propertyKeys: CreatePropertyKeyDTO[]
   propertyResources: CreatePropertyResourceDTO[]
 }
@@ -618,6 +915,8 @@ interface FieldErrors {
   client_id?: string
   name?: string
   address?: string
+  linen_pack_fee?: string
+  amenities_pack_fee?: string
   property_keys?: string
   property_resources?: string
 }
@@ -635,6 +934,9 @@ interface FormState {
   beds_queen: number
   beds_king: number
   default_cleaning_minutes: number
+  linen_pack_fee: string
+  amenities_pack_fee: string
+  includes_amenities: boolean
   includes_chocolates: boolean
   extra_towels_default_qty: number
   extra_dishcloths_default_qty: number
@@ -644,6 +946,8 @@ interface FormState {
   default_tags: PropertyTags
   property_keys: FormPropertyKey[]
   property_resources: FormPropertyResource[]
+  base_items: FormComboEntry[]
+  default_extra_items: FormComboEntry[]
 }
 
 interface Props {
@@ -667,13 +971,24 @@ const emit = defineEmits<{
 }>()
 
 const { fetchClients } = useClients()
+const { fetchActivePricingItems } = usePricingItems()
+const { fetchActivePricingSets } = usePricingSets()
+const { getPropertyPricingItems } = usePropertyPricingItems()
 const { uploadPropertyKeyPhotos } = useUploadPropertyKeyPhoto()
 const clients = ref<ClientDTO[]>([])
+const activePricingItems = ref<PricingItemDTO[]>([])
+const activePricingSets = ref<PricingSetDTO[]>([])
 const isLoadingClients = ref(false)
+const isLoadingPricingItems = ref(false)
+const isLoadingPricingSets = ref(false)
 const keyAttachmentErrorById = ref<UploadErrorById>({})
 const resourceUploadErrorById = ref<UploadErrorById>({})
 const uploadingKeyAttachmentId = ref<string | null>(null)
 const uploadingResourceId = ref<string | null>(null)
+const activePricingItemPickerEntryId = ref<string | null>(null)
+const isApplySetModalOpen = ref(false)
+const applySetTargetScope = ref<PropertyPricingItemScope | null>(null)
+const selectedPricingSetId = ref('')
 const initialSnapshot = ref('')
 const isSyncingForm = ref(true)
 
@@ -697,6 +1012,9 @@ const form = reactive<FormState>({
   beds_queen: 0,
   beds_king: 0,
   default_cleaning_minutes: 120,
+  linen_pack_fee: '0.00',
+  amenities_pack_fee: '0.00',
+  includes_amenities: true,
   includes_chocolates: false,
   extra_towels_default_qty: 0,
   extra_dishcloths_default_qty: 0,
@@ -706,10 +1024,80 @@ const form = reactive<FormState>({
   default_tags: [],
   property_keys: [],
   property_resources: [],
+  base_items: [],
+  default_extra_items: [],
 })
 
 const canAddMoreDefaultTags = computed(() => form.default_tags.length < MAX_DEFAULT_TAGS)
 const canCreateMorePresetTags = computed(() => presetTags.value.length < MAX_PRESET_TAGS)
+const availablePricingItemsForProperty = computed(() => {
+  if (form.includes_amenities) {
+    return activePricingItems.value
+  }
+
+  return activePricingItems.value.filter((pricingItem) => pricingItem.category !== 'amenities')
+})
+
+const availablePricingSetsForProperty = computed(() => {
+  const availablePricingItemIds = new Set(availablePricingItemsForProperty.value.map((pricingItem) => pricingItem.id))
+
+  return activePricingSets.value.filter((pricingSet) => {
+    if (!pricingSet.active) {
+      return false
+    }
+
+    return pricingSet.items.some((item) => availablePricingItemIds.has(item.pricing_item_id))
+  })
+})
+
+const applySetScopeLabel = computed(() => {
+  return applySetTargetScope.value === 'base' ? 'base items' : 'default extra items'
+})
+
+const propertyPricingPreview = computed(() => {
+  const pricingItemById = new Map(activePricingItems.value.map((pricingItem) => [pricingItem.id, pricingItem]))
+
+  const toPreviewRows = (entries: FormComboEntry[], scope: 'base' | 'default_extra'): PropertyPricingItemDTO[] => {
+    return entries
+      .map((entry) => {
+        const pricingItem = pricingItemById.get(entry.pricing_item_id)
+
+        if (!pricingItem || entry.quantity <= 0) {
+          return null
+        }
+
+        return {
+          id: entry.id,
+          property_id: props.property?.id ?? '',
+          pricing_item_id: pricingItem.id,
+          scope,
+          quantity: Math.max(1, Number(entry.quantity ?? 1)),
+          pricing_item: {
+            id: pricingItem.id,
+            name: pricingItem.name,
+            category: pricingItem.category,
+            unit_price: pricingItem.unit_price,
+            active: pricingItem.active,
+          },
+          created_at: '',
+          updated_at: '',
+        }
+      })
+      .filter((row): row is PropertyPricingItemDTO => Boolean(row))
+  }
+
+  const linenPackFee = parseMoneyInput(form.linen_pack_fee)
+  const amenitiesPackFee = parseMoneyInput(form.amenities_pack_fee)
+
+  return calculatePricingItems({
+    propertyBaseItems: toPreviewRows(form.base_items, 'base'),
+    propertyDefaultExtraItems: toPreviewRows(form.default_extra_items, 'default_extra'),
+    taskExtraItems: [],
+    linenPackFee: Number.isFinite(linenPackFee) ? linenPackFee : 0,
+    amenitiesPackFee: Number.isFinite(amenitiesPackFee) ? amenitiesPackFee : 0,
+    includesAmenities: form.includes_amenities,
+  })
+})
 
 function createItemId(): string {
   return `${Date.now()}-${Math.random().toString(36).slice(2)}`
@@ -734,10 +1122,182 @@ function createEmptyResource(): FormPropertyResource {
   }
 }
 
+function createEmptyPricingItemEntry(defaultPricingItemId = ''): FormComboEntry {
+  return {
+    id: createItemId(),
+    pricing_item_id: defaultPricingItemId,
+    item_search_query: getPricingItemDisplay(defaultPricingItemId),
+    quantity: 1,
+  }
+}
+
+function getPricingItemDisplay(pricingItemId: string): string {
+  const pricingItem = activePricingItems.value.find((item) => item.id === pricingItemId)
+  if (!pricingItem) {
+    return ''
+  }
+
+  return `${pricingItem.name} (${pricingItem.category}) - $${pricingItem.unit_price.toFixed(2)}`
+}
+
+function findPricingItemByName(name: string): PricingItemDTO | null {
+  const normalized = name.trim().toLowerCase()
+
+  return availablePricingItemsForProperty.value.find((pricingItem) => pricingItem.name.toLowerCase() === normalized) ?? null
+}
+
+function getFilteredPricingItems(query: string, selectedPricingItemId = ''): PricingItemDTO[] {
+  const normalized = query.trim().toLowerCase()
+  let result = availablePricingItemsForProperty.value
+
+  if (normalized) {
+    result = result.filter((pricingItem) => pricingItem.name.toLowerCase().includes(normalized))
+  }
+
+  if (selectedPricingItemId && !result.some((pricingItem) => pricingItem.id === selectedPricingItemId)) {
+    const selected = availablePricingItemsForProperty.value.find((pricingItem) => pricingItem.id === selectedPricingItemId)
+    if (selected) {
+      result = [selected, ...result]
+    }
+  }
+
+  return result
+}
+
+function selectPricingItem(entry: FormComboEntry, pricingItem: PricingItemDTO): void {
+  entry.pricing_item_id = pricingItem.id
+  entry.item_search_query = getPricingItemDisplay(pricingItem.id)
+  activePricingItemPickerEntryId.value = null
+}
+
+function onPricingItemSearchInput(entry: FormComboEntry): void {
+  activePricingItemPickerEntryId.value = entry.id
+  const exact = findPricingItemByName(entry.item_search_query)
+  entry.pricing_item_id = exact?.id ?? ''
+}
+
+function onPricingItemSearchBlur(entry: FormComboEntry): void {
+  window.setTimeout(() => {
+    if (activePricingItemPickerEntryId.value === entry.id) {
+      activePricingItemPickerEntryId.value = null
+    }
+
+    if (!entry.pricing_item_id) {
+      const exact = findPricingItemByName(entry.item_search_query)
+      if (exact) {
+        selectPricingItem(entry, exact)
+        return
+      }
+
+      entry.item_search_query = ''
+      return
+    }
+
+    entry.item_search_query = getPricingItemDisplay(entry.pricing_item_id)
+  }, 120)
+}
+
+function syncPricingItemsSearchText(): void {
+  form.base_items = form.base_items.map((entry) => ({
+    ...entry,
+    item_search_query: getPricingItemDisplay(entry.pricing_item_id),
+  }))
+
+  form.default_extra_items = form.default_extra_items.map((entry) => ({
+    ...entry,
+    item_search_query: getPricingItemDisplay(entry.pricing_item_id),
+  }))
+}
+
+function addBaseItem(): void {
+  form.base_items = [...form.base_items, createEmptyPricingItemEntry('')]
+}
+
+function removeBaseItem(index: number): void {
+  form.base_items = form.base_items.filter((_, itemIndex) => itemIndex !== index)
+}
+
+function addDefaultExtraItem(): void {
+  form.default_extra_items = [...form.default_extra_items, createEmptyPricingItemEntry('')]
+}
+
+function openApplySetModal(scope: PropertyPricingItemScope): void {
+  applySetTargetScope.value = scope
+  selectedPricingSetId.value = availablePricingSetsForProperty.value[0]?.id ?? ''
+  isApplySetModalOpen.value = true
+}
+
+function closeApplySetModal(): void {
+  isApplySetModalOpen.value = false
+  applySetTargetScope.value = null
+  selectedPricingSetId.value = ''
+}
+
+function applyPricingSetToEntries(entries: FormComboEntry[], pricingSet: PricingSetDTO): FormComboEntry[] {
+  const availablePricingItemIds = new Set(availablePricingItemsForProperty.value.map((pricingItem) => pricingItem.id))
+  const nextEntries = [...entries]
+
+  for (const item of pricingSet.items) {
+    if (!availablePricingItemIds.has(item.pricing_item_id)) {
+      continue
+    }
+
+    const existing = nextEntries.find((entry) => entry.pricing_item_id === item.pricing_item_id)
+    if (existing) {
+      existing.quantity += Math.max(1, Number(item.quantity ?? 1))
+      existing.item_search_query = getPricingItemDisplay(existing.pricing_item_id)
+      continue
+    }
+
+    nextEntries.push({
+      id: createItemId(),
+      pricing_item_id: item.pricing_item_id,
+      item_search_query: getPricingItemDisplay(item.pricing_item_id),
+      quantity: Math.max(1, Number(item.quantity ?? 1)),
+    })
+  }
+
+  return nextEntries
+}
+
+function applySelectedPricingSet(): void {
+  if (!applySetTargetScope.value) {
+    return
+  }
+
+  const pricingSet = availablePricingSetsForProperty.value.find((item) => item.id === selectedPricingSetId.value)
+  if (!pricingSet) {
+    return
+  }
+
+  if (applySetTargetScope.value === 'base') {
+    form.base_items = applyPricingSetToEntries(form.base_items, pricingSet)
+  } else {
+    form.default_extra_items = applyPricingSetToEntries(form.default_extra_items, pricingSet)
+  }
+
+  closeApplySetModal()
+}
+
+function removeDefaultExtraItem(index: number): void {
+  form.default_extra_items = form.default_extra_items.filter((_, itemIndex) => itemIndex !== index)
+}
+
+function lineTotalForPropertyItem(pricingItemId: string, quantity: number): number {
+  const pricingItem = activePricingItems.value.find((item) => item.id === pricingItemId)
+  if (!pricingItem) {
+    return 0
+  }
+
+  return Number((pricingItem.unit_price * Math.max(1, Number(quantity ?? 1))).toFixed(2))
+}
+
 function resetErrors(): void {
   errors.client_id = undefined
   errors.name = undefined
   errors.address = undefined
+  errors.linen_pack_fee = undefined
+  errors.amenities_pack_fee = undefined
   errors.property_keys = undefined
   errors.property_resources = undefined
 }
@@ -766,7 +1326,33 @@ function validateForm(): boolean {
     errors.property_resources = 'Each resource must have a URL (for links) or file upload (for files).'
   }
 
-  return !errors.client_id && !errors.name && !errors.address && !errors.property_keys && !errors.property_resources
+  const linenPackFee = parseMoneyInput(form.linen_pack_fee)
+  if (!Number.isFinite(linenPackFee) || linenPackFee < 0) {
+    errors.linen_pack_fee = 'Enter a valid value.'
+  }
+
+  const amenitiesPackFee = parseMoneyInput(form.amenities_pack_fee)
+  if (!Number.isFinite(amenitiesPackFee) || amenitiesPackFee < 0) {
+    errors.amenities_pack_fee = 'Enter a valid value.'
+  }
+
+  return !errors.client_id
+    && !errors.name
+    && !errors.address
+    && !errors.linen_pack_fee
+    && !errors.amenities_pack_fee
+    && !errors.property_keys
+    && !errors.property_resources
+}
+
+function toMoneyInput(value: number): string {
+  return Number.isFinite(value) ? value.toFixed(2) : '0.00'
+}
+
+function parseMoneyInput(value: string): number {
+  const normalized = value.replace(',', '.').trim()
+  const numeric = Number.parseFloat(normalized)
+  return Number.isFinite(numeric) ? numeric : NaN
 }
 
 function normalizeTag(tag: string): string {
@@ -801,6 +1387,37 @@ function normalizeFormResources(): CreatePropertyResourceDTO[] {
     .filter((item) => (item.resource_type === 'link' && item.url.length > 0) || (item.resource_type === 'attachment' && (item.attachment_url ?? '').length > 0))
 }
 
+function normalizeFormPricingItems(): PropertyPricingItemInput[] {
+  const normalized = new Map<string, PropertyPricingItemInput>()
+
+  const appendEntries = (entries: FormComboEntry[], scope: 'base' | 'default_extra') => {
+    for (const entry of entries) {
+      const pricingItemId = entry.pricing_item_id.trim()
+      const quantity = toNonNegativeInt(entry.quantity)
+      if (!pricingItemId || quantity <= 0) {
+        continue
+      }
+
+      const key = `${scope}:${pricingItemId}`
+      const current = normalized.get(key)
+      if (current) {
+        current.quantity += quantity
+      } else {
+        normalized.set(key, {
+          pricing_item_id: pricingItemId,
+          scope,
+          quantity,
+        })
+      }
+    }
+  }
+
+  appendEntries(form.base_items, 'base')
+  appendEntries(form.default_extra_items, 'default_extra')
+
+  return Array.from(normalized.values())
+}
+
 function createSnapshot(): string {
   return JSON.stringify({
     client_id: form.client_id,
@@ -813,6 +1430,9 @@ function createSnapshot(): string {
     beds_queen: form.beds_queen,
     beds_king: form.beds_king,
     default_cleaning_minutes: form.default_cleaning_minutes,
+    linen_pack_fee: form.linen_pack_fee,
+    amenities_pack_fee: form.amenities_pack_fee,
+    includes_amenities: form.includes_amenities,
     includes_chocolates: form.includes_chocolates,
     extra_towels_default_qty: form.extra_towels_default_qty,
     extra_dishcloths_default_qty: form.extra_dishcloths_default_qty,
@@ -822,6 +1442,8 @@ function createSnapshot(): string {
     default_tags: form.default_tags,
     property_keys: form.property_keys,
     property_resources: form.property_resources,
+    base_items: form.base_items,
+    default_extra_items: form.default_extra_items,
   })
 }
 
@@ -848,6 +1470,9 @@ async function syncForm(): Promise<void> {
     form.beds_queen = property.beds_queen
     form.beds_king = property.beds_king
     form.default_cleaning_minutes = property.default_cleaning_minutes
+    form.linen_pack_fee = toMoneyInput(property.linen_pack_fee)
+    form.amenities_pack_fee = toMoneyInput(property.amenities_pack_fee)
+    form.includes_amenities = property.includes_amenities
     form.includes_chocolates = property.includes_chocolates
     form.extra_towels_default_qty = property.extra_towels_default_qty
     form.extra_dishcloths_default_qty = property.extra_dishcloths_default_qty
@@ -872,6 +1497,29 @@ async function syncForm(): Promise<void> {
           attachment_url: item.attachment_url ?? '',
         }))
       : []
+
+    if (property.id) {
+      const propertyPricingItems = await getPropertyPricingItems(property.id)
+      form.base_items = propertyPricingItems
+        .filter((item) => item.scope === 'base')
+        .map((item) => ({
+          id: createItemId(),
+          pricing_item_id: item.pricing_item_id,
+          item_search_query: getPricingItemDisplay(item.pricing_item_id),
+          quantity: Math.max(1, Number(item.quantity ?? 1)),
+        }))
+      form.default_extra_items = propertyPricingItems
+        .filter((item) => item.scope === 'default_extra')
+        .map((item) => ({
+          id: createItemId(),
+          pricing_item_id: item.pricing_item_id,
+          item_search_query: getPricingItemDisplay(item.pricing_item_id),
+          quantity: Math.max(1, Number(item.quantity ?? 1)),
+        }))
+    } else {
+      form.base_items = []
+      form.default_extra_items = []
+    }
   } else {
     form.client_id = ''
     form.name = ''
@@ -883,6 +1531,9 @@ async function syncForm(): Promise<void> {
     form.beds_queen = 0
     form.beds_king = 0
     form.default_cleaning_minutes = 120
+    form.linen_pack_fee = '0.00'
+    form.amenities_pack_fee = '0.00'
+    form.includes_amenities = true
     form.includes_chocolates = false
     form.extra_towels_default_qty = 0
     form.extra_dishcloths_default_qty = 0
@@ -892,6 +1543,8 @@ async function syncForm(): Promise<void> {
     form.default_tags = []
     form.property_keys = []
     form.property_resources = []
+    form.base_items = []
+    form.default_extra_items = []
   }
 
   resetDirtyTracking()
@@ -927,6 +1580,25 @@ watch(
   },
 )
 
+watch(
+  () => form.includes_amenities,
+  (includesAmenities) => {
+    if (includesAmenities) {
+      return
+    }
+
+    const amenitiesItemIds = new Set(activePricingItems.value.filter((pricingItem) => pricingItem.category === 'amenities').map((pricingItem) => pricingItem.id))
+    form.base_items = form.base_items.filter((entry) => !amenitiesItemIds.has(entry.pricing_item_id))
+    form.default_extra_items = form.default_extra_items.filter((entry) => !amenitiesItemIds.has(entry.pricing_item_id))
+
+    syncPricingItemsSearchText()
+  },
+)
+
+watch(activePricingItems, () => {
+  syncPricingItemsSearchText()
+}, { deep: true })
+
 watch(isDirty, (value) => {
   if (isSyncingForm.value) {
     return
@@ -953,10 +1625,23 @@ onMounted(async () => {
   }
 
   isLoadingClients.value = true
+  isLoadingPricingItems.value = true
+  isLoadingPricingSets.value = true
   try {
-    clients.value = await fetchClients()
+    const [loadedClients, loadedPricingItems, loadedPricingSets] = await Promise.all([
+      fetchClients(),
+      fetchActivePricingItems(),
+      fetchActivePricingSets(),
+    ])
+
+    clients.value = loadedClients
+    activePricingItems.value = loadedPricingItems
+    activePricingSets.value = loadedPricingSets
+    syncPricingItemsSearchText()
   } finally {
     isLoadingClients.value = false
+    isLoadingPricingItems.value = false
+    isLoadingPricingSets.value = false
   }
 })
 
@@ -1188,8 +1873,11 @@ async function onSubmit(): Promise<void> {
   const bedsQueen = toNonNegativeInt(form.beds_queen)
   const bedsKing = toNonNegativeInt(form.beds_king)
   const defaultCleaningMinutes = toNonNegativeInt(form.default_cleaning_minutes)
-  const extraTowelsDefaultQty = toNonNegativeInt(form.extra_towels_default_qty)
-  const extraDishclothsDefaultQty = toNonNegativeInt(form.extra_dishcloths_default_qty)
+  const linenPackFee = parseMoneyInput(form.linen_pack_fee)
+  const amenitiesPackFee = parseMoneyInput(form.amenities_pack_fee)
+  const extraTowelsDefaultQty = 0
+  const extraDishclothsDefaultQty = 0
+  const pricingItems = normalizeFormPricingItems()
 
   const payload: PropertyFormPayload = {
     client_id: form.client_id,
@@ -1202,6 +1890,16 @@ async function onSubmit(): Promise<void> {
     beds_queen: bedsQueen,
     beds_king: bedsKing,
     default_cleaning_minutes: defaultCleaningMinutes,
+    linen_combo_extra_price: 0,
+    amenities_combo_extra_price: 0,
+    linen_queen_extra_price: 0,
+    linen_single_extra_price: 0,
+    linen_king_extra_price: 0,
+    towel_extra_price: 0,
+    chocolate_extra_price: 0,
+    linen_pack_fee: linenPackFee,
+    amenities_pack_fee: amenitiesPackFee,
+    includes_amenities: form.includes_amenities,
     includes_chocolates: form.includes_chocolates,
     extra_towels_default_qty: extraTowelsDefaultQty,
     extra_dishcloths_default_qty: extraDishclothsDefaultQty,
@@ -1214,6 +1912,7 @@ async function onSubmit(): Promise<void> {
 
   emit('submit', {
     property: payload,
+    pricingItems,
     propertyKeys,
     propertyResources,
   })

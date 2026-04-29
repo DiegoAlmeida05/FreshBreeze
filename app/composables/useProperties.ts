@@ -23,6 +23,16 @@ interface PropertyRow {
   beds_queen: number | null
   beds_king: number | null
   default_cleaning_minutes: number | null
+  linen_combo_extra_price: number | null
+  amenities_combo_extra_price: number | null
+  linen_queen_extra_price: number | null
+  linen_single_extra_price: number | null
+  linen_king_extra_price: number | null
+  towel_extra_price: number | null
+  chocolate_extra_price: number | null
+  linen_pack_fee: number | null
+  amenities_pack_fee: number | null
+  includes_amenities: boolean | null
   includes_chocolates: boolean | null
   extra_towels_default_qty: number | null
   extra_dishcloths_default_qty: number | null
@@ -72,6 +82,16 @@ const propertySelectFields = [
   'beds_queen',
   'beds_king',
   'default_cleaning_minutes',
+  'linen_combo_extra_price',
+  'amenities_combo_extra_price',
+  'linen_queen_extra_price',
+  'linen_single_extra_price',
+  'linen_king_extra_price',
+  'towel_extra_price',
+  'chocolate_extra_price',
+  'linen_pack_fee',
+  'amenities_pack_fee',
+  'includes_amenities',
   'includes_chocolates',
   'extra_towels_default_qty',
   'extra_dishcloths_default_qty',
@@ -177,6 +197,16 @@ function toPropertyDTO(
     beds_queen: Number(row.beds_queen ?? 0),
     beds_king: Number(row.beds_king ?? 0),
     default_cleaning_minutes: Number(row.default_cleaning_minutes ?? 0),
+    linen_combo_extra_price: Number(row.linen_combo_extra_price ?? 0),
+    amenities_combo_extra_price: Number(row.amenities_combo_extra_price ?? 0),
+    linen_queen_extra_price: Number(row.linen_queen_extra_price ?? 0),
+    linen_single_extra_price: Number(row.linen_single_extra_price ?? 0),
+    linen_king_extra_price: Number(row.linen_king_extra_price ?? 0),
+    towel_extra_price: Number(row.towel_extra_price ?? 0),
+    chocolate_extra_price: Number(row.chocolate_extra_price ?? 0),
+    linen_pack_fee: Number(row.linen_pack_fee ?? 0),
+    amenities_pack_fee: Number(row.amenities_pack_fee ?? 0),
+    includes_amenities: row.includes_amenities !== false,
     includes_chocolates: Boolean(row.includes_chocolates),
     extra_towels_default_qty: Number(row.extra_towels_default_qty ?? 0),
     extra_dishcloths_default_qty: Number(row.extra_dishcloths_default_qty ?? 0),
@@ -209,6 +239,16 @@ function toCreatePropertyPayload(payload: CreatePropertyDTO): CreatePropertyDTO 
     beds_queen: Number(payload.beds_queen ?? 0),
     beds_king: Number(payload.beds_king ?? 0),
     default_cleaning_minutes: Number(payload.default_cleaning_minutes ?? 0),
+    linen_combo_extra_price: Number(payload.linen_combo_extra_price ?? 0),
+    amenities_combo_extra_price: Number(payload.amenities_combo_extra_price ?? 0),
+    linen_queen_extra_price: Number(payload.linen_queen_extra_price ?? 0),
+    linen_single_extra_price: Number(payload.linen_single_extra_price ?? 0),
+    linen_king_extra_price: Number(payload.linen_king_extra_price ?? 0),
+    towel_extra_price: Number(payload.towel_extra_price ?? 0),
+    chocolate_extra_price: Number(payload.chocolate_extra_price ?? 0),
+    linen_pack_fee: Number(payload.linen_pack_fee ?? 0),
+    amenities_pack_fee: Number(payload.amenities_pack_fee ?? 0),
+    includes_amenities: payload.includes_amenities !== false,
     includes_chocolates: Boolean(payload.includes_chocolates),
     extra_towels_default_qty: Number(payload.extra_towels_default_qty ?? 0),
     extra_dishcloths_default_qty: Number(payload.extra_dishcloths_default_qty ?? 0),
@@ -232,6 +272,16 @@ function toUpdatePropertyPayload(payload: UpdatePropertyDTO): UpdatePropertyDTO 
     beds_queen: payload.beds_queen === undefined ? undefined : Number(payload.beds_queen),
     beds_king: payload.beds_king === undefined ? undefined : Number(payload.beds_king),
     default_cleaning_minutes: payload.default_cleaning_minutes === undefined ? undefined : Number(payload.default_cleaning_minutes),
+    linen_combo_extra_price: payload.linen_combo_extra_price === undefined ? undefined : Number(payload.linen_combo_extra_price),
+    amenities_combo_extra_price: payload.amenities_combo_extra_price === undefined ? undefined : Number(payload.amenities_combo_extra_price),
+    linen_queen_extra_price: payload.linen_queen_extra_price === undefined ? undefined : Number(payload.linen_queen_extra_price),
+    linen_single_extra_price: payload.linen_single_extra_price === undefined ? undefined : Number(payload.linen_single_extra_price),
+    linen_king_extra_price: payload.linen_king_extra_price === undefined ? undefined : Number(payload.linen_king_extra_price),
+    towel_extra_price: payload.towel_extra_price === undefined ? undefined : Number(payload.towel_extra_price),
+    chocolate_extra_price: payload.chocolate_extra_price === undefined ? undefined : Number(payload.chocolate_extra_price),
+    linen_pack_fee: payload.linen_pack_fee === undefined ? undefined : Number(payload.linen_pack_fee),
+    amenities_pack_fee: payload.amenities_pack_fee === undefined ? undefined : Number(payload.amenities_pack_fee),
+    includes_amenities: payload.includes_amenities,
     includes_chocolates: payload.includes_chocolates,
     extra_towels_default_qty: payload.extra_towels_default_qty === undefined ? undefined : Number(payload.extra_towels_default_qty),
     extra_dishcloths_default_qty: payload.extra_dishcloths_default_qty === undefined ? undefined : Number(payload.extra_dishcloths_default_qty),

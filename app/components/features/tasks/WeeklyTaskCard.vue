@@ -195,15 +195,15 @@ const chocolatesSummary = computed(() => {
     bedsSingle: props.property?.beds_single ?? 0,
     bedsQueen: props.property?.beds_queen ?? 0,
     bedsKing: props.property?.beds_king ?? 0,
-    extraBedsSingle: props.task.extra_beds_single,
-    extraBedsQueen: props.task.extra_beds_queen,
-    extraBedsKing: props.task.extra_beds_king,
-    extraChocolatesQty: props.task.extra_chocolates_qty,
+    extraBedsSingle: props.task.extra_linen_single_qty,
+    extraBedsQueen: props.task.extra_linen_queen_qty,
+    extraBedsKing: props.task.extra_linen_king_qty,
+    extraChocolatesQty: props.task.extra_chocolate_qty,
   })
 })
 
 const towelsSummaryTotal = computed(() => {
-  return props.task.extra_towels_qty ?? 0
+  return props.task.extra_towel_qty ?? 0
 })
 
 const dishclothsDefaultQty = computed(() => {

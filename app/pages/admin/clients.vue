@@ -273,9 +273,6 @@ async function onSubmitForm(payload: ClientFormPayload): Promise<void> {
         name: payload.name,
         color: payload.color,
         hourly_rate: payload.hourly_rate,
-        linen_combo_price: payload.linen_combo_price,
-        amenities_combo_price: payload.amenities_combo_price,
-        extra_towel_price: payload.extra_towel_price,
         active: payload.active,
       }
 
@@ -287,9 +284,6 @@ async function onSubmitForm(payload: ClientFormPayload): Promise<void> {
         name: payload.name,
         color: payload.color,
         hourly_rate: payload.hourly_rate,
-        linen_combo_price: payload.linen_combo_price,
-        amenities_combo_price: payload.amenities_combo_price,
-        extra_towel_price: payload.extra_towel_price,
         active: payload.active,
       }
 

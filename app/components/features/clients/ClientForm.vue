@@ -59,54 +59,6 @@
           </div>
           <p v-if="errors.hourly_rate" class="mt-1 text-xs text-error-600">{{ errors.hourly_rate }}</p>
         </div>
-
-        <div>
-          <label for="client-linen-combo" class="mb-1.5 block text-sm font-medium text-foreground">Linen combo price (invoice)</label>
-          <div class="relative">
-            <span class="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted">$</span>
-            <input
-              id="client-linen-combo"
-              v-model="form.linen_combo_price"
-              type="text"
-              inputmode="decimal"
-              class="input-base pl-7 pr-3 text-right tabular-nums"
-              placeholder="0.00"
-            />
-          </div>
-          <p v-if="errors.linen_combo_price" class="mt-1 text-xs text-error-600">{{ errors.linen_combo_price }}</p>
-        </div>
-
-        <div>
-          <label for="client-amenities-combo" class="mb-1.5 block text-sm font-medium text-foreground">Amenities combo price (invoice)</label>
-          <div class="relative">
-            <span class="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted">$</span>
-            <input
-              id="client-amenities-combo"
-              v-model="form.amenities_combo_price"
-              type="text"
-              inputmode="decimal"
-              class="input-base pl-7 pr-3 text-right tabular-nums"
-              placeholder="0.00"
-            />
-          </div>
-          <p v-if="errors.amenities_combo_price" class="mt-1 text-xs text-error-600">{{ errors.amenities_combo_price }}</p>
-        </div>
-
-        <div>
-          <label for="client-towel" class="mb-1.5 block text-sm font-medium text-foreground">Extra towel price (invoice)</label>
-          <div class="relative">
-            <span class="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted">$</span>
-            <input
-              id="client-towel"
-              v-model="form.extra_towel_price"
-              type="text"
-              inputmode="decimal"
-              class="input-base pl-7 pr-3 text-right tabular-nums"
-              placeholder="0.00"
-            />
-          </div>
-          <p v-if="errors.extra_towel_price" class="mt-1 text-xs text-error-600">{{ errors.extra_towel_price }}</p>
-        </div>
       </div>
     </section>
 
@@ -153,9 +105,6 @@ interface FormState {
   name: string
   color: string
   hourly_rate: string
-  linen_combo_price: string
-  amenities_combo_price: string
-  extra_towel_price: string
   active: boolean
 }
 
@@ -163,9 +112,6 @@ interface FieldErrors {
   name?: string
   color?: string
   hourly_rate?: string
-  linen_combo_price?: string
-  amenities_combo_price?: string
-  extra_towel_price?: string
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -184,9 +130,6 @@ const form = reactive<FormState>({
   name: '',
   color: '#3B82F6',
   hourly_rate: '0.00',
-  linen_combo_price: '0.00',
-  amenities_combo_price: '0.00',
-  extra_towel_price: '0.00',
   active: true,
 })
 
@@ -213,26 +156,17 @@ function syncForm(): void {
     form.name = current.name
     form.color = current.color
     form.hourly_rate = toMoneyInput(current.hourly_rate)
-    form.linen_combo_price = toMoneyInput(current.linen_combo_price)
-    form.amenities_combo_price = toMoneyInput(current.amenities_combo_price)
-    form.extra_towel_price = toMoneyInput(current.extra_towel_price)
     form.active = current.active
   } else {
     form.name = ''
     form.color = '#3B82F6'
     form.hourly_rate = '0.00'
-    form.linen_combo_price = '0.00'
-    form.amenities_combo_price = '0.00'
-    form.extra_towel_price = '0.00'
     form.active = true
   }
 
   errors.name = undefined
   errors.color = undefined
   errors.hourly_rate = undefined
-  errors.linen_combo_price = undefined
-  errors.amenities_combo_price = undefined
-  errors.extra_towel_price = undefined
 }
 
 watch(() => props.client, syncForm, { immediate: true })
@@ -241,9 +175,6 @@ function onSubmit(): void {
   errors.name = undefined
   errors.color = undefined
   errors.hourly_rate = undefined
-  errors.linen_combo_price = undefined
-  errors.amenities_combo_price = undefined
-  errors.extra_towel_price = undefined
 
   let hasError = false
 
@@ -258,27 +189,9 @@ function onSubmit(): void {
   }
 
   const hourlyRate = parseMoneyInput(form.hourly_rate)
-  const linenComboPrice = parseMoneyInput(form.linen_combo_price)
-  const amenitiesComboPrice = parseMoneyInput(form.amenities_combo_price)
-  const extraTowelPrice = parseMoneyInput(form.extra_towel_price)
 
   if (!Number.isFinite(hourlyRate) || hourlyRate < 0) {
     errors.hourly_rate = 'Enter a valid value.'
-    hasError = true
-  }
-
-  if (!Number.isFinite(linenComboPrice) || linenComboPrice < 0) {
-    errors.linen_combo_price = 'Enter a valid value.'
-    hasError = true
-  }
-
-  if (!Number.isFinite(amenitiesComboPrice) || amenitiesComboPrice < 0) {
-    errors.amenities_combo_price = 'Enter a valid value.'
-    hasError = true
-  }
-
-  if (!Number.isFinite(extraTowelPrice) || extraTowelPrice < 0) {
-    errors.extra_towel_price = 'Enter a valid value.'
     hasError = true
   }
 
@@ -290,9 +203,6 @@ function onSubmit(): void {
     name: form.name.trim(),
     color: form.color,
     hourly_rate: hourlyRate,
-    linen_combo_price: linenComboPrice,
-    amenities_combo_price: amenitiesComboPrice,
-    extra_towel_price: extraTowelPrice,
     active: form.active,
   }
 

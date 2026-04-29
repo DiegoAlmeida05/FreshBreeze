@@ -155,6 +155,7 @@ import PropertyForm from '../../components/features/properties/PropertyForm.vue'
 import PropertyTable from '../../components/features/properties/PropertyTable.vue'
 import { useAuth } from '../../composables/useAuth'
 import { useClients } from '../../composables/useClients'
+import { usePropertyPricingItems } from '../../composables/usePropertyPricingItems'
 import { useProperties } from '../../composables/useProperties'
 import type { ClientDTO } from '../../../shared/types/ClientDTO'
 import type { PropertyDTO, CreatePropertyDTO, UpdatePropertyDTO } from '../../../shared/types/PropertyDTO'
@@ -166,6 +167,7 @@ definePageMeta({
 
 const { signOut } = useAuth()
 const { fetchClients } = useClients()
+const { setPropertyPricingItems } = usePropertyPricingItems()
 const { fetchProperties, createProperty, updateProperty, replacePropertyKeys, replacePropertyResources } = useProperties()
 
 const properties = ref<PropertyDTO[]>([])
@@ -328,6 +330,7 @@ async function onSubmitForm(payload: PropertyFormSubmitPayload): Promise<void> {
     await Promise.all([
       replacePropertyKeys(savedProperty.id, payload.propertyKeys),
       replacePropertyResources(savedProperty.id, payload.propertyResources),
+      setPropertyPricingItems(savedProperty.id, payload.pricingItems),
     ])
 
     closeForm()

@@ -1272,7 +1272,7 @@ async function onPublishPlan(): Promise<void> {
 async function loadEmployees(): Promise<void> {
   try {
     const loaded = await getEmployees()
-    activeEmployees.value = loaded.filter((emp) => emp.active)
+    activeEmployees.value = loaded.filter((emp) => emp.active && emp.role === 'worker')
   } catch {
     activeEmployees.value = []
   }

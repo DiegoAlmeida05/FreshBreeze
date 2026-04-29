@@ -226,6 +226,44 @@ body {
     box-sizing: border-box;
   }
 
+  input.input-base[type='time'] {
+    display: block;
+    width: 100%;
+    min-width: 0;
+    max-width: 100%;
+    min-height: 2.25rem;
+    box-sizing: border-box;
+    overflow: hidden;
+    -webkit-appearance: none;
+    appearance: none;
+  }
+
+  input.input-base[type='time']::-webkit-datetime-edit {
+    padding: 0;
+    line-height: 1.25rem;
+  }
+
+  input.input-base[type='time']::-webkit-datetime-edit-fields-wrapper {
+    min-height: 1.25rem;
+    display: inline-flex;
+    align-items: center;
+  }
+
+  input.input-base[type='time']::-webkit-date-and-time-value {
+    text-align: left;
+    min-height: 1.25rem;
+  }
+
+  input.input-base[type='time']::-webkit-clear-button,
+  input.input-base[type='time']::-webkit-inner-spin-button {
+    display: none;
+  }
+
+  input.input-base[type='time']::-webkit-calendar-picker-indicator {
+    margin: 0;
+    opacity: 0.8;
+  }
+
   .select-base {
     @apply input-base appearance-none pr-9 cursor-pointer;
   }
@@ -408,7 +446,17 @@ body {
       padding-right: 0.5rem;
     }
 
+    input.input-base[type='time'] {
+      font-size: 12px;
+      padding-left: 0.625rem;
+      padding-right: 0.5rem;
+    }
+
     input.input-base[type='date']::-webkit-date-and-time-value {
+      text-align: left;
+    }
+
+    input.input-base[type='time']::-webkit-date-and-time-value {
       text-align: left;
     }
 

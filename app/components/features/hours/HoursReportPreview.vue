@@ -28,15 +28,20 @@
     </section>
 
     <div class="mt-4 overflow-x-auto">
-      <table class="w-full min-w-[1160px] border-collapse text-sm">
+      <table class="w-full min-w-[920px] border-collapse text-sm">
+        <colgroup>
+          <col style="width: 14%;">
+          <col style="width: 12%;">
+          <col style="width: 12%;">
+          <col style="width: 12%;">
+          <col style="width: 14%;">
+          <col style="width: 36%;">
+        </colgroup>
         <thead>
           <tr class="border-y border-slate-300 bg-slate-50 text-left text-[11px] font-semibold uppercase tracking-wide text-slate-600">
             <th class="px-3 py-2">Date</th>
-            <th class="px-3 py-2">Job (hours)</th>
             <th class="px-3 py-2">Worked (hours)</th>
             <th class="px-3 py-2">Special (hours)</th>
-            <th class="px-3 py-2">Final Paid (hours)</th>
-            <th class="px-3 py-2">Invoice (hours)</th>
             <th class="px-3 py-2">Rate/Job</th>
             <th class="px-3 py-2 text-right">Total</th>
             <th class="px-3 py-2">Notes</th>
@@ -49,11 +54,8 @@
               <p>{{ formatDate(row.date) }}</p>
               <p class="text-[10px] uppercase tracking-wide text-slate-500">{{ formatWeekday(row.date) }}</p>
             </td>
-            <td class="px-3 py-2 font-medium text-slate-800">{{ row.jobHours.toFixed(2) }}</td>
-            <td class="px-3 py-2 text-slate-800">{{ row.workedHours.toFixed(2) }}</td>
+            <td class="px-3 py-2 font-medium text-slate-800">{{ row.workedHours.toFixed(2) }}</td>
             <td class="px-3 py-2 text-slate-800">{{ row.specialHours > 0 ? row.specialHours.toFixed(2) : '-' }}</td>
-            <td class="px-3 py-2 font-medium text-slate-800">{{ row.finalPaidHours.toFixed(2) }}</td>
-            <td class="px-3 py-2 font-medium text-slate-800">{{ row.invoiceHours.toFixed(2) }}</td>
             <td class="px-3 py-2 text-slate-700">{{ formatCurrency(row.ratePerJob) }}</td>
             <td class="px-3 py-2 text-right font-medium text-slate-900">{{ formatCurrency(row.totalPay) }}</td>
             <td class="px-3 py-2 text-slate-700">{{ row.note?.trim() ? row.note : '-' }}</td>
@@ -63,11 +65,8 @@
         <tfoot>
           <tr class="border-t-2 border-slate-800 bg-slate-50">
             <td class="px-3 py-2 text-xs font-semibold uppercase tracking-wide text-slate-700">Final Total</td>
-            <td class="px-3 py-2 text-slate-700">-</td>
-            <td class="px-3 py-2 text-slate-700">-</td>
-            <td class="px-3 py-2 text-slate-700">-</td>
-            <td class="px-3 py-2 font-semibold text-slate-900">{{ report.finalTotalHours.toFixed(2) }}</td>
-            <td class="px-3 py-2 font-semibold text-slate-900">{{ report.finalInvoiceHours.toFixed(2) }}</td>
+            <td class="px-3 py-2 font-semibold text-slate-900">{{ workedTotal.toFixed(2) }}</td>
+            <td class="px-3 py-2 font-semibold text-slate-900">{{ specialTotal.toFixed(2) }}</td>
             <td class="px-3 py-2 text-slate-700">-</td>
             <td class="px-3 py-2 text-right text-base font-semibold text-slate-900">{{ formatCurrency(report.finalTotalPay) }}</td>
             <td class="px-3 py-2 text-slate-700">-</td>
@@ -79,13 +78,17 @@
 </template>
 
 <script setup lang="ts">
+import { computed } from 'vue'
 import type { EmployeeHoursReport } from '../../../composables/useHoursReport'
 
 interface Props {
   report: EmployeeHoursReport
 }
 
-defineProps<Props>()
+const props = defineProps<Props>()
+
+const workedTotal = computed(() => props.report.rows.reduce((sum, row) => sum + row.workedHours, 0))
+const specialTotal = computed(() => props.report.rows.reduce((sum, row) => sum + row.specialHours, 0))
 
 function formatDate(value: string): string {
   const parsed = new Date(`${value}T00:00:00`)

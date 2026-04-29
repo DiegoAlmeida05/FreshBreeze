@@ -88,6 +88,7 @@ function defaultSettings(employeeId: string, fallbackEmail: string, fallbackName
 export function useWorkerProfileSettings() {
   const supabase = useSupabaseClient()
   const auth = useAuth()
+  const { getCached, setCached, invalidate } = useDataCache()
 
   async function getEmployeeIdForCurrentUser(): Promise<string> {
     const user = await auth.getCurrentUser()
@@ -110,6 +111,12 @@ export function useWorkerProfileSettings() {
   }
 
   async function getSettings(): Promise<WorkerProfileSettings> {
+    // Verifica cache primeiro (válido por 15 minutos)
+    const cachedSettings = getCached<WorkerProfileSettings>('worker-profile-settings')
+    if (cachedSettings) {
+      return cachedSettings
+    }
+
     const [profile, employeeId] = await Promise.all([
       auth.getProfile(),
       getEmployeeIdForCurrentUser(),
@@ -124,7 +131,12 @@ export function useWorkerProfileSettings() {
     if (error) {
       throw new Error(error.message)
     }
-
+const settings = toSettings(data)
+    
+    // Armazena no cache (15 minutos)
+    setCached('worker-profile-settings', settings, 15 * 60 * 1000)
+    
+    return settings
     if (!data) {
       const base = defaultSettings(employeeId, profile.email, profile.full_name)
       return await saveSettings(base)
@@ -153,7 +165,12 @@ export function useWorkerProfileSettings() {
       signature_data_url: payload.signature_data_url.trim() || null,
       updated_at: new Date().toISOString(),
     }
-
+const settings = toSettings(data)
+    
+    // Invalida cache após salvar para forçar refresh
+    invalidate('worker-profile-settings')
+    
+    return settings
     const { data, error } = await supabase
       .from('worker_profiles')
       .upsert(upsertPayload, { onConflict: 'employee_id' })

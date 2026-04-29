@@ -62,7 +62,7 @@
       </div>
 
       <!-- Nav -->
-      <nav class="relative flex flex-1 flex-col gap-1 overflow-y-auto p-3" :class="isDesktopCollapsed ? 'px-2' : ''">
+      <nav ref="sidebarNavContainer" class="relative flex flex-1 flex-col gap-1 overflow-y-auto p-3" :class="isDesktopCollapsed ? 'px-2' : ''" @scroll="onSidebarScroll">
         <p class="mb-1 flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-primary-600" :class="isDesktopCollapsed ? 'justify-center px-0' : 'px-3'">
           <span class="h-1.5 w-1.5 rounded-full bg-primary-500" />
           <span v-if="!isDesktopCollapsed">Menu</span>
@@ -86,6 +86,11 @@
             </svg>
             <span v-if="!isDesktopCollapsed">Dashboard</span>
           </NuxtLink>
+
+          <p class="mb-1 mt-3 flex items-center gap-2 text-[11px] font-semibold uppercase tracking-wider text-primary-600/90" :class="isDesktopCollapsed ? 'justify-center px-0' : 'px-3'">
+            <span class="h-1.5 w-1.5 rounded-full bg-primary-500" />
+            <span v-if="!isDesktopCollapsed">Management</span>
+          </p>
 
           <NuxtLink
             to="/admin/holidays"
@@ -146,6 +151,44 @@
           </NuxtLink>
 
           <NuxtLink
+            to="/admin/combos"
+            :title="isDesktopCollapsed ? 'Catalog' : undefined"
+            class="flex items-center gap-3 rounded-xl border border-transparent px-3 py-2 text-sm font-medium transition"
+            active-class="border-primary-300/60 bg-gradient-to-r from-primary-500/15 to-primary-warm-500/10 text-primary-700 shadow-sm shadow-primary-500/10"
+            :class="[
+              isDesktopCollapsed ? 'justify-center px-0' : '',
+              route.path === '/admin/combos' ? '' : 'text-muted hover:border-primary-200/70 hover:bg-primary-500/10 hover:text-foreground',
+            ]"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M4 6h16" />
+              <path d="M4 12h16" />
+              <path d="M4 18h7" />
+              <circle cx="18" cy="18" r="3" />
+              <path d="m21 21-1.5-1.5" />
+            </svg>
+            <span v-if="!isDesktopCollapsed">Catalog</span>
+          </NuxtLink>
+
+          <NuxtLink
+            to="/admin/sets"
+            :title="isDesktopCollapsed ? 'Sets' : undefined"
+            class="flex items-center gap-3 rounded-xl border border-transparent px-3 py-2 text-sm font-medium transition"
+            active-class="border-primary-300/60 bg-gradient-to-r from-primary-500/15 to-primary-warm-500/10 text-primary-700 shadow-sm shadow-primary-500/10"
+            :class="[
+              isDesktopCollapsed ? 'justify-center px-0' : '',
+              route.path === '/admin/sets' ? '' : 'text-muted hover:border-primary-200/70 hover:bg-primary-500/10 hover:text-foreground',
+            ]"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M12 3 4 7l8 4 8-4-8-4Z" />
+              <path d="m4 12 8 4 8-4" />
+              <path d="m4 17 8 4 8-4" />
+            </svg>
+            <span v-if="!isDesktopCollapsed">Sets</span>
+          </NuxtLink>
+
+          <NuxtLink
             to="/admin/properties"
             :title="isDesktopCollapsed ? 'Properties' : undefined"
             class="flex items-center gap-3 rounded-xl border border-transparent px-3 py-2 text-sm font-medium transition"
@@ -161,6 +204,11 @@
             </svg>
             <span v-if="!isDesktopCollapsed">Properties</span>
           </NuxtLink>
+
+          <p class="mb-1 mt-3 flex items-center gap-2 text-[11px] font-semibold uppercase tracking-wider text-primary-600/90" :class="isDesktopCollapsed ? 'justify-center px-0' : 'px-3'">
+            <span class="h-1.5 w-1.5 rounded-full bg-primary-500" />
+            <span v-if="!isDesktopCollapsed">Operations</span>
+          </p>
 
           <NuxtLink
             to="/admin/tasks"
@@ -243,6 +291,11 @@
             </svg>
             <span v-if="!isDesktopCollapsed">Reports</span>
           </NuxtLink>
+
+          <p class="mb-1 mt-3 flex items-center gap-2 text-[11px] font-semibold uppercase tracking-wider text-primary-600/90" :class="isDesktopCollapsed ? 'justify-center px-0' : 'px-3'">
+            <span class="h-1.5 w-1.5 rounded-full bg-primary-500" />
+            <span v-if="!isDesktopCollapsed">Finance</span>
+          </p>
 
           <NuxtLink
             to="/admin/hours"
@@ -403,7 +456,9 @@
             ? 'min-h-full p-4 sm:p-5 lg:p-6'
             : 'rounded-[30px] border border-white/65 bg-white/72 p-4 shadow-[0_18px_40px_rgba(15,23,42,0.08)] backdrop-blur-xl sm:p-5 lg:p-6 dark:border-white/10 dark:bg-white/[0.03] dark:shadow-[0_24px_60px_rgba(0,0,0,0.38)]',
         ]">
-          <slot />
+          <KeepAlive :max="10">
+            <slot />
+          </KeepAlive>
         </div>
       </main>
     </div>
@@ -412,7 +467,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useAuth } from '../composables/useAuth'
 import { useSupabaseClient } from '../composables/useSupabaseClient'
 
@@ -429,9 +484,11 @@ const shellHeartbeat = useState<{ layout: 'admin' | 'worker' | null, path: strin
   at: 0,
 }))
 const sidebarCollapsed = useState('admin-sidebar-collapsed', () => false)
+const sidebarScrollTop = useState('admin-sidebar-scroll-top', () => 0)
 const sidebarOpen = ref(false)
 const isDesktop = ref(shellLayoutMode.value === 'desktop')
 const mainScrollContainer = ref<HTMLElement | null>(null)
+const sidebarNavContainer = ref<HTMLElement | null>(null)
 const greetingName = ref('there')
 const fullName = ref('')
 const profileEmail = ref('')
@@ -515,6 +572,45 @@ const resetLayoutViewportState = () => {
   }
 }
 
+const restoreSidebarScroll = async () => {
+  await nextTick()
+
+  window.requestAnimationFrame(() => {
+    if (!sidebarNavContainer.value) {
+      return
+    }
+
+    sidebarNavContainer.value.scrollTop = sidebarScrollTop.value
+    ensureActiveSidebarItemVisible()
+  })
+}
+
+const onSidebarScroll = () => {
+  if (!sidebarNavContainer.value) {
+    return
+  }
+
+  sidebarScrollTop.value = sidebarNavContainer.value.scrollTop
+}
+
+const ensureActiveSidebarItemVisible = () => {
+  if (!sidebarNavContainer.value) {
+    return
+  }
+
+  const activeLink = sidebarNavContainer.value.querySelector<HTMLElement>('.router-link-active, .router-link-exact-active')
+
+  if (!activeLink) {
+    return
+  }
+
+  activeLink.scrollIntoView({
+    block: 'nearest',
+    inline: 'nearest',
+    behavior: 'smooth',
+  })
+}
+
 const scheduleLayoutViewportReset = () => {
   if (rafId) {
     cancelAnimationFrame(rafId)
@@ -547,6 +643,11 @@ watch(() => route.fullPath, () => {
   }
 
   scheduleLayoutViewportReset()
+  void restoreSidebarScroll()
+})
+
+watch(isDesktopCollapsed, () => {
+  void restoreSidebarScroll()
 })
 
 onMounted(async () => {
@@ -563,6 +664,7 @@ onMounted(async () => {
   window.addEventListener('pageshow', handlePageShow)
   document.addEventListener('visibilitychange', handleVisibilityChange)
   scheduleLayoutViewportReset()
+  void restoreSidebarScroll()
 
   try {
     const profile = await getProfile()

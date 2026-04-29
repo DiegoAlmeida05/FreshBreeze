@@ -1,7 +1,7 @@
 import type { CreateClientDTO, ClientDTO, UpdateClientDTO } from '../../shared/types/ClientDTO'
 import { useSupabaseClient } from './useSupabaseClient'
 
-const clientSelectFields = 'id, name, color, hourly_rate, linen_combo_price, amenities_combo_price, extra_towel_price, active, created_at, updated_at'
+const clientSelectFields = 'id, name, color, hourly_rate, active, created_at, updated_at'
 
 export function useClients() {
   const supabase = useSupabaseClient()

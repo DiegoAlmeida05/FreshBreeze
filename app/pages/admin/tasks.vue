@@ -106,8 +106,8 @@
       />
 
       <div class="overflow-hidden rounded-xl border border-border bg-surface p-4 shadow-card">
-        <div v-if="isLoading" class="max-h-[72vh] overflow-auto pb-2">
-          <div class="grid min-w-[1610px] grid-cols-7 gap-3">
+        <div v-if="isLoading" ref="weekBoardScrollEl" class="max-h-[72vh] overflow-auto pb-2">
+          <div class="grid w-max min-w-full grid-cols-7 gap-3">
             <div v-for="n in 7" :key="n" class="space-y-3 rounded-lg border border-primary-100 bg-primary-50/30 p-3">
               <div class="h-4 w-24 animate-pulse rounded bg-primary-100/50" />
               <div class="h-20 animate-pulse rounded bg-primary-100/50" />
@@ -116,8 +116,8 @@
           </div>
         </div>
 
-        <div v-else class="max-h-[72vh] overflow-auto pb-2">
-          <div class="grid min-w-[1610px] grid-cols-7 gap-3">
+        <div v-else ref="weekBoardScrollEl" class="max-h-[72vh] overflow-auto pb-2">
+          <div class="grid w-max min-w-full grid-cols-7 gap-3">
             <section
               v-for="day in weekDays"
               :key="day.date"
@@ -173,6 +173,7 @@
           <DailyTaskForm
             :mode="editingTaskId ? 'edit' : 'create'"
             :task="selectedTask"
+            :initial-extra-items="selectedTaskExtraItems"
             :is-submitting="isSubmitting"
             :submit-label="editingTaskId ? 'Update' : 'Create'"
             :initial-date="selectedFocusDate"
@@ -205,16 +206,19 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, nextTick, onMounted, ref, watch } from 'vue'
+import { onBeforeRouteLeave } from 'vue-router'
 import BaseFeedbackBanner from '../../components/ui/BaseFeedbackBanner.vue'
 import BaseConfirmModal from '../../components/ui/BaseConfirmModal.vue'
 import DailyTaskForm from '../../components/features/tasks/DailyTaskForm.vue'
 import QuickAddTasksModal from '../../components/features/tasks/QuickAddTasksModal.vue'
 import WeeklyTaskCard from '../../components/features/tasks/WeeklyTaskCard.vue'
 import { useAuth } from '../../composables/useAuth'
+import { useDailyTaskExtraItems } from '../../composables/useDailyTaskExtraItems'
 import { useDailyTasks } from '../../composables/useDailyTasks'
 import { useProperties } from '../../composables/useProperties'
 import { useClients } from '../../composables/useClients'
+import type { DailyTaskExtraItemInput } from '../../../shared/types/PricingItemDTO'
 import type { DailyTaskDTO, CreateDailyTaskDTO, UpdateDailyTaskDTO } from '../../../shared/types/DailyTaskDTO'
 import type { PropertyDTO } from '../../../shared/types/PropertyDTO'
 import type { ClientDTO } from '../../../shared/types/ClientDTO'
@@ -226,11 +230,28 @@ definePageMeta({
 
 const { signOut } = useAuth()
 const { fetchTasksByDate, createTask, updateTask, deleteTask } = useDailyTasks()
+const { getTaskExtraItems, setTaskExtraItems } = useDailyTaskExtraItems()
 const { fetchProperties } = useProperties()
 const { fetchClients } = useClients()
 
+interface PersistedTasksPageState {
+  selectedDate: string
+  weekStart: string
+  boardScrollTop: number
+}
+
+const persistedTasksPageState = useState<PersistedTasksPageState>('admin-tasks-page-state', () => {
+  const today = todayIsoDate()
+  return {
+    selectedDate: today,
+    weekStart: formatDateForInput(startOfWeekMonday(parseIsoDate(today))),
+    boardScrollTop: 0,
+  }
+})
+
 const weekTasks = ref<DailyTaskDTO[]>([])
 const selectedTask = ref<DailyTaskDTO | null>(null)
+const selectedTaskExtraItems = ref<DailyTaskExtraItemInput[]>([])
 const editingTaskId = ref<string | null>(null)
 const taskToDelete = ref<DailyTaskDTO | null>(null)
 const isLoading = ref(false)
@@ -243,7 +264,8 @@ const pageError = ref('')
 const pageSuccess = ref('')
 const propertiesById = ref<Record<string, PropertyDTO>>({})
 const clientsById = ref<Record<string, ClientDTO>>({})
-const selectedDate = ref(todayIsoDate())
+const selectedDate = ref(persistedTasksPageState.value.selectedDate || todayIsoDate())
+const weekBoardScrollEl = ref<HTMLElement | null>(null)
 const route = useRoute()
 const router = useRouter()
 
@@ -302,7 +324,10 @@ function addDays(date: Date, days: number): Date {
   return d
 }
 
-const selectedWeekStart = ref(formatDateForInput(startOfWeekMonday(new Date())))
+const selectedWeekStart = ref(
+  persistedTasksPageState.value.weekStart
+    || formatDateForInput(startOfWeekMonday(parseIsoDate(selectedDate.value))),
+)
 
 const weekDates = computed(() => {
   const monday = parseIsoDate(selectedWeekStart.value)
@@ -375,6 +400,8 @@ watch(selectedWeekStart, async (date) => {
 watch(selectedDate, (date) => {
   if (!date) return
 
+  persistedTasksPageState.value.selectedDate = date
+
   const monday = startOfWeekMonday(parseIsoDate(date))
   const normalized = formatDateForInput(monday)
 
@@ -383,9 +410,31 @@ watch(selectedDate, (date) => {
   }
 })
 
+watch(selectedWeekStart, (value) => {
+  if (!value) {
+    return
+  }
+
+  persistedTasksPageState.value.weekStart = value
+})
+
 onMounted(async () => {
   await Promise.all([loadProperties(), loadClients()])
   await loadWeekTasks()
+
+  if (import.meta.client) {
+    await nextTick()
+    const scrollTop = persistedTasksPageState.value.boardScrollTop ?? 0
+    if (weekBoardScrollEl.value && scrollTop > 0) {
+      weekBoardScrollEl.value.scrollTop = scrollTop
+    }
+  }
+})
+
+onBeforeRouteLeave(() => {
+  if (import.meta.client && weekBoardScrollEl.value) {
+    persistedTasksPageState.value.boardScrollTop = weekBoardScrollEl.value.scrollTop
+  }
 })
 
 function shiftWeek(offsetWeeks: number): void {
@@ -423,6 +472,7 @@ async function loadClients(): Promise<void> {
 }
 
 async function loadWeekTasks(): Promise<void> {
+  const previousScrollTop = weekBoardScrollEl.value?.scrollTop ?? 0
   isLoading.value = true
   pageError.value = ''
 
@@ -433,6 +483,14 @@ async function loadWeekTasks(): Promise<void> {
     pageError.value = err instanceof Error ? err.message : 'Failed to load tasks.'
   } finally {
     isLoading.value = false
+
+    if (import.meta.client) {
+      await nextTick()
+      if (weekBoardScrollEl.value) {
+        weekBoardScrollEl.value.scrollTop = previousScrollTop
+        persistedTasksPageState.value.boardScrollTop = weekBoardScrollEl.value.scrollTop
+      }
+    }
   }
 }
 
@@ -450,25 +508,57 @@ async function onQuickAddSuccess(date: string): Promise<void> {
 }
 
 function openCreateForm(): void {
+  if (weekBoardScrollEl.value) {
+    persistedTasksPageState.value.boardScrollTop = weekBoardScrollEl.value.scrollTop
+  }
+
   selectedTask.value = null
+  selectedTaskExtraItems.value = []
   editingTaskId.value = null
   pageError.value = ''
   pageSuccess.value = ''
   isFormOpen.value = true
 }
 
-function openEditForm(task: DailyTaskDTO): void {
+async function openEditForm(task: DailyTaskDTO): Promise<void> {
+  if (weekBoardScrollEl.value) {
+    persistedTasksPageState.value.boardScrollTop = weekBoardScrollEl.value.scrollTop
+  }
+
   selectedTask.value = task
+  selectedTaskExtraItems.value = []
   editingTaskId.value = task.id
   pageError.value = ''
   pageSuccess.value = ''
+
+  try {
+    const existing = await getTaskExtraItems(task.id)
+    selectedTaskExtraItems.value = existing.map((item) => ({
+      pricing_item_id: item.pricing_item_id,
+      quantity: item.quantity,
+      note: item.note ?? null,
+    }))
+  } catch {
+    selectedTaskExtraItems.value = []
+  }
+
   isFormOpen.value = true
 }
 
 function closeForm(): void {
   isFormOpen.value = false
   selectedTask.value = null
+  selectedTaskExtraItems.value = []
   editingTaskId.value = null
+
+  if (import.meta.client) {
+    nextTick(() => {
+      const scrollTop = persistedTasksPageState.value.boardScrollTop ?? 0
+      if (weekBoardScrollEl.value && scrollTop > 0) {
+        weekBoardScrollEl.value.scrollTop = scrollTop
+      }
+    })
+  }
 }
 
 async function onSubmitForm(payload: DailyTaskFormPayload): Promise<void> {
@@ -476,6 +566,8 @@ async function onSubmitForm(payload: DailyTaskFormPayload): Promise<void> {
   pageError.value = ''
 
   try {
+    let savedTask: DailyTaskDTO
+
     if (editingTaskId.value) {
       const updatePayload: UpdateDailyTaskDTO = {
         date: payload.date,
@@ -490,13 +582,15 @@ async function onSubmitForm(payload: DailyTaskFormPayload): Promise<void> {
         cleaning_minutes_override: payload.cleaning_minutes_override,
         people_count: payload.people_count,
         notes: payload.notes,
-        extra_beds_single: payload.extra_beds_single,
-        extra_beds_queen: payload.extra_beds_queen,
-        extra_beds_king: payload.extra_beds_king,
-        extra_towels_qty: payload.extra_towels_qty,
-        extra_chocolates_qty: payload.extra_chocolates_qty,
+        extra_linen_combo_qty: payload.extra_linen_combo_qty,
+        extra_amenities_combo_qty: payload.extra_amenities_combo_qty,
+        extra_linen_queen_qty: payload.extra_linen_queen_qty,
+        extra_linen_single_qty: payload.extra_linen_single_qty,
+        extra_linen_king_qty: payload.extra_linen_king_qty,
+        extra_towel_qty: payload.extra_towel_qty,
+        extra_chocolate_qty: payload.extra_chocolate_qty,
       }
-      await updateTask(editingTaskId.value, updatePayload)
+      savedTask = await updateTask(editingTaskId.value, updatePayload)
       pageSuccess.value = 'Task updated successfully.'
     } else {
       const createPayload: CreateDailyTaskDTO = {
@@ -512,15 +606,19 @@ async function onSubmitForm(payload: DailyTaskFormPayload): Promise<void> {
         cleaning_minutes_override: payload.cleaning_minutes_override,
         people_count: payload.people_count,
         notes: payload.notes,
-        extra_beds_single: payload.extra_beds_single,
-        extra_beds_queen: payload.extra_beds_queen,
-        extra_beds_king: payload.extra_beds_king,
-        extra_towels_qty: payload.extra_towels_qty,
-        extra_chocolates_qty: payload.extra_chocolates_qty,
+        extra_linen_combo_qty: payload.extra_linen_combo_qty,
+        extra_amenities_combo_qty: payload.extra_amenities_combo_qty,
+        extra_linen_queen_qty: payload.extra_linen_queen_qty,
+        extra_linen_single_qty: payload.extra_linen_single_qty,
+        extra_linen_king_qty: payload.extra_linen_king_qty,
+        extra_towel_qty: payload.extra_towel_qty,
+        extra_chocolate_qty: payload.extra_chocolate_qty,
       }
-      await createTask(createPayload)
+      savedTask = await createTask(createPayload)
       pageSuccess.value = 'Task created successfully.'
     }
+
+    await setTaskExtraItems(savedTask.id, payload.extraItems)
 
     closeForm()
     selectedDate.value = payload.date
@@ -534,6 +632,10 @@ async function onSubmitForm(payload: DailyTaskFormPayload): Promise<void> {
 }
 
 function onRequestDeleteTask(task: DailyTaskDTO): void {
+  if (weekBoardScrollEl.value) {
+    persistedTasksPageState.value.boardScrollTop = weekBoardScrollEl.value.scrollTop
+  }
+
   taskToDelete.value = task
   isDeleteModalOpen.value = true
 }

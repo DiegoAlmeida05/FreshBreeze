@@ -45,13 +45,13 @@
               This week
             </button>
 
-            <p class="w-full text-left text-[10px] font-medium uppercase tracking-wide text-muted sm:ml-auto sm:w-auto sm:text-right">
+            <p class="text-[10px] font-medium uppercase tracking-wide text-muted">
               {{ weekRangeLabel }}
             </p>
           </div>
 
           <div class="mobile-table-scroll">
-            <div class="grid min-w-[560px] grid-cols-7 gap-1.5">
+            <div class="grid w-max min-w-full grid-cols-7 gap-1.5">
             <button
               v-for="day in weekDays"
               :key="day.date"
@@ -66,14 +66,6 @@
                 : 'border-primary-100/70 bg-white/70 hover:border-primary-300 dark:border-white/10 dark:bg-white/[0.01] dark:hover:border-white/25'"
               @click="activeWeekDate = day.date"
             >
-              <span
-                v-if="day.isHoliday"
-                class="holiday-badge inline-flex rounded-full px-1.5 py-0.5 text-[8px] font-bold uppercase tracking-wide"
-                :class="day.date === activeWeekDate ? 'bg-white/20 text-white' : 'bg-warning/15 text-warning'"
-                :title="day.holidayNames.join(', ') || 'Holiday'"
-              >
-                H
-              </span>
               <p class="text-[9px] font-semibold uppercase leading-none tracking-wide" :class="day.date === activeWeekDate ? 'text-white/80' : day.isHoliday ? 'text-warning' : 'text-muted'">{{ day.weekday }}</p>
               <p class="mt-1 text-xs font-semibold leading-none" :class="day.date === activeWeekDate ? 'text-white' : 'text-foreground'">{{ day.dayNumber }}</p>
               <p class="mt-1 text-[9px] leading-none" :class="day.date === activeWeekDate ? 'text-white/80' : 'text-muted'">{{ day.totalMinutes }}m · {{ day.totalHours.toFixed(1) }}h</p>
@@ -214,7 +206,7 @@
 
           <div class="overflow-x-auto">
             <div class="min-w-[1320px]">
-              <div class="grid grid-cols-[96px_190px_108px_108px_96px_90px_110px_96px_88px_110px_minmax(180px,1fr)] gap-2 border-b border-primary-100/50 px-4 py-1.5 text-[10px] font-semibold uppercase tracking-wide text-muted dark:border-white/10">
+              <div class="grid w-max min-w-full grid-cols-[96px_190px_108px_108px_96px_90px_110px_96px_88px_110px_minmax(180px,1fr)] gap-2 border-b border-primary-100/50 px-4 py-1.5 text-[10px] font-semibold uppercase tracking-wide text-muted dark:border-white/10">
                 <span>Date</span>
                 <span title="Operational reference from published Hours">Job Time</span>
                 <span>Start</span>
@@ -231,7 +223,8 @@
               <div
                 v-for="day in employee.days"
                 :key="`${employee.employeeId}:${day.date}`"
-                class="grid grid-cols-[96px_190px_108px_108px_96px_90px_110px_96px_88px_110px_minmax(180px,1fr)] items-center gap-2 border-b border-primary-100/30 px-4 py-1.5 text-sm dark:border-white/10"
+                class="grid w-max min-w-full grid-cols-[96px_190px_108px_108px_96px_90px_110px_96px_88px_110px_minmax(180px,1fr)] items-center gap-2 border-b border-primary-100/30 px-4 py-1.5 text-sm dark:border-white/10"
+                :class="getHolidayNamesForDate(day.date).length > 0 ? 'bg-warning/10 ring-1 ring-inset ring-warning/25 dark:bg-warning/10 dark:ring-warning/30' : ''"
               >
                 <p class="font-medium text-foreground">{{ formatDateLabel(day.date) }}</p>
 
@@ -405,7 +398,8 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref } from 'vue'
+import { computed, nextTick, onMounted, reactive, ref, watch } from 'vue'
+import { onBeforeRouteLeave } from 'vue-router'
 import HoursReportPreview from '../../components/features/hours/HoursReportPreview.vue'
 import { useAuth } from '../../composables/useAuth'
 import { useEmployees } from '../../composables/useEmployees'
@@ -422,6 +416,14 @@ interface SummaryFiltersState {
   startDate: string
   endDate: string
   employeeId: string
+}
+
+interface PersistedHoursSummaryPageState {
+  startDate: string
+  endDate: string
+  employeeId: string
+  activeWeekDate: string
+  scrollY: number
 }
 
 interface DayDraftState {
@@ -441,6 +443,17 @@ const { getHoursSummary, updateEmployeeDayAdjustment } = useHoursSummary()
 const { getEmployeeHoursReport } = useHoursReport()
 const route = useRoute()
 const router = useRouter()
+
+const persistedHoursSummaryPageState = useState<PersistedHoursSummaryPageState>('admin-hours-summary-page-state', () => {
+  const monday = startOfWeekMonday(todayIsoDate())
+  return {
+    startDate: monday,
+    endDate: addDaysIso(monday, 6),
+    employeeId: '',
+    activeWeekDate: monday,
+    scrollY: 0,
+  }
+})
 
 type RowSaveStatus = 'idle' | 'saving' | 'saved' | 'error'
 
@@ -474,12 +487,12 @@ const summary = ref<HoursSummaryResult>({
 })
 
 const filters = reactive<SummaryFiltersState>({
-  startDate: startOfWeekMonday(todayIsoDate()),
-  endDate: addDaysIso(startOfWeekMonday(todayIsoDate()), 6),
-  employeeId: '',
+  startDate: persistedHoursSummaryPageState.value.startDate,
+  endDate: persistedHoursSummaryPageState.value.endDate,
+  employeeId: persistedHoursSummaryPageState.value.employeeId,
 })
 
-const activeWeekDate = ref(filters.startDate)
+const activeWeekDate = ref(persistedHoursSummaryPageState.value.activeWeekDate || filters.startDate)
 
 const weekLabel = computed(() => {
   const start = parseIsoDate(filters.startDate)
@@ -564,6 +577,38 @@ onMounted(async () => {
   await ensureAdmin()
   await loadEmployees()
   await loadSummary()
+
+  if (import.meta.client) {
+    await nextTick()
+    requestAnimationFrame(() => {
+      window.scrollTo({
+        top: persistedHoursSummaryPageState.value.scrollY,
+        behavior: 'auto',
+      })
+    })
+  }
+})
+
+watch(
+  [() => filters.startDate, () => filters.endDate, () => filters.employeeId, () => activeWeekDate.value],
+  ([startDate, endDate, employeeId, activeDate]) => {
+    persistedHoursSummaryPageState.value.startDate = startDate
+    persistedHoursSummaryPageState.value.endDate = endDate
+    persistedHoursSummaryPageState.value.employeeId = employeeId
+    persistedHoursSummaryPageState.value.activeWeekDate = activeDate
+  },
+)
+
+onBeforeRouteLeave(() => {
+  if (!import.meta.client) {
+    return
+  }
+
+  persistedHoursSummaryPageState.value.startDate = filters.startDate
+  persistedHoursSummaryPageState.value.endDate = filters.endDate
+  persistedHoursSummaryPageState.value.employeeId = filters.employeeId
+  persistedHoursSummaryPageState.value.activeWeekDate = activeWeekDate.value
+  persistedHoursSummaryPageState.value.scrollY = window.scrollY
 })
 
 async function ensureAdmin(): Promise<void> {
@@ -578,8 +623,12 @@ async function loadEmployees(): Promise<void> {
   try {
     const employees = await getEmployees()
     employeeOptions.value = employees
-      .filter((employee) => employee.active)
+      .filter((employee) => employee.active && employee.role === 'worker')
       .sort((a, b) => a.full_name.localeCompare(b.full_name))
+
+    if (filters.employeeId && !employeeOptions.value.some((employee) => employee.id === filters.employeeId)) {
+      filters.employeeId = ''
+    }
   } catch (err: unknown) {
     pageError.value = err instanceof Error ? err.message : 'Failed to load employee options.'
   }
@@ -1199,6 +1248,10 @@ function formatDateLabel(value: string): string {
   })
 }
 
+function getHolidayNamesForDate(date: string): string[] {
+  return holidayNamesByDate.value[date] ?? []
+}
+
 function formatCurrency(value: number): string {
   const formatted = value.toLocaleString('en-US', {
     style: 'currency',
@@ -1210,6 +1263,28 @@ function formatCurrency(value: number): string {
 
 function formatHours(minutes: number): string {
   return (minutes / 60).toFixed(2)
+}
+
+function toCompactDate(value: string): string {
+  const parsed = parseIsoDate(value)
+
+  if (Number.isNaN(parsed.getTime())) {
+    return value.replace(/[^\d]/g, '')
+  }
+
+  const day = String(parsed.getDate()).padStart(2, '0')
+  const month = String(parsed.getMonth() + 1).padStart(2, '0')
+  const year = String(parsed.getFullYear())
+  return `${day}${month}${year}`
+}
+
+function toFileSafeEmployeeName(name: string): string {
+  return (name || 'Collaborator')
+    .trim()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/\s+/g, '_')
+    .replace(/[\\/:*?"<>|]/g, '')
 }
 
 function debugHoursSummary(message: string, payload?: unknown): void {
@@ -1285,8 +1360,8 @@ async function onExportPdf(): Promise<void> {
       heightLeft -= pageHeight - margin * 2
     }
 
-    const name = reportData.value.employeeName.toLowerCase().replace(/\s+/g, '-')
-    pdf.save(`hours-report-${name}-${filters.startDate}-${filters.endDate}.pdf`)
+    const pdfFileName = `${toFileSafeEmployeeName(reportData.value.employeeName)}_Hours_${toCompactDate(filters.startDate)}-${toCompactDate(filters.endDate)}.pdf`
+    pdf.save(pdfFileName)
   } catch (err: unknown) {
     reportError.value = err instanceof Error ? err.message : 'Failed to export PDF.'
   } finally {
@@ -1547,7 +1622,7 @@ async function onExportExcel(): Promise<void> {
   finalTotalRow.getCell(7).alignment = { horizontal: 'center' }
   finalTotalRow.getCell(9).alignment = { horizontal: 'right' }
 
-    const name = report.employeeName.toLowerCase().replace(/\s+/g, '-')
+    const excelFileName = `${toFileSafeEmployeeName(report.employeeName)}_Hours_${toCompactDate(filters.startDate)}-${toCompactDate(filters.endDate)}.xlsx`
     const buffer = await workbook.xlsx.writeBuffer()
     const blob = new Blob([
       buffer,
@@ -1557,7 +1632,7 @@ async function onExportExcel(): Promise<void> {
     const url = URL.createObjectURL(blob)
     const link = document.createElement('a')
     link.href = url
-    link.download = `hours-report-${name}-${filters.startDate}-${filters.endDate}.xlsx`
+    link.download = excelFileName
     document.body.appendChild(link)
     link.click()
     link.remove()

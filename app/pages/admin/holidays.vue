@@ -28,48 +28,48 @@
         </div>
       </div>
 
-      <div class="toolbar-surface">
-        <div class="grid w-full grid-cols-1 gap-3 md:grid-cols-[auto_150px_auto_minmax(260px,1fr)] md:items-end">
-          <button type="button" class="btn-outline !px-3 !py-2" @click="goToPreviousYear">Previous</button>
+      <div class="overflow-x-hidden rounded-xl border border-primary-100 bg-gradient-to-r from-primary-50/60 via-surface to-primary-warm-50/60 p-3 dark:border-white/10 dark:from-[#1b2534] dark:via-[#182231] dark:to-[#212d3d]">
+        <div class="space-y-3">
+          <div class="flex flex-wrap items-center justify-between gap-3">
+            <div class="flex items-center gap-2">
+              <button type="button" class="btn-outline !px-2.5 !py-1.5 text-xs" @click="goToPreviousYear">Previous</button>
 
-          <div>
-            <label for="holiday-year-select" class="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-muted">Year</label>
-            <select
-              id="holiday-year-select"
-              v-model="selectedYearInput"
-              class="select-base"
-              @change="applyYearFilter"
-            >
-              <option
-                v-for="year in yearOptions"
-                :key="year"
-                :value="String(year)"
+              <select
+                id="holiday-year-select"
+                v-model="selectedYearInput"
+                class="input-base w-full max-w-[120px] !py-1 !text-xs"
+                @change="applyYearFilter"
               >
-                {{ year }}
-              </option>
-            </select>
-          </div>
+                <option
+                  v-for="year in yearOptions"
+                  :key="year"
+                  :value="String(year)"
+                >
+                  {{ year }}
+                </option>
+              </select>
 
-          <button type="button" class="btn-outline !px-3 !py-2" @click="goToNextYear">Next</button>
+              <button type="button" class="btn-outline !px-2.5 !py-1.5 text-xs" @click="goToNextYear">Next</button>
+            </div>
 
-          <div>
-            <label for="holidays-search" class="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-muted">Search</label>
-            <div class="relative">
-              <input
-                id="holidays-search"
-                v-model="searchQuery"
-                type="text"
-                class="input-base pr-10"
-                placeholder="Search holiday name..."
-              >
-              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted">
-                <path fill-rule="evenodd" d="M10.5 3a7.5 7.5 0 1 0 4.75 13.305l4.223 4.222 1.06-1.06-4.222-4.223A7.5 7.5 0 0 0 10.5 3Zm-6 7.5a6 6 0 1 1 12 0 6 6 0 0 1-12 0Z" clip-rule="evenodd" />
-              </svg>
+            <div class="flex items-center gap-2">
+              <div class="relative w-full max-w-xs">
+                <input
+                  id="holidays-search"
+                  v-model="searchQuery"
+                  type="text"
+                  class="input-base w-full !py-1 !text-xs pr-9"
+                  placeholder="Search holiday..."
+                >
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted">
+                  <path fill-rule="evenodd" d="M10.5 3a7.5 7.5 0 1 0 4.75 13.305l4.223 4.222 1.06-1.06-4.222-4.223A7.5 7.5 0 0 0 10.5 3Zm-6 7.5a6 6 0 1 1 12 0 6 6 0 0 1-12 0Z" clip-rule="evenodd" />
+                </svg>
+              </div>
             </div>
           </div>
-        </div>
 
-        <p class="w-full text-sm text-muted">Showing {{ filteredHolidays.length }} holiday(s) for <span class="font-semibold text-foreground">{{ selectedYear }}</span>.</p>
+          <p class="text-xs text-muted">Showing <span class="font-semibold text-foreground">{{ filteredHolidays.length }}</span> holiday(s) for <span class="font-semibold text-foreground">{{ selectedYear }}</span></p>
+        </div>
       </div>
 
       <BaseFeedbackBanner

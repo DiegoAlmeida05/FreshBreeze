@@ -288,10 +288,12 @@ const cleaningMinutesLabel = computed(() => {
 const extrasSummary = computed(() => {
   const parts: string[] = []
 
-  if (props.task.extra_beds_single > 0) parts.push(`S:${props.task.extra_beds_single}`)
-  if (props.task.extra_beds_queen > 0) parts.push(`Q:${props.task.extra_beds_queen}`)
-  if (props.task.extra_beds_king > 0) parts.push(`K:${props.task.extra_beds_king}`)
-  if (props.task.extra_towels_qty > 0) parts.push(`Tw:${props.task.extra_towels_qty}`)
+  if (props.task.extra_linen_combo_qty > 0) parts.push(`LC:${props.task.extra_linen_combo_qty}`)
+  if (props.task.extra_amenities_combo_qty > 0) parts.push(`AC:${props.task.extra_amenities_combo_qty}`)
+  if (props.task.extra_linen_single_qty > 0) parts.push(`LS:${props.task.extra_linen_single_qty}`)
+  if (props.task.extra_linen_queen_qty > 0) parts.push(`LQ:${props.task.extra_linen_queen_qty}`)
+  if (props.task.extra_linen_king_qty > 0) parts.push(`LK:${props.task.extra_linen_king_qty}`)
+  if (props.task.extra_towel_qty > 0) parts.push(`Tw:${props.task.extra_towel_qty}`)
 
   return parts.length > 0 ? parts.join(' | ') : 'No extras'
 })
@@ -302,15 +304,15 @@ const chocolatesSummary = computed(() => {
     bedsSingle: propertyData.value?.beds_single ?? 0,
     bedsQueen: propertyData.value?.beds_queen ?? 0,
     bedsKing: propertyData.value?.beds_king ?? 0,
-    extraBedsSingle: props.task.extra_beds_single,
-    extraBedsQueen: props.task.extra_beds_queen,
-    extraBedsKing: props.task.extra_beds_king,
-    extraChocolatesQty: props.task.extra_chocolates_qty,
+    extraBedsSingle: props.task.extra_linen_single_qty,
+    extraBedsQueen: props.task.extra_linen_queen_qty,
+    extraBedsKing: props.task.extra_linen_king_qty,
+    extraChocolatesQty: props.task.extra_chocolate_qty,
   })
 })
 
 const towelsSummaryTotal = computed(() => {
-  return props.task.extra_towels_qty ?? 0
+  return props.task.extra_towel_qty ?? 0
 })
 
 const dishclothsDefaultQty = computed(() => {

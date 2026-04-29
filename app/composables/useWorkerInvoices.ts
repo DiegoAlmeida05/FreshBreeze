@@ -1,5 +1,6 @@
 import { useAuth } from './useAuth'
 import { useSupabaseClient } from './useSupabaseClient'
+import { useDataCache } from './useDataCache'
 
 export interface WorkerInvoiceRow {
   id: string
@@ -58,6 +59,7 @@ export interface CreateWorkerInvoicePayload {
 export function useWorkerInvoices() {
   const supabase = useSupabaseClient()
   const auth = useAuth()
+  const { getCached, setCached, invalidate } = useDataCache()
 
   async function replaceInvoiceLines(invoiceId: string, amount: number, workDate: string, lineDescription?: string): Promise<void> {
     const { error: deleteError } = await supabase
@@ -143,6 +145,12 @@ export function useWorkerInvoices() {
   }
 
   async function listInvoices(): Promise<WorkerInvoiceRow[]> {
+    // Verifica cache primeiro (válido por 15 minutos)
+    const cachedInvoices = getCached<WorkerInvoiceRow[]>('worker-invoices-list')
+    if (cachedInvoices) {
+      return cachedInvoices
+    }
+
     const employeeId = await getEmployeeIdForCurrentUser()
 
     const { data, error } = await supabase
@@ -155,7 +163,12 @@ export function useWorkerInvoices() {
       throw new Error(error.message)
     }
 
-    return (data ?? []) as WorkerInvoiceRow[]
+    const invoices = (data ?? []) as WorkerInvoiceRow[]
+    
+    // Armazena no cache (15 minutos)
+    setCached('worker-invoices-list', invoices, 15 * 60 * 1000)
+    
+    return invoices
   }
 
   async function getInvoiceForWeek(weekStartDate: string): Promise<WorkerInvoiceRow | null> {
@@ -204,12 +217,23 @@ export function useWorkerInvoices() {
 
     await replaceInvoiceLines(data.id, amount, payload.week_start, payload.line_description)
 
+    // Invalida cache de invoices após criar uma nova
+    invalidate('worker-invoices-list')
+
     return data
   }
 
   async function updateInvoice(invoiceId: string, payload: Partial<CreateWorkerInvoicePayload>): Promise<WorkerInvoiceRow> {
     const updatePayload: Record<string, unknown> = {
       updated_at: new Date().toISOString(),
+    }
+
+    if (payload.week_start !== undefined) {
+      updatePayload.week_start = payload.week_start
+    }
+
+    if (payload.week_end !== undefined) {
+      updatePayload.week_end = payload.week_end
     }
 
     if (payload.invoice_number !== undefined) {

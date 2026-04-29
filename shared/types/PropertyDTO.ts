@@ -53,6 +53,16 @@ export interface PropertyDTO {
   beds_queen: number
   beds_king: number
   default_cleaning_minutes: number
+  linen_combo_extra_price: number
+  amenities_combo_extra_price: number
+  linen_queen_extra_price: number
+  linen_single_extra_price: number
+  linen_king_extra_price: number
+  towel_extra_price: number
+  chocolate_extra_price: number
+  linen_pack_fee: number
+  amenities_pack_fee: number
+  includes_amenities: boolean
   includes_chocolates: boolean
   extra_towels_default_qty: number
   extra_dishcloths_default_qty: number
@@ -83,6 +93,16 @@ export interface CreatePropertyDTO {
   beds_queen: number
   beds_king: number
   default_cleaning_minutes: number
+  linen_combo_extra_price?: number
+  amenities_combo_extra_price?: number
+  linen_queen_extra_price?: number
+  linen_single_extra_price?: number
+  linen_king_extra_price?: number
+  towel_extra_price?: number
+  chocolate_extra_price?: number
+  linen_pack_fee?: number
+  amenities_pack_fee?: number
+  includes_amenities?: boolean
   includes_chocolates?: boolean
   extra_towels_default_qty?: number
   extra_dishcloths_default_qty?: number
@@ -104,6 +124,16 @@ export interface UpdatePropertyDTO {
   beds_queen?: number
   beds_king?: number
   default_cleaning_minutes?: number
+  linen_combo_extra_price?: number
+  amenities_combo_extra_price?: number
+  linen_queen_extra_price?: number
+  linen_single_extra_price?: number
+  linen_king_extra_price?: number
+  towel_extra_price?: number
+  chocolate_extra_price?: number
+  linen_pack_fee?: number
+  amenities_pack_fee?: number
+  includes_amenities?: boolean
   includes_chocolates?: boolean
   extra_towels_default_qty?: number
   extra_dishcloths_default_qty?: number

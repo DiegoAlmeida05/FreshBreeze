@@ -45,12 +45,17 @@ interface TimesheetEntryRow {
   start_time: string | null
   end_time: string | null
   extra_hours: number | null
+  extra_start_time: string | null
+  extra_end_time: string | null
+  extra2_minutes: number | null
   worked_hours: number | null
   is_holiday: boolean | null
   applied_hourly_rate: number | null
   applied_rate_type: string | null
   estimated_pay: number | null
   note: string | null
+  saved_at: string | null
+  saved_by_profile_id: string | null
 }
 
 export interface WorkerTimesheetDay {
@@ -60,6 +65,10 @@ export interface WorkerTimesheetDay {
   start_time: string
   end_time: string
   extra_hours: number
+  extra_start_time: string
+  extra_end_time: string
+  extra1_minutes: number
+  extra2_minutes: number
   worked_hours: number
   hourly_rate: number
   estimated_daily_pay: number
@@ -68,6 +77,7 @@ export interface WorkerTimesheetDay {
   applied_rate_type: 'holiday' | 'sunday' | 'weekday'
   estimated_pay: number
   note: string
+  saved_at: string | null
 }
 
 export interface WorkerTimesheetSummary {
@@ -102,6 +112,10 @@ function toNumber(value: number | null | undefined): number {
 }
 
 function diffHours(startTime: string, endTime: string): number {
+  return Number((diffMinutes(startTime, endTime) / 60).toFixed(2))
+}
+
+function diffMinutes(startTime: string, endTime: string): number {
   if (!startTime || !endTime) return 0
 
   const [startHourRaw, startMinRaw] = startTime.split(':')
@@ -116,11 +130,14 @@ function diffHours(startTime: string, endTime: string): number {
   }
 
   const start = (startHour * 60) + startMin
-  const end = (endHour * 60) + endMin
+  let end = (endHour * 60) + endMin
 
-  if (end <= start) return 0
+  // If end is before start, treat as overnight shift (+24h)
+  if (end < start) {
+    end += 24 * 60
+  }
 
-  return Number(((end - start) / 60).toFixed(2))
+  return Math.max(0, end - start)
 }
 
 function round2(value: number): number {
@@ -152,6 +169,7 @@ export function useWorkerTimesheet() {
   const supabase = useSupabaseClient()
   const auth = useAuth()
   const { getHolidaysByRange } = useHolidays()
+  const { getCached, setCached } = useDataCache()
 
   async function getEmployeeIdForCurrentUser(): Promise<string> {
     const user = await auth.getCurrentUser()
@@ -177,6 +195,13 @@ export function useWorkerTimesheet() {
     weekBaseDate: string,
     settings: WorkerProfileSettings,
   ): Promise<{ days: WorkerTimesheetDay[]; summary: WorkerTimesheetSummary }> {
+    // Verifica cache primeiro (válido por 10 minutos para timesheet semanal)
+    const cacheKey = `worker-timesheet-${weekBaseDate}`
+    const cachedData = getCached<{ days: WorkerTimesheetDay[]; summary: WorkerTimesheetSummary }>(cacheKey)
+    if (cachedData) {
+      return cachedData
+    }
+
     const user = await auth.getCurrentUser()
     const baseDate = startOfWeek(new Date(`${weekBaseDate}T00:00:00`))
 
@@ -312,7 +337,7 @@ export function useWorkerTimesheet() {
     if (employeeData?.id) {
       const { data: entriesData, error: entriesError } = await supabase
         .from('worker_timesheet_entries')
-        .select('id, employee_id, work_date, source_task_hours, start_time, end_time, extra_hours, worked_hours, is_holiday, applied_hourly_rate, applied_rate_type, estimated_pay, note')
+        .select('id, employee_id, work_date, source_task_hours, start_time, end_time, extra_hours, extra_start_time, extra_end_time, extra2_minutes, worked_hours, is_holiday, applied_hourly_rate, applied_rate_type, estimated_pay, note, saved_at, saved_by_profile_id')
         .eq('employee_id', employeeData.id)
         .in('work_date', weekDates)
 
@@ -328,10 +353,29 @@ export function useWorkerTimesheet() {
       const sourceTaskHours = round2(sourceTaskHoursByDate[date] ?? 0)
       const startTime = formatTimeOrEmpty(entry?.start_time ?? null)
       const endTime = formatTimeOrEmpty(entry?.end_time ?? null)
+      
+      // Extra block 1: Calculated from extra_start_time and extra_end_time
+      const extraStartTime = formatTimeOrEmpty(entry?.extra_start_time ?? null)
+      const extraEndTime = formatTimeOrEmpty(entry?.extra_end_time ?? null)
+      const extra1Minutes = diffMinutes(extraStartTime, extraEndTime)
+      const extra1Hours = round2(extra1Minutes / 60)
+      
+      // Extra block 2: Manual input in minutes
+      const extra2Minutes = toNumber(entry?.extra2_minutes) >= 0 ? toNumber(entry?.extra2_minutes) : 0
+      const extra2Hours = round2(extra2Minutes / 60)
+      
+      // Legacy extra_hours field (for backward compatibility)
       const extraHours = round2(toNumber(entry?.extra_hours))
+      
+      // Worked hours calculation: main work + extra1 + extra2
+      // If worked_hours is already saved, use it; otherwise calculate from components
+      const mainWorkHours = diffHours(startTime, endTime)
+      const calculatedWorkedHours = round2(mainWorkHours + extra1Hours + extra2Hours)
+      
       const workedHours = Number.isFinite(entry?.worked_hours)
         ? round2(toNumber(entry?.worked_hours))
-        : round2(diffHours(startTime, endTime) + extraHours)
+        : calculatedWorkedHours
+      
       const isHoliday = typeof entry?.is_holiday === 'boolean' ? entry.is_holiday : holidaySet.has(date)
       const computedRateType = getDayRateType(date, isHoliday)
       const savedRateType = entry?.applied_rate_type === 'holiday' || entry?.applied_rate_type === 'sunday' || entry?.applied_rate_type === 'weekday'
@@ -352,6 +396,10 @@ export function useWorkerTimesheet() {
         start_time: startTime,
         end_time: endTime,
         extra_hours: extraHours,
+        extra_start_time: extraStartTime,
+        extra_end_time: extraEndTime,
+        extra1_minutes: extra1Minutes,
+        extra2_minutes: extra2Minutes,
         worked_hours: workedHours,
         hourly_rate: round2(hourlyRate),
         estimated_daily_pay: estimatedDailyPay,
@@ -360,21 +408,35 @@ export function useWorkerTimesheet() {
         applied_rate_type: appliedRateType,
         estimated_pay: estimatedDailyPay,
         note: entry?.note ?? '',
+        saved_at: entry?.saved_at ?? null,
       }
     })
 
     const summary: WorkerTimesheetSummary = {
       total_task_hours: round2(days.reduce((sum, day) => sum + day.source_task_hours, 0)),
       total_worked_hours: round2(days.reduce((sum, day) => sum + day.worked_hours, 0)),
-      total_extra_hours: round2(days.reduce((sum, day) => sum + day.extra_hours, 0)),
+      total_extra_hours: round2(days.reduce((sum, day) => sum + (day.extra1_minutes + day.extra2_minutes) / 60, 0)),
       estimated_weekly_pay: round2(days.reduce((sum, day) => sum + day.estimated_daily_pay, 0)),
     }
 
-    return { days, summary }
+    const result = { days, summary }
+    
+    // Armazena no cache (10 minutos)
+    setCached(`worker-timesheet-${weekBaseDate}`, result, 10 * 60 * 1000)
+    
+    return result
   }
 
   async function saveDayEntry(day: WorkerTimesheetDay): Promise<void> {
+    const user = await auth.getCurrentUser()
     const employeeId = await getEmployeeIdForCurrentUser()
+    const nowIso = new Date().toISOString()
+
+    const safeExtra2Minutes = Math.max(0, Math.round(Number(day.extra2_minutes) || 0))
+    const extra1Minutes = diffMinutes(day.extra_start_time, day.extra_end_time)
+    const extra1Hours = round2(extra1Minutes / 60)
+    const mainHours = diffHours(day.start_time, day.end_time)
+    const totalHours = round2(mainHours + extra1Hours + round2(safeExtra2Minutes / 60))
 
     const payload = {
       employee_id: employeeId,
@@ -382,14 +444,20 @@ export function useWorkerTimesheet() {
       source_task_hours: day.source_task_hours,
       start_time: day.start_time || null,
       end_time: day.end_time || null,
-      extra_hours: day.extra_hours,
-      worked_hours: day.worked_hours,
+      // Legacy field must mirror Extra 1 hours.
+      extra_hours: extra1Hours,
+      extra_start_time: day.extra_start_time || null,
+      extra_end_time: day.extra_end_time || null,
+      extra2_minutes: safeExtra2Minutes,
+      worked_hours: totalHours,
       is_holiday: day.is_holiday,
       applied_hourly_rate: day.applied_hourly_rate,
       applied_rate_type: day.applied_rate_type,
-      estimated_pay: day.estimated_pay,
+      estimated_pay: round2(totalHours * day.applied_hourly_rate),
       note: day.note.trim() || null,
-      updated_at: new Date().toISOString(),
+      updated_at: nowIso,
+      saved_at: nowIso,
+      saved_by_profile_id: user.id,
     }
 
     const { error } = await supabase

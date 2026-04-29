@@ -326,11 +326,13 @@ async function onSubmit(): Promise<void> {
       cleaning_minutes_override: null,
       people_count: 1,
       notes: null,
-      extra_beds_single: 0,
-      extra_beds_queen: 0,
-      extra_beds_king: 0,
-      extra_towels_qty: 0,
-      extra_chocolates_qty: 0,
+      extra_linen_combo_qty: 0,
+      extra_amenities_combo_qty: 0,
+      extra_linen_queen_qty: 0,
+      extra_linen_single_qty: 0,
+      extra_linen_king_qty: 0,
+      extra_towel_qty: 0,
+      extra_chocolate_qty: 0,
     }))
 
     const results = await Promise.allSettled(createPayloads.map((p) => createTask(p)))

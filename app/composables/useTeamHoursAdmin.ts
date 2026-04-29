@@ -2,8 +2,10 @@ import { useAuth } from './useAuth'
 import { useHolidays } from './useHolidays'
 import { useRoutePlans } from './useRoutePlans'
 import { useSupabaseClient } from './useSupabaseClient'
+import type { PricingItemsSnapshotLineDTO } from '../../shared/types/PricingItemDTO'
 import type { SaveDayTeamTaskInput, TeamTimeEntryTaskAdminDTO } from '../../shared/types/TeamTimeEntryTaskAdminDTO'
 import { fmtTime } from '../utils/formatTime'
+import { calculatePricingItems } from '../utils/calculatePricingItems'
 
 const TEAM_TASKS_TABLE = 'team_time_entry_tasks_admin'
 const PUBLISHED_TEAM_TASKS_TABLE = 'team_time_entry_tasks_admin_published'
@@ -93,6 +95,68 @@ interface PropertyInfoRow {
   default_cleaning_minutes: number | null
 }
 
+interface DailyTaskPricingRow {
+  id: string
+  property_id: string
+}
+
+interface PropertyPricingSnapshotRow {
+  id: string
+  client_id: string
+  default_cleaning_minutes: number | null
+  linen_pack_fee: number | null
+  amenities_pack_fee: number | null
+  includes_amenities: boolean | null
+}
+
+interface ClientHourlyRateRow {
+  id: string
+  hourly_rate: number | null
+}
+
+interface PropertyPricingItemSnapshotRow {
+  property_id: string
+  pricing_item_id: string
+  scope: string
+  quantity: number | null
+  pricing_item: {
+    id: string
+    name: string
+    category: string
+    unit_price: number | null
+    active: boolean | null
+  } | null
+}
+
+interface DailyTaskExtraItemSnapshotRow {
+  daily_task_id: string
+  pricing_item_id: string
+  quantity: number | null
+  note: string | null
+  pricing_item: {
+    id: string
+    name: string
+    category: string
+    unit_price: number | null
+    active: boolean | null
+  } | null
+}
+
+interface TaskPricingSnapshot {
+  defaultMinutes: number
+  plannedMinutes: number
+  actualMinutes: number
+  invoiceNormalMinutes: number
+  invoiceExtraMinutes: number
+  invoiceTotalMinutes: number
+  normalTimeAmount: number
+  extraTimeAmount: number
+  linenAmount: number
+  amenitiesAmount: number
+  totalAmount: number
+  pricingItemsSnapshot: PricingItemsSnapshotLineDTO[]
+}
+
 interface EmployeeRow {
   id: string
   full_name: string
@@ -127,8 +191,10 @@ export interface TeamHoursTaskRow {
   taskLabel: string
   plannedStartTime: string | null
   plannedEndTime: string | null
+  defaultMinutes: number
   plannedMinutes: number
   actualMinutes: number
+  extraMinutes: number
   diffMinutes: number
 }
 
@@ -360,7 +426,7 @@ function getLatestPublishedTimestamp(rows: Array<{ published_at: string | null }
 
 function toPublishedSchemaError(error: { message?: string } | null | undefined): Error {
   const source = error?.message?.trim() || 'Unknown error'
-  return new Error(`Published hours schema mismatch in ${PUBLISHED_TEAM_TASKS_TABLE}. Apply migration 202604030002_fix_team_hours_published_schema.sql. Details: ${source}`)
+  return new Error(`Published hours schema mismatch in ${PUBLISHED_TEAM_TASKS_TABLE}. Apply the latest team hours snapshot migrations. Details: ${source}`)
 }
 
 async function selectPublishedRowsByDate(
@@ -400,6 +466,209 @@ async function insertPublishedRows(
   return supabase
     .from(PUBLISHED_TEAM_TASKS_TABLE)
     .insert(rows)
+}
+
+function toPricingItemCategory(value: string | null | undefined): 'linen' | 'amenities' {
+  return value === 'amenities' ? 'amenities' : 'linen'
+}
+
+function toPricingItemScope(value: string | null | undefined): 'base' | 'default_extra' {
+  return value === 'default_extra' ? 'default_extra' : 'base'
+}
+
+function roundCurrency(value: number): number {
+  return Number(value.toFixed(2))
+}
+
+async function loadTaskPricingSnapshots(
+  supabase: ReturnType<typeof useSupabaseClient>,
+  draftRows: TeamTimeEntryTaskRow[],
+): Promise<Map<string, TaskPricingSnapshot>> {
+  const taskIds = Array.from(new Set(draftRows.map((row) => row.daily_task_id).filter((id): id is string => Boolean(id))))
+  if (taskIds.length === 0) {
+    return new Map()
+  }
+
+  const tasksResult = await supabase
+    .from('daily_tasks')
+    .select('id, property_id')
+    .in('id', taskIds)
+
+  if (tasksResult.error) {
+    throw new Error(tasksResult.error.message)
+  }
+
+  const tasks = (tasksResult.data ?? []) as DailyTaskPricingRow[]
+  const taskById = new Map(tasks.map((task) => [task.id, task]))
+  const propertyIds = Array.from(new Set(tasks.map((task) => task.property_id).filter((id): id is string => Boolean(id))))
+
+  if (propertyIds.length === 0) {
+    return new Map()
+  }
+
+  const [propertiesResult, propertyPricingItemsResult, taskExtraItemsResult] = await Promise.all([
+    supabase
+      .from('properties')
+      .select('id, client_id, default_cleaning_minutes, linen_pack_fee, amenities_pack_fee, includes_amenities')
+      .in('id', propertyIds),
+    supabase
+      .from('property_pricing_items')
+      .select('property_id, pricing_item_id, scope, quantity, pricing_item:pricing_items(id, name, category, unit_price, active)')
+      .in('property_id', propertyIds),
+    supabase
+      .from('daily_task_extra_items')
+      .select('daily_task_id, pricing_item_id, quantity, note, pricing_item:pricing_items(id, name, category, unit_price, active)')
+      .in('daily_task_id', taskIds),
+  ])
+
+  if (propertiesResult.error) {
+    throw new Error(propertiesResult.error.message)
+  }
+
+  if (propertyPricingItemsResult.error) {
+    throw new Error(propertyPricingItemsResult.error.message)
+  }
+
+  if (taskExtraItemsResult.error) {
+    throw new Error(taskExtraItemsResult.error.message)
+  }
+
+  const properties = (propertiesResult.data ?? []) as PropertyPricingSnapshotRow[]
+  const propertyById = new Map(properties.map((property) => [property.id, property]))
+  const clientIds = Array.from(new Set(properties.map((property) => property.client_id).filter((id): id is string => Boolean(id))))
+
+  const clientsResult = clientIds.length > 0
+    ? await supabase
+      .from('clients')
+      .select('id, hourly_rate')
+      .in('id', clientIds)
+    : { data: [], error: null }
+
+  if (clientsResult.error) {
+    throw new Error(clientsResult.error.message)
+  }
+
+  const clients = (clientsResult.data ?? []) as ClientHourlyRateRow[]
+  const clientRateById = new Map(clients.map((client) => [client.id, Number(client.hourly_rate ?? 0)]))
+
+  const propertyPricingItemsByPropertyId = new Map<string, Array<{
+    property_id: string
+    scope: 'base' | 'default_extra'
+    quantity: number
+    pricing_item: {
+      id: string
+      name: string
+      category: 'linen' | 'amenities'
+      unit_price: number
+      active: boolean
+    }
+  }>>()
+
+  for (const row of (propertyPricingItemsResult.data ?? []) as PropertyPricingItemSnapshotRow[]) {
+    const current = propertyPricingItemsByPropertyId.get(row.property_id) ?? []
+    current.push({
+      property_id: row.property_id,
+      scope: toPricingItemScope(row.scope),
+      quantity: Number(row.quantity ?? 1),
+      pricing_item: {
+        id: row.pricing_item?.id ?? row.pricing_item_id,
+        name: row.pricing_item?.name ?? '',
+        category: toPricingItemCategory(row.pricing_item?.category),
+        unit_price: Number(row.pricing_item?.unit_price ?? 0),
+        active: row.pricing_item?.active ?? true,
+      },
+    })
+    propertyPricingItemsByPropertyId.set(row.property_id, current)
+  }
+
+  const taskExtraItemsByTaskId = new Map<string, Array<{
+    daily_task_id: string
+    quantity: number
+    note: string | null
+    pricing_item: {
+      id: string
+      name: string
+      category: 'linen' | 'amenities'
+      unit_price: number
+      active: boolean
+    }
+  }>>()
+
+  for (const row of (taskExtraItemsResult.data ?? []) as DailyTaskExtraItemSnapshotRow[]) {
+    const current = taskExtraItemsByTaskId.get(row.daily_task_id) ?? []
+    current.push({
+      daily_task_id: row.daily_task_id,
+      quantity: Number(row.quantity ?? 1),
+      note: row.note ?? null,
+      pricing_item: {
+        id: row.pricing_item?.id ?? row.pricing_item_id,
+        name: row.pricing_item?.name ?? '',
+        category: toPricingItemCategory(row.pricing_item?.category),
+        unit_price: Number(row.pricing_item?.unit_price ?? 0),
+        active: row.pricing_item?.active ?? true,
+      },
+    })
+    taskExtraItemsByTaskId.set(row.daily_task_id, current)
+  }
+
+  const snapshotByTaskId = new Map<string, TaskPricingSnapshot>()
+
+  for (const row of draftRows) {
+    if (snapshotByTaskId.has(row.daily_task_id)) {
+      continue
+    }
+
+    const task = taskById.get(row.daily_task_id)
+    if (!task) {
+      continue
+    }
+
+    const property = propertyById.get(task.property_id)
+    if (!property) {
+      continue
+    }
+
+    const ratePerHour = Number(clientRateById.get(property.client_id) ?? 0)
+    const defaultMinutes = toSafeMinutes(property.default_cleaning_minutes)
+    const plannedMinutes = toSafeMinutes(row.planned_minutes)
+    const actualMinutes = toSafeMinutes(row.actual_minutes)
+    const invoiceNormalMinutes = defaultMinutes
+    const invoiceExtraMinutes = Math.max(actualMinutes - defaultMinutes, 0)
+    const invoiceTotalMinutes = invoiceNormalMinutes + invoiceExtraMinutes
+    // Snapshot totals intentionally come only from selected pricing_items rows.
+    // Operational chocolate flags/quantities stay operational and never bill by themselves.
+    const pricing = calculatePricingItems({
+      propertyBaseItems: (propertyPricingItemsByPropertyId.get(property.id) ?? []).filter((item) => item.scope === 'base'),
+      propertyDefaultExtraItems: (propertyPricingItemsByPropertyId.get(property.id) ?? []).filter((item) => item.scope === 'default_extra'),
+      taskExtraItems: taskExtraItemsByTaskId.get(task.id) ?? [],
+      linenPackFee: Number(property.linen_pack_fee ?? 0),
+      amenitiesPackFee: Number(property.amenities_pack_fee ?? 0),
+      includesAmenities: property.includes_amenities !== false,
+    })
+
+    const normalTimeAmount = roundCurrency((invoiceNormalMinutes / 60) * ratePerHour)
+    const extraTimeAmount = roundCurrency((invoiceExtraMinutes / 60) * ratePerHour)
+    const linenAmount = roundCurrency(pricing.linenTotal)
+    const amenitiesAmount = roundCurrency(pricing.amenitiesTotal)
+    const totalAmount = roundCurrency(normalTimeAmount + extraTimeAmount + linenAmount + amenitiesAmount)
+
+    snapshotByTaskId.set(row.daily_task_id, {
+      defaultMinutes,
+      plannedMinutes,
+      actualMinutes,
+      invoiceNormalMinutes,
+      invoiceExtraMinutes,
+      invoiceTotalMinutes,
+      normalTimeAmount,
+      extraTimeAmount,
+      linenAmount,
+      amenitiesAmount,
+      totalAmount,
+      pricingItemsSnapshot: pricing.snapshotLines,
+    })
+  }
+
+  return snapshotByTaskId
 }
 
 function buildTaskLabel(task: DailyTaskInfoRow | undefined, property: PropertyInfoRow | undefined): string {
@@ -728,7 +997,9 @@ export function useTeamHoursAdmin() {
         const entry = rowsByStopId.get(stop.id) ?? createEmptyTaskEntry(stop, date, plannedMinutes)
         const task = taskById.get(stop.daily_task_id)
         const property = task ? propertyById.get(task.property_id) : undefined
+        const defaultMinutes = toSafeMinutes(property?.default_cleaning_minutes)
         const actualMinutes = toSafeMinutes(entry.actual_minutes)
+        const extraMinutes = Math.max(actualMinutes - defaultMinutes, 0)
 
         return {
           entry,
@@ -738,8 +1009,10 @@ export function useTeamHoursAdmin() {
           taskLabel: buildTaskLabel(task, property),
           plannedStartTime: fmtTime(stop.planned_start_time),
           plannedEndTime: fmtTime(stop.planned_end_time),
+          defaultMinutes,
           plannedMinutes,
           actualMinutes,
+          extraMinutes,
           diffMinutes: actualMinutes - plannedMinutes,
         }
       })
@@ -1008,6 +1281,7 @@ export function useTeamHoursAdmin() {
     }
 
     const routeGroupIds = Array.from(new Set(activeDraftRows.map((row) => row.route_group_id)))
+    const taskPricingSnapshots = await loadTaskPricingSnapshots(supabase, activeDraftRows)
     const [membersResult, holidays, employeesResult, adjustmentsResult, routeGroupsResult] = await Promise.all([
       supabase
         .from('route_group_members')
@@ -1100,8 +1374,13 @@ export function useTeamHoursAdmin() {
         const totalPaidMinutes = baseMinutes + startExtraMinutes + endExtraMinutes + otherExtraMinutes + manualAdjustmentMinutes
         const appliedRate = getEmployeeSnapshotRate(rateType, employee)
         const totalPay = toCurrency((totalPaidMinutes / 60) * appliedRate)
-        const plannedMinutes = toSafeMinutes(row.planned_minutes)
-        const invoiceMinutes = Math.max(plannedMinutes, baseMinutes)
+        const taskPricingSnapshot = taskPricingSnapshots.get(row.daily_task_id)
+        const plannedMinutes = taskPricingSnapshot?.plannedMinutes ?? toSafeMinutes(row.planned_minutes)
+        const actualMinutesSnapshot = taskPricingSnapshot?.actualMinutes ?? baseMinutes
+        const defaultMinutesSnapshot = taskPricingSnapshot?.defaultMinutes ?? 0
+        const invoiceNormalMinutesSnapshot = taskPricingSnapshot?.invoiceNormalMinutes ?? 0
+        const invoiceExtraMinutesSnapshot = taskPricingSnapshot?.invoiceExtraMinutes ?? Math.max(actualMinutesSnapshot - invoiceNormalMinutesSnapshot, 0)
+        const invoiceMinutes = taskPricingSnapshot?.invoiceTotalMinutes ?? (invoiceNormalMinutesSnapshot + invoiceExtraMinutesSnapshot)
         const invoiceHours = Number((invoiceMinutes / 60).toFixed(2))
         const invoiceAmount = toCurrency(invoiceHours * appliedRate)
 
@@ -1121,11 +1400,20 @@ export function useTeamHoursAdmin() {
           invoice_minutes_snapshot: invoiceMinutes,
           invoice_hours_snapshot: invoiceHours,
           invoice_amount_snapshot: invoiceAmount,
+          default_minutes_snapshot: defaultMinutesSnapshot,
+          invoice_normal_minutes_snapshot: invoiceNormalMinutesSnapshot,
+          invoice_extra_minutes_snapshot: invoiceExtraMinutesSnapshot,
+          normal_time_amount_snapshot: taskPricingSnapshot?.normalTimeAmount ?? 0,
+          extra_time_amount_snapshot: taskPricingSnapshot?.extraTimeAmount ?? 0,
+          linen_amount_snapshot: taskPricingSnapshot?.linenAmount ?? 0,
+          amenities_amount_snapshot: taskPricingSnapshot?.amenitiesAmount ?? 0,
+          total_amount_snapshot: taskPricingSnapshot?.totalAmount ?? 0,
+          pricing_items_snapshot: taskPricingSnapshot?.pricingItemsSnapshot ?? [],
           route_group_id: row.route_group_id,
           route_stop_id: row.route_stop_id,
           daily_task_id: row.daily_task_id,
           planned_minutes: plannedMinutes,
-          actual_minutes: baseMinutes,
+          actual_minutes: actualMinutesSnapshot,
           note: row.note?.trim() || null,
           published_at: new Date().toISOString(),
         }
@@ -1166,6 +1454,15 @@ export function useTeamHoursAdmin() {
           'invoice_minutes_snapshot',
           'invoice_hours_snapshot',
           'invoice_amount_snapshot',
+          'default_minutes_snapshot',
+          'invoice_normal_minutes_snapshot',
+          'invoice_extra_minutes_snapshot',
+          'normal_time_amount_snapshot',
+          'extra_time_amount_snapshot',
+          'linen_amount_snapshot',
+          'amenities_amount_snapshot',
+          'total_amount_snapshot',
+          'pricing_items_snapshot',
           'route_group_id',
           'route_stop_id',
           'daily_task_id',

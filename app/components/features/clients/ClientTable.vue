@@ -25,11 +25,6 @@
                 <p class="truncate text-base font-semibold text-foreground">{{ client.name }}</p>
               </div>
               <p class="mt-0.5 text-xs text-muted">{{ formatCurrency(client.hourly_rate) }}/hr</p>
-              <div class="mt-2 grid grid-cols-1 gap-1 text-xs text-muted">
-                <span class="rounded-md bg-primary-50/60 px-2 py-0.5 dark:bg-white/5"><span class="font-medium text-foreground/70">Linen combo:</span> {{ formatCurrency(client.linen_combo_price) }}</span>
-                <span class="rounded-md bg-primary-50/60 px-2 py-0.5 dark:bg-white/5"><span class="font-medium text-foreground/70">Amenities combo:</span> {{ formatCurrency(client.amenities_combo_price) }}</span>
-                <span class="rounded-md bg-primary-50/60 px-2 py-0.5 dark:bg-white/5"><span class="font-medium text-foreground/70">Extra towel:</span> {{ formatCurrency(client.extra_towel_price) }}</span>
-              </div>
             </div>
             <div class="flex items-center gap-1">
               <span
@@ -80,9 +75,6 @@
           <tr>
             <th>Client</th>
             <th class="table-numeric">Rate/hr</th>
-            <th class="table-numeric" title="Invoice linen combo price">Linen combo</th>
-            <th class="table-numeric" title="Invoice amenities combo price">Amenities combo</th>
-            <th class="table-numeric">Extra towel</th>
             <th>Status</th>
             <th>Actions</th>
           </tr>
@@ -99,17 +91,8 @@
                 <p class="truncate font-semibold text-foreground">{{ client.name }}</p>
               </div>
             </td>
-            <td class="table-numeric font-medium">
+            <td class="text-center font-medium">
               {{ formatCurrency(client.hourly_rate) }}
-            </td>
-            <td class="table-numeric">
-              {{ formatCurrency(client.linen_combo_price) }}
-            </td>
-            <td class="table-numeric">
-              {{ formatCurrency(client.amenities_combo_price) }}
-            </td>
-            <td class="table-numeric">
-              {{ formatCurrency(client.extra_towel_price) }}
             </td>
             <td>
               <span

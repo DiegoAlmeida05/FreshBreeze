@@ -274,11 +274,13 @@ function formatGuestSummary(task: DailyTaskDTO): string {
 function formatExtrasSummary(task: DailyTaskDTO): string {
   const parts: string[] = []
 
-  if (task.extra_beds_single > 0) parts.push(`S:${task.extra_beds_single}`)
-  if (task.extra_beds_queen > 0) parts.push(`Q:${task.extra_beds_queen}`)
-  if (task.extra_beds_king > 0) parts.push(`K:${task.extra_beds_king}`)
-  if (task.extra_towels_qty > 0) parts.push(`Tw:+${task.extra_towels_qty}`)
-  if (task.extra_chocolates_qty > 0) parts.push(`Ch:+${task.extra_chocolates_qty}`)
+  if (task.extra_linen_combo_qty > 0) parts.push(`LC:+${task.extra_linen_combo_qty}`)
+  if (task.extra_amenities_combo_qty > 0) parts.push(`AC:+${task.extra_amenities_combo_qty}`)
+  if (task.extra_linen_single_qty > 0) parts.push(`LS:+${task.extra_linen_single_qty}`)
+  if (task.extra_linen_queen_qty > 0) parts.push(`LQ:+${task.extra_linen_queen_qty}`)
+  if (task.extra_linen_king_qty > 0) parts.push(`LK:+${task.extra_linen_king_qty}`)
+  if (task.extra_towel_qty > 0) parts.push(`Tw:+${task.extra_towel_qty}`)
+  if (task.extra_chocolate_qty > 0) parts.push(`Ch:+${task.extra_chocolate_qty}`)
 
   return parts.length > 0 ? parts.join(' | ') : 'No extras'
 }

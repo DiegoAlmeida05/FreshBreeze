@@ -5,6 +5,9 @@
         <div>
           <p class="text-xs font-semibold uppercase tracking-wide text-primary-600">Billing</p>
           <h2 class="mt-1 text-2xl font-semibold text-foreground">Client Invoices</h2>
+          <p v-if="lastUpdatedAt" class="mt-1 text-[11px] font-medium text-muted">
+            Last updated {{ formatDateTimeLabel(lastUpdatedAt) }}
+          </p>
         </div>
       </header>
 
@@ -56,7 +59,7 @@
               This week
             </button>
 
-            <p class="w-full text-left text-[10px] font-medium uppercase tracking-wide text-muted sm:ml-auto sm:w-auto sm:text-right">
+            <p class="text-[10px] font-medium uppercase tracking-wide text-muted">
               {{ weekRangeLabel }}
             </p>
           </div>
@@ -209,15 +212,16 @@
           <!-- Invoice table -->
           <div class="overflow-hidden rounded-xl border border-primary-100/70 bg-white/50 dark:border-white/10 dark:bg-white/[0.02]">
           <div class="overflow-x-auto">
-            <table class="min-w-[820px] w-full text-sm">
+            <table class="min-w-[960px] w-full text-sm">
               <thead class="bg-primary-50/80 text-[11px] uppercase tracking-wide text-muted dark:bg-white/[0.04]">
                 <tr>
                   <th class="px-3 py-2 text-left font-semibold">Date</th>
                   <th class="px-3 py-2 text-left font-semibold">Property</th>
-                  <th class="px-3 py-2 text-right font-semibold">Clean Rate (excl GST)</th>
-                  <th class="px-3 py-2 text-right font-semibold">Extra (excl GST)</th>
+                  <th class="px-3 py-2 text-right font-semibold">Normal Time (excl GST)</th>
+                  <th class="px-3 py-2 text-right font-semibold">Extra Time (excl GST)</th>
                   <th class="px-3 py-2 text-right font-semibold">Linen (excl GST)</th>
                   <th class="px-3 py-2 text-right font-semibold">Amenities (excl GST)</th>
+                  <th class="px-3 py-2 text-right font-semibold">Pack Fee</th>
                   <th class="px-3 py-2 text-right font-semibold">Total (excl GST)</th>
                 </tr>
               </thead>
@@ -237,31 +241,32 @@
                   <td class="px-3 py-2 text-right font-medium tabular-nums">
                     <div class="flex flex-col items-end leading-tight">
                       <span>{{ formatCurrency(row.cleanRateExclGst) }}</span>
-                      <span class="mt-0.5 text-[10px] font-medium text-muted">{{ row.plannedHours.toFixed(2) }} h</span>
+                      <span class="mt-0.5 text-[10px] font-medium text-muted">{{ row.normalMinutes }} min / {{ formatMinutesToHours(row.normalMinutes) }} h</span>
                     </div>
                   </td>
                   <td class="px-3 py-2 text-right font-medium tabular-nums">
                     <div class="flex flex-col items-end leading-tight">
-                      <span>{{ formatCurrency(row.extraExclGst) }}</span>
-                      <span class="mt-0.5 text-[10px] font-medium text-muted">{{ row.extraHours.toFixed(2) }} h</span>
+                      <span>{{ formatCurrency(row.extraTimeExclGst) }}</span>
+                      <span class="mt-0.5 text-[10px] font-medium text-muted">{{ row.extraMinutes }} min / {{ formatMinutesToHours(row.extraMinutes) }} h</span>
                     </div>
                   </td>
                   <td class="px-3 py-2 text-right font-medium tabular-nums">{{ formatCurrency(row.linenExclGst) }}</td>
                   <td class="px-3 py-2 text-right font-medium tabular-nums">{{ formatCurrency(row.amenitiesExclGst) }}</td>
+                  <td class="px-3 py-2 text-right font-medium tabular-nums">{{ formatCurrency(row.totalPackFeeApplied) }}</td>
                   <td class="px-3 py-2 text-right font-semibold tabular-nums">{{ formatCurrency(row.totalExclGst) }}</td>
                 </tr>
               </tbody>
               <tfoot class="border-t border-primary-200/70 bg-primary-50/80 text-foreground dark:border-white/10 dark:bg-white/[0.05]">
                 <tr>
-                  <td class="px-3 py-2 text-sm font-semibold text-muted" colspan="6">Subtotal (excl GST)</td>
+                  <td class="px-3 py-2 text-sm font-semibold text-muted" colspan="7">Subtotal (excl GST)</td>
                   <td class="px-3 py-2 text-right font-semibold tabular-nums">{{ formatCurrency(gstTotals.exclGst) }}</td>
                 </tr>
                 <tr class="border-t border-primary-100/50 dark:border-white/[0.06]">
-                  <td class="px-3 py-2 text-sm font-semibold text-muted" colspan="6">GST (10%)</td>
+                  <td class="px-3 py-2 text-sm font-semibold text-muted" colspan="7">GST (10%)</td>
                   <td class="px-3 py-2 text-right font-semibold tabular-nums">{{ formatCurrency(gstTotals.gst) }}</td>
                 </tr>
                 <tr class="border-t border-primary-200/70 dark:border-white/10">
-                  <td class="px-3 py-3 text-sm font-bold text-foreground" colspan="6">Total (incl GST)</td>
+                  <td class="px-3 py-3 text-sm font-bold text-foreground" colspan="7">Total (incl GST)</td>
                   <td class="px-3 py-3 text-right text-base font-bold tabular-nums text-foreground">{{ formatCurrency(gstTotals.inclGst) }}</td>
                 </tr>
               </tfoot>
@@ -296,6 +301,7 @@ interface PersistedInvoicePageState {
   filters: InvoiceFilters
   invoiceNumber: string
   preview: ClientInvoicePreview | null
+  lastUpdatedAt: string | null
   scrollY: number
 }
 
@@ -314,6 +320,7 @@ const persistedInvoicePageState = useState<PersistedInvoicePageState>('admin-inv
   filters: defaultFilters(),
   invoiceNumber: '',
   preview: null,
+  lastUpdatedAt: null,
   scrollY: 0,
 }))
 
@@ -323,6 +330,7 @@ const filters = reactive<InvoiceFilters>({
 
 const clientOptions = ref<ClientInvoiceFilterOption[]>([])
 const preview = ref<ClientInvoicePreview | null>(persistedInvoicePageState.value.preview)
+const lastUpdatedAt = ref<string | null>(persistedInvoicePageState.value.lastUpdatedAt)
 const pageError = ref('')
 const invoiceNumber = ref(persistedInvoicePageState.value.invoiceNumber)
 const isLoadingClients = ref(false)
@@ -390,6 +398,10 @@ watch(preview, (value) => {
   persistedInvoicePageState.value.preview = value
 }, { deep: true })
 
+watch(lastUpdatedAt, (value) => {
+  persistedInvoicePageState.value.lastUpdatedAt = value
+})
+
 onBeforeRouteLeave(() => {
   if (import.meta.client) {
     persistedInvoicePageState.value.scrollY = window.scrollY
@@ -441,6 +453,7 @@ async function onGeneratePreview(): Promise<void> {
 
   try {
     preview.value = await getClientInvoicePreview(filters.startDate, filters.endDate, filters.clientId)
+    lastUpdatedAt.value = new Date().toISOString()
   } catch (error) {
     pageError.value = toErrorMessage(error, 'Unable to generate invoice preview.')
     preview.value = null
@@ -454,10 +467,12 @@ function onClearFilters(): void {
   filters.clientId = ''
   invoiceNumber.value = ''
   preview.value = null
+  lastUpdatedAt.value = new Date().toISOString()
   pageError.value = ''
   persistedInvoicePageState.value.filters = defaultFilters()
   persistedInvoicePageState.value.invoiceNumber = ''
   persistedInvoicePageState.value.preview = null
+  persistedInvoicePageState.value.lastUpdatedAt = lastUpdatedAt.value
   persistedInvoicePageState.value.scrollY = 0
 }
 
@@ -484,12 +499,12 @@ async function onExportPdf(): Promise<void> {
 
     const columns = [
       { title: 'Date', width: 19, align: 'left' as const },
-      { title: 'Property Name', width: 39, align: 'left' as const },
-      { title: 'Clean Rate (excl GST)', width: 31, align: 'right' as const },
-      { title: 'Extra (excl GST)', width: 23, align: 'right' as const },
-      { title: 'Linen (excl GST)', width: 23, align: 'right' as const },
-      { title: 'Amenities (excl GST)', width: 27, align: 'right' as const },
-      { title: 'Total (excl GST)', width: 20, align: 'right' as const },
+      { title: 'Property Name', width: 31, align: 'left' as const },
+      { title: 'Normal Time (excl GST)', width: 24, align: 'right' as const },
+      { title: 'Extra Time (excl GST)', width: 21, align: 'right' as const },
+      { title: 'Linen (excl GST)', width: 18, align: 'right' as const },
+      { title: 'Amenities (excl GST)', width: 20, align: 'right' as const },
+      { title: 'Total (excl GST)', width: 21, align: 'right' as const },
     ]
 
     function drawPageHeader(): number {
@@ -554,19 +569,21 @@ async function onExportPdf(): Promise<void> {
     }
 
     function drawTableRow(y: number, row: ClientInvoicePreview['rows'][number], index: number): number {
+      const rowHeight = 10
+
       if (index % 2 === 1) {
         pdf.setFillColor(252, 253, 255)
-        pdf.rect(margin, y, contentWidth, 7, 'F')
+        pdf.rect(margin, y, contentWidth, rowHeight, 'F')
       }
 
       pdf.setDrawColor(234, 238, 243)
-      pdf.line(margin, y + 7, margin + contentWidth, y + 7)
+      pdf.line(margin, y + rowHeight, margin + contentWidth, y + rowHeight)
 
       const cells = [
         formatDateDocument(row.date),
         row.propertyName,
         formatCurrency(row.cleanRateExclGst),
-        formatCurrency(row.extraExclGst),
+        formatCurrency(row.extraTimeExclGst),
         formatCurrency(row.linenExclGst),
         formatCurrency(row.amenitiesExclGst),
         formatCurrency(row.totalExclGst),
@@ -578,22 +595,49 @@ async function onExportPdf(): Promise<void> {
       let x = margin
       cells.forEach((cell, cellIndex) => {
         const column = columns[cellIndex]
+        if (!column) {
+          return
+        }
+
         const textX = column.align === 'right' ? x + column.width - 1.5 : x + 1.5
         const safeValue = column.align === 'left'
           ? pdf.splitTextToSize(cell, column.width - 3)[0] ?? ''
           : cell
-        pdf.text(safeValue, textX, y + 4.7, { align: column.align })
+        pdf.text(safeValue, textX, y + 3.9, { align: column.align })
+
+        if (cellIndex === 2) {
+          pdf.setFont('helvetica', 'normal')
+          pdf.setFontSize(6.8)
+          pdf.setTextColor(108, 117, 125)
+          const detail = `${row.normalMinutes} min / ${formatMinutesToHours(row.normalMinutes)} h`
+          pdf.text(detail, x + column.width - 1.5, y + 7.6, { align: 'right' })
+          pdf.setFont('helvetica', 'normal')
+          pdf.setFontSize(8.2)
+          pdf.setTextColor(0, 0, 0)
+        }
+
+        if (cellIndex === 3) {
+          pdf.setFont('helvetica', 'normal')
+          pdf.setFontSize(6.8)
+          pdf.setTextColor(108, 117, 125)
+          const detail = `${row.extraMinutes} min / ${formatMinutesToHours(row.extraMinutes)} h`
+          pdf.text(detail, x + column.width - 1.5, y + 7.6, { align: 'right' })
+          pdf.setFont('helvetica', 'normal')
+          pdf.setFontSize(8.2)
+          pdf.setTextColor(0, 0, 0)
+        }
+
         x += column.width
       })
 
-      return y + 7
+      return y + rowHeight
     }
 
     let cursorY = drawPageHeader()
     cursorY = drawTableHeader(cursorY)
 
     preview.value.rows.forEach((row, index) => {
-      if (cursorY + 7 > pageHeight - margin - 26) {
+      if (cursorY + 10 > pageHeight - margin - 26) {
         pdf.addPage()
         cursorY = drawPageHeader()
         cursorY = drawTableHeader(cursorY)
@@ -646,7 +690,7 @@ async function onExportExcel(): Promise<void> {
   pageError.value = ''
 
   try {
-    const ExcelJSImport = await import('exceljs/dist/exceljs.min.js')
+    const ExcelJSImport = await import('exceljs')
     const ExcelJS = (ExcelJSImport.default ?? ExcelJSImport) as typeof import('exceljs')
     const workbook = new ExcelJS.Workbook()
     const worksheet = workbook.addWorksheet('Invoice')
@@ -654,11 +698,11 @@ async function onExportExcel(): Promise<void> {
 
     worksheet.columns = [
       { width: 16 },
-      { width: 34 },
-      { width: 22 },
+      { width: 30 },
       { width: 20 },
       { width: 20 },
-      { width: 22 },
+      { width: 18 },
+      { width: 20 },
       { width: 20 },
     ]
 
@@ -729,8 +773,8 @@ async function onExportExcel(): Promise<void> {
     headerRow.values = [
       'Date',
       'Property Name',
-      'Clean Rate (excl GST)',
-      'Extra (excl GST)',
+      'Normal Time (excl GST)',
+      'Extra Time (excl GST)',
       'Linen (excl GST)',
       'Amenities (excl GST)',
       'Total (excl GST)',
@@ -763,7 +807,7 @@ async function onExportExcel(): Promise<void> {
         parseIsoDate(row.date),
         row.propertyName,
         row.cleanRateExclGst,
-        row.extraExclGst,
+        row.extraTimeExclGst,
         row.linenExclGst,
         row.amenitiesExclGst,
         row.totalExclGst,
@@ -944,6 +988,21 @@ function formatWeekday(value: string): string {
   })
 }
 
+function formatDateTimeLabel(value: string): string {
+  const date = new Date(value)
+
+  if (Number.isNaN(date.getTime())) {
+    return value
+  }
+
+  const day = date.getDate()
+  const month = date.toLocaleString('en-AU', { month: 'short' })
+  const hours = String(date.getHours()).padStart(2, '0')
+  const minutes = String(date.getMinutes()).padStart(2, '0')
+
+  return `${day} ${month} · ${hours}:${minutes}`
+}
+
 function formatCurrency(value: number): string {
   return new Intl.NumberFormat('en-US', {
     style: 'currency',
@@ -951,6 +1010,10 @@ function formatCurrency(value: number): string {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   }).format(value)
+}
+
+function formatMinutesToHours(minutes: number): string {
+  return (Math.max(0, Number(minutes) || 0) / 60).toFixed(2)
 }
 
 function sanitizeForFilename(value: string): string {

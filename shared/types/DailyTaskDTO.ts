@@ -16,13 +16,13 @@ export interface DailyTaskDTO {
   cleaning_minutes_override: number | null
   people_count: number
   notes: string | null
-  extra_beds_single: number
-  extra_beds_queen: number
-  extra_beds_king: number
-  // Additional towels for this specific day (on top of property default).
-  extra_towels_qty: number
-  // Additional chocolates for this specific day (on top of property-based calculation).
-  extra_chocolates_qty: number
+  extra_linen_combo_qty: number
+  extra_amenities_combo_qty: number
+  extra_linen_queen_qty: number
+  extra_linen_single_qty: number
+  extra_linen_king_qty: number
+  extra_towel_qty: number
+  extra_chocolate_qty: number
   created_at: string
   updated_at: string
 }
@@ -40,11 +40,13 @@ export interface CreateDailyTaskDTO {
   cleaning_minutes_override?: number | null
   people_count: number
   notes?: string | null
-  extra_beds_single?: number
-  extra_beds_queen?: number
-  extra_beds_king?: number
-  extra_towels_qty?: number
-  extra_chocolates_qty?: number
+  extra_linen_combo_qty?: number
+  extra_amenities_combo_qty?: number
+  extra_linen_queen_qty?: number
+  extra_linen_single_qty?: number
+  extra_linen_king_qty?: number
+  extra_towel_qty?: number
+  extra_chocolate_qty?: number
 }
 
 export interface UpdateDailyTaskDTO {
@@ -60,9 +62,11 @@ export interface UpdateDailyTaskDTO {
   cleaning_minutes_override?: number | null
   people_count?: number
   notes?: string | null
-  extra_beds_single?: number
-  extra_beds_queen?: number
-  extra_beds_king?: number
-  extra_towels_qty?: number
-  extra_chocolates_qty?: number
+  extra_linen_combo_qty?: number
+  extra_amenities_combo_qty?: number
+  extra_linen_queen_qty?: number
+  extra_linen_single_qty?: number
+  extra_linen_king_qty?: number
+  extra_towel_qty?: number
+  extra_chocolate_qty?: number
 }

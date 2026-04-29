@@ -62,7 +62,7 @@
       </div>
 
       <!-- Nav -->
-      <nav class="relative flex flex-1 flex-col gap-1 overflow-y-auto p-3" :class="isDesktopCollapsed ? 'px-2' : ''">
+      <nav ref="sidebarNavContainer" class="relative flex flex-1 flex-col gap-1 overflow-y-auto p-3" :class="isDesktopCollapsed ? 'px-2' : ''" @scroll="onSidebarScroll">
         <p class="mb-1 flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-primary-600" :class="isDesktopCollapsed ? 'justify-center px-0' : 'px-3'">
           <span class="h-1.5 w-1.5 rounded-full bg-primary-500" />
           <span v-if="!isDesktopCollapsed">Menu</span>
@@ -181,18 +181,26 @@
           <div class="flex min-w-0 flex-1 items-center gap-2 text-left lg:ml-0">
             <div class="min-w-0">
               <p class="text-xs font-medium uppercase tracking-[0.2em] text-muted">Welcome</p>
-              <h1 class="truncate text-base font-semibold text-foreground">{{ fullName || greetingName }}! 😎 🚀</h1>
+              <h1 class="truncate text-sm font-semibold text-foreground sm:text-base">{{ fullName || greetingName }}! 😎 🚀</h1>
+              <p v-if="appUpdatedLabel" class="mt-0.5 truncate text-[10px] font-medium tracking-tight text-muted/80">
+                Updated {{ appUpdatedLabel }}
+              </p>
             </div>
           </div>
 
           <!-- Topbar actions slot -->
           <div class="ml-2 flex shrink-0 items-center gap-2">
+            <button
+              type="button"
+              class="inline-flex h-9 w-9 items-center justify-center rounded-full border border-primary-200/70 bg-white/70 text-base text-primary-700 shadow-sm transition duration-150 hover:scale-[1.05] hover:border-primary-300 hover:bg-primary-50 focus:outline-none focus:ring-2 focus:ring-primary-300 dark:border-white/10 dark:bg-white/5 dark:text-primary-300 dark:hover:bg-white/10"
+              title="Daily motivation"
+              aria-label="Daily motivation"
+              @click="isDailyMotivationOpen = true"
+            >
+              <span aria-hidden="true">☀️</span>
+            </button>
             <slot name="topbar-actions" />
           </div>
-
-          <p v-if="appUpdatedLabel" class="pointer-events-none absolute bottom-0.5 right-4 text-[9px] font-medium tracking-tight text-muted/70 sm:right-5 lg:right-6">
-            Updated {{ appUpdatedLabel }}
-          </p>
         </div>
       </header>
 
@@ -205,9 +213,62 @@
         <div class="pointer-events-none absolute -right-20 bottom-12 h-64 w-64 rounded-full bg-primary-warm-500/10 blur-3xl dark:bg-white/5" />
 
         <div class="relative z-10 w-full min-w-0 max-w-full rounded-[30px] border border-white/65 bg-white/72 p-4 shadow-[0_18px_40px_rgba(15,23,42,0.08)] backdrop-blur-xl sm:p-5 lg:p-6 dark:border-white/10 dark:bg-white/[0.03] dark:shadow-[0_24px_60px_rgba(0,0,0,0.38)]">
-          <slot />
+          <KeepAlive :max="10">
+            <slot />
+          </KeepAlive>
         </div>
       </main>
+
+      <Transition
+        enter-active-class="transition duration-200 ease-out"
+        enter-from-class="opacity-0"
+        enter-to-class="opacity-100"
+        leave-active-class="transition duration-150 ease-in"
+        leave-from-class="opacity-100"
+        leave-to-class="opacity-0"
+      >
+        <div
+          v-if="isDailyMotivationOpen"
+          class="fixed inset-0 z-[90] flex items-center justify-center bg-foreground/45 px-4 py-6 backdrop-blur-sm"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="daily-motivation-title"
+          @click="isDailyMotivationOpen = false"
+        >
+          <div
+            class="w-full max-w-xl rounded-[28px] border border-white/70 bg-white/90 p-5 shadow-[0_24px_60px_rgba(15,23,42,0.18)] backdrop-blur-xl dark:border-white/10 dark:bg-neutral-950/92 dark:shadow-[0_24px_60px_rgba(0,0,0,0.45)] sm:p-6"
+            @click.stop
+          >
+            <div class="flex items-start justify-between gap-4">
+              <div>
+                <p class="text-[11px] font-semibold uppercase tracking-[0.18em] text-primary-600 dark:text-primary-300">Daily motivation</p>
+                <h2 id="daily-motivation-title" class="mt-2 text-lg font-semibold text-foreground dark:text-white">Quote of the day</h2>
+              </div>
+
+              <button
+                type="button"
+                class="inline-flex h-9 w-9 items-center justify-center rounded-full border border-primary-200/70 bg-white/70 text-lg text-muted transition hover:border-primary-300 hover:text-foreground focus:outline-none focus:ring-2 focus:ring-primary-300 dark:border-white/10 dark:bg-white/5 dark:hover:text-white"
+                aria-label="Close daily motivation"
+                @click="isDailyMotivationOpen = false"
+              >
+                <span aria-hidden="true">×</span>
+              </button>
+            </div>
+
+            <div class="mt-5 rounded-[24px] bg-gradient-to-br from-primary-50 via-white to-primary-warm-50 p-5 dark:from-white/5 dark:via-white/[0.03] dark:to-white/[0.02] sm:p-6">
+              <p class="text-xl font-semibold leading-relaxed text-foreground dark:text-white sm:text-2xl">
+                "{{ dailyMotivationQuote.en }}"
+              </p>
+              <p class="mt-4 text-sm leading-relaxed text-muted dark:text-slate-300 sm:text-base">
+                "{{ dailyMotivationQuote.pt }}"
+              </p>
+              <p class="mt-5 text-sm italic text-foreground/80 dark:text-slate-200">
+                — {{ dailyMotivationQuote.author }}
+              </p>
+            </div>
+          </div>
+        </div>
+      </Transition>
 
       <!-- Bottom Navigation (mobile only) -->
       <nav
@@ -315,7 +376,8 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { getDailyQuoteForDate } from '../data/dailyQuotes'
 import { useAuth } from '../composables/useAuth'
 import { useSupabaseClient } from '../composables/useSupabaseClient'
 
@@ -333,14 +395,17 @@ const shellHeartbeat = useState<{ layout: 'admin' | 'worker' | null, path: strin
   at: 0,
 }))
 const sidebarCollapsed = useState('worker-sidebar-collapsed', () => false)
+const sidebarScrollTop = useState('worker-sidebar-scroll-top', () => 0)
 const sidebarOpen = ref(false)
 const isDesktop = ref(shellLayoutMode.value === 'desktop')
 const mainScrollContainer = ref<HTMLElement | null>(null)
+const sidebarNavContainer = ref<HTMLElement | null>(null)
 const pressedNavPath = ref<string | null>(null)
 const greetingName = ref('there')
 const fullName = ref('')
 const profileEmail = ref('')
 const avatarUrl = ref('')
+const isDailyMotivationOpen = ref(false)
 const layoutReady = ref(false)
 const hasMounted = ref(false)
 const { getProfile } = useAuth()
@@ -379,6 +444,7 @@ const appUpdatedLabel = computed(() => {
 })
 
 const isDesktopCollapsed = computed(() => isDesktop.value && sidebarCollapsed.value)
+const dailyMotivationQuote = computed(() => getDailyQuoteForDate())
 
 const activeNavIndex = computed(() => {
   const currentPath = pressedNavPath.value ?? route.path
@@ -498,17 +564,63 @@ const handleViewportGeometryChange = () => {
   }, 120)
 }
 
+const restoreSidebarScroll = async () => {
+  await nextTick()
+
+  window.requestAnimationFrame(() => {
+    if (!sidebarNavContainer.value) {
+      return
+    }
+
+    sidebarNavContainer.value.scrollTop = sidebarScrollTop.value
+    ensureActiveSidebarItemVisible()
+  })
+}
+
+const onSidebarScroll = () => {
+  if (!sidebarNavContainer.value) {
+    return
+  }
+
+  sidebarScrollTop.value = sidebarNavContainer.value.scrollTop
+}
+
+const ensureActiveSidebarItemVisible = () => {
+  if (!sidebarNavContainer.value) {
+    return
+  }
+
+  const activeLink = sidebarNavContainer.value.querySelector<HTMLElement>('.router-link-active, .router-link-exact-active')
+
+  if (!activeLink) {
+    return
+  }
+
+  activeLink.scrollIntoView({
+    block: 'nearest',
+    inline: 'nearest',
+    behavior: 'smooth',
+  })
+}
+
 watch(() => route.fullPath, () => {
   if (!hasMounted.value) {
     return
   }
 
   pressedNavPath.value = null
+  isDailyMotivationOpen.value = false
   markWorkerShellHeartbeat('route-change')
 
   if (!isDesktop.value) {
     sidebarOpen.value = false
   }
+
+  void restoreSidebarScroll()
+})
+
+watch(isDesktopCollapsed, () => {
+  void restoreSidebarScroll()
 })
 
 onMounted(async () => {
@@ -529,6 +641,7 @@ onMounted(async () => {
   window.addEventListener('orientationchange', handleViewportGeometryChange)
   document.addEventListener('visibilitychange', handleVisibilityChange)
   handlePageShow()
+  void restoreSidebarScroll()
 
   try {
     const profile = await getProfile()

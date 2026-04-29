@@ -80,11 +80,11 @@ interface DailyTaskRow {
   tags: unknown
   task_type: string | null
   notes: string | null
-  extra_beds_single: number | null
-  extra_beds_queen: number | null
-  extra_beds_king: number | null
-  extra_towels_qty: number | null
-  extra_chocolates_qty: number | null
+  extra_linen_single_qty: number | null
+  extra_linen_queen_qty: number | null
+  extra_linen_king_qty: number | null
+  extra_towel_qty: number | null
+  extra_chocolate_qty: number | null
   cleaning_minutes_override: number | null
 }
 
@@ -261,7 +261,7 @@ export function useWorkerSchedule() {
     const { data: taskData, error: taskError } = await supabase
       .from('daily_tasks')
       .select(
-        'id, property_id, guest_name, guest_checkin_date, tags, task_type, notes, extra_beds_single, extra_beds_queen, extra_beds_king, extra_towels_qty, extra_chocolates_qty, cleaning_minutes_override',
+        'id, property_id, guest_name, guest_checkin_date, tags, task_type, notes, extra_linen_single_qty, extra_linen_queen_qty, extra_linen_king_qty, extra_towel_qty, extra_chocolate_qty, cleaning_minutes_override',
       )
       .in('id', taskIds)
 
@@ -375,17 +375,17 @@ export function useWorkerSchedule() {
         propertyDefaultTags: normalizeTagList(property.default_tags),
         guestName: task.guest_name,
         guestCheckinDate: task.guest_checkin_date,
-        extraTowelsQty: Number(task.extra_towels_qty ?? 0),
+        extraTowelsQty: Number(task.extra_towel_qty ?? 0),
         bedsSingle: Number(property.beds_single ?? 0),
         bedsQueen: Number(property.beds_queen ?? 0),
         bedsKing: Number(property.beds_king ?? 0),
         extraTowelsDefaultQty: Number(property.extra_towels_default_qty ?? 0),
         extraDishclothsDefaultQty: Number(property.extra_dishcloths_default_qty ?? 0),
-        extraBedsSingle: Number(task.extra_beds_single ?? 0),
-        extraBedsQueen: Number(task.extra_beds_queen ?? 0),
-        extraBedsKing: Number(task.extra_beds_king ?? 0),
+        extraBedsSingle: Number(task.extra_linen_single_qty ?? 0),
+        extraBedsQueen: Number(task.extra_linen_queen_qty ?? 0),
+        extraBedsKing: Number(task.extra_linen_king_qty ?? 0),
         includesChocolates: property.includes_chocolates,
-        extraChocolatesQty: Number(task.extra_chocolates_qty ?? 0),
+        extraChocolatesQty: Number(task.extra_chocolate_qty ?? 0),
         notes: task.notes,
         clientColor: client?.color ?? '#6366f1',
       })

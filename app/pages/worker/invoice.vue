@@ -322,7 +322,8 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref, watch } from 'vue'
+import { computed, nextTick, onMounted, reactive, ref, watch } from 'vue'
+import { onBeforeRouteLeave } from 'vue-router'
 import jsPDF from 'jspdf'
 import BaseFeedbackBanner from '../../components/ui/BaseFeedbackBanner.vue'
 import BaseConfirmModal from '../../components/ui/BaseConfirmModal.vue'
@@ -331,7 +332,8 @@ import { useWorkerInvoices } from '../../composables/useWorkerInvoices'
 import type { WorkerInvoiceRow } from '../../composables/useWorkerInvoices'
 import { useWorkerProfileSettings } from '../../composables/useWorkerProfileSettings'
 import type { WorkerProfileSettings } from '../../composables/useWorkerProfileSettings'
-
+import { useFormPersistence } from '../../composables/useFormPersistence'
+import { buildWorkerInvoiceFileName } from '../../utils/buildWorkerInvoiceFileName'
 
 definePageMeta({
   name: 'worker-invoice',
@@ -339,23 +341,40 @@ definePageMeta({
 
 type FeedbackTone = 'success' | 'error' | 'warning' | 'info'
 
+interface PersistedWorkerInvoicePageState {
+  selectedDate: string
+  historySearch: string
+  isEditorOpen: boolean
+  currentInvoiceId: string | null
+  scrollY: number
+}
+
 const amountRequiredMessage = 'Enter an invoice amount before generating the PDF or opening the email app.'
 const noDueDateMarker = '__NO_DUE_DATE__'
 
 const { signOut, getProfile } = useAuth()
 const { getSettings } = useWorkerProfileSettings()
 const { createInvoice, updateInvoice, deleteInvoice, listInvoices } = useWorkerInvoices()
+const { saveFormState, restoreFormState } = useFormPersistence()
 
-const selectedDate = ref(todayIsoDate())
+const persistedWorkerInvoicePageState = useState<PersistedWorkerInvoicePageState>('worker-invoice-page-state', () => ({
+  selectedDate: todayIsoDate(),
+  historySearch: '',
+  isEditorOpen: false,
+  currentInvoiceId: null,
+  scrollY: 0,
+}))
+
+const selectedDate = ref(persistedWorkerInvoicePageState.value.selectedDate || todayIsoDate())
 const isSavingDraft = ref(false)
 const isLoadingHistory = ref(false)
-const isEditorOpen = ref(false)
+const isEditorOpen = ref(Boolean(persistedWorkerInvoicePageState.value.isEditorOpen))
 const showAdvancedFields = ref(false)
 const noDueDate = ref(false)
 const isEmailBodyCustom = ref(false)
 const amountValidationTouched = ref(false)
-const historySearch = ref('')
-const currentInvoiceId = ref<string | null>(null)
+const historySearch = ref(persistedWorkerInvoicePageState.value.historySearch || '')
+const currentInvoiceId = ref<string | null>(persistedWorkerInvoicePageState.value.currentInvoiceId)
 const isDeleteModalOpen = ref(false)
 const isDeletingInvoice = ref(false)
 const invoicePendingDelete = ref<WorkerInvoiceRow | null>(null)
@@ -438,11 +457,70 @@ const deleteModalMessage = computed(() => {
 
 onMounted(async () => {
   await loadBase()
+  
+  // Restaura dados do formulário salvos em sessionStorage
+  const savedFormData = restoreFormState<typeof form>('invoice-editor-form')
+  if (savedFormData && isEditorOpen.value) {
+    Object.assign(form, savedFormData)
+  }
+  
+  restorePersistedEditorState()
+
+  if (import.meta.client) {
+    await nextTick()
+    requestAnimationFrame(() => {
+      window.scrollTo({
+        top: persistedWorkerInvoicePageState.value.scrollY,
+        behavior: 'auto',
+      })
+    })
+  }
 })
 
+// Persiste o form em sessionStorage sempre que muda
+watch(
+  () => form,
+  (newForm) => {
+    if (isEditorOpen.value) {
+      saveFormState('invoice-editor-form', { ...newForm })
+    }
+  },
+  { deep: true },
+)
+
 watch(selectedDate, () => {
+  persistedWorkerInvoicePageState.value.selectedDate = selectedDate.value
   form.emailSubject = buildDefaultEmailSubject()
   syncEmailBodyIfDefault()
+})
+
+watch(historySearch, (value) => {
+  persistedWorkerInvoicePageState.value.historySearch = value
+})
+
+watch(isEditorOpen, (value) => {
+  persistedWorkerInvoicePageState.value.isEditorOpen = value
+})
+
+watch(currentInvoiceId, (value) => {
+  persistedWorkerInvoicePageState.value.currentInvoiceId = value
+})
+
+onBeforeRouteLeave(() => {
+  if (!import.meta.client) {
+    return
+  }
+
+  persistedWorkerInvoicePageState.value.selectedDate = selectedDate.value
+  persistedWorkerInvoicePageState.value.historySearch = historySearch.value
+  persistedWorkerInvoicePageState.value.isEditorOpen = isEditorOpen.value
+  persistedWorkerInvoicePageState.value.currentInvoiceId = currentInvoiceId.value
+  persistedWorkerInvoicePageState.value.scrollY = window.scrollY
+  
+  // Salva o formulário em sessionStorage antes de sair
+  if (isEditorOpen.value) {
+    saveFormState('invoice-editor-form', { ...form })
+  }
 })
 
 watch(
@@ -509,6 +587,34 @@ async function loadBase(): Promise<void> {
   }
 }
 
+function restorePersistedEditorState(): void {
+  if (!persistedWorkerInvoicePageState.value.isEditorOpen) {
+    return
+  }
+
+  const invoiceId = persistedWorkerInvoicePageState.value.currentInvoiceId
+  if (!invoiceId) {
+    persistedWorkerInvoicePageState.value.isEditorOpen = false
+    isEditorOpen.value = false
+    return
+  }
+
+  const invoice = allHistoryInvoices.value.find((item) => item.id === invoiceId)
+
+  if (!invoice) {
+    persistedWorkerInvoicePageState.value.isEditorOpen = false
+    persistedWorkerInvoicePageState.value.currentInvoiceId = null
+    isEditorOpen.value = false
+    currentInvoiceId.value = null
+    return
+  }
+
+  clearFeedback()
+  showAdvancedFields.value = false
+  isEditorOpen.value = true
+  selectHistoryInvoice(invoice)
+}
+
 function openNewInvoice(): void {
   clearFeedback()
   currentInvoiceId.value = null
@@ -573,6 +679,8 @@ async function saveInvoiceDraft(): Promise<void> {
     if (currentInvoiceId.value) {
       // Update existing invoice
       invoice = await updateInvoice(currentInvoiceId.value, {
+        week_start: weekStart,
+        week_end: formatDateForInput(weekEnd),
         invoice_number: form.invoiceNumber,
         recipient_name: form.recipientName,
         recipient_email: form.recipientEmail,
@@ -905,7 +1013,8 @@ async function downloadPdf(): Promise<void> {
 }
 
 function getPdfFileName(): string {
-  return `invoice-${form.invoiceNumber}.pdf`
+  const workerName = settings.legal_name || profile.value.full_name || 'Worker'
+  return buildWorkerInvoiceFileName(workerName, form.invoiceNumber)
 }
 
 function buildDefaultEmailSubject(): string {

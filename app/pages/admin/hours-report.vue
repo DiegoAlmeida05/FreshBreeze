@@ -222,7 +222,7 @@ async function onExportPdf(): Promise<void> {
       heightLeft -= pageHeight - margin * 2
     }
 
-    const fileName = `hours-report-${report.value.employeeName.toLowerCase().replace(/\s+/g, '-')}-${filters.startDate}-${filters.endDate}.pdf`
+    const fileName = `${toFileSafeEmployeeName(report.value.employeeName)}_Hours_${toCompactDate(filters.startDate)}-${toCompactDate(filters.endDate)}.pdf`
     pdf.save(fileName)
   } catch (err: unknown) {
     pageError.value = err instanceof Error ? err.message : 'Failed to export PDF.'
@@ -258,6 +258,28 @@ function toIsoDate(value: Date): string {
   const month = String(value.getMonth() + 1).padStart(2, '0')
   const day = String(value.getDate()).padStart(2, '0')
   return `${year}-${month}-${day}`
+}
+
+function toCompactDate(value: string): string {
+  const parsed = parseIsoDate(value)
+
+  if (Number.isNaN(parsed.getTime())) {
+    return value.replace(/[^\d]/g, '')
+  }
+
+  const day = String(parsed.getDate()).padStart(2, '0')
+  const month = String(parsed.getMonth() + 1).padStart(2, '0')
+  const year = String(parsed.getFullYear())
+  return `${day}${month}${year}`
+}
+
+function toFileSafeEmployeeName(name: string): string {
+  return (name || 'Collaborator')
+    .trim()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/\s+/g, '_')
+    .replace(/[\\/:*?"<>|]/g, '')
 }
 
 async function onSignOut(): Promise<void> {

@@ -120,6 +120,7 @@
         :report="selectedReport"
         :photo-urls="selectedReport ? (reportPhotosByReportId[selectedReport.id] || []) : []"
         :can-edit="isAdmin"
+        :can-edit-report-date="isAdmin"
         :loading="reportSaveLoading"
         @save="onSaveReport"
       />

@@ -1,47 +1,118 @@
+import { calculatePricingItems } from '../utils/calculatePricingItems'
 import { useSupabaseClient } from './useSupabaseClient'
+import type { DailyTaskExtraItemDTO, PropertyPricingItemDTO } from '../../shared/types/PricingItemDTO'
 
 const PUBLISHED_TABLE = 'team_time_entry_tasks_admin_published'
+
+type PricingItemCategory = 'linen' | 'amenities'
+type PropertyPricingItemScope = 'base' | 'default_extra'
 
 interface PublishedInvoiceRow {
   work_date: string
   daily_task_id: string
   planned_minutes: number | null
   actual_minutes: number | null
+  default_minutes_snapshot: number | null
+  invoice_normal_minutes_snapshot: number | null
+  invoice_extra_minutes_snapshot: number | null
   invoice_minutes_snapshot: number | null
   invoice_hours_snapshot: number | null
   invoice_amount_snapshot: number | null
+  normal_time_amount_snapshot: number | null
+  extra_time_amount_snapshot: number | null
+  linen_amount_snapshot: number | null
+  amenities_amount_snapshot: number | null
+  total_amount_snapshot: number | null
 }
 
 interface DailyTaskInvoiceRow {
   id: string
   date: string
   property_id: string
-  tags: unknown
 }
 
 interface PropertyInvoiceRow {
   id: string
   client_id: string
   name: string
-  default_tags: unknown
+  default_cleaning_minutes: number | null
+  linen_pack_fee: number | null
+  amenities_pack_fee: number | null
+  includes_amenities: boolean | null
+}
+
+interface PricingItemRef {
+  id: string
+  name: string
+  category: PricingItemCategory
+  unit_price: number
+  active: boolean
+}
+
+interface PropertyPricingItemRow {
+  id: string
+  property_id: string
+  pricing_item_id: string
+  scope: string
+  quantity: number | null
+  pricing_item: {
+    id: string
+    name: string
+    category: string
+    unit_price: number | null
+    active: boolean | null
+  } | Array<{
+    id: string
+    name: string
+    category: string
+    unit_price: number | null
+    active: boolean | null
+  }> | null
+}
+
+interface TaskExtraItemRow {
+  id: string
+  daily_task_id: string
+  pricing_item_id: string
+  quantity: number | null
+  note: string | null
+  pricing_item: {
+    id: string
+    name: string
+    category: string
+    unit_price: number | null
+    active: boolean | null
+  } | Array<{
+    id: string
+    name: string
+    category: string
+    unit_price: number | null
+    active: boolean | null
+  }> | null
 }
 
 interface ClientInvoiceRow {
   id: string
   name: string
   hourly_rate: number | null
-  linen_combo_price: number | null
-  amenities_combo_price: number | null
   active: boolean
 }
 
 interface AggregatedInvoiceWorkRow {
   dailyTaskId: string
   workDate: string
+  defaultMinutes: number
   plannedMinutes: number
   actualMinutes: number
+  normalMinutes: number
+  extraMinutes: number
   invoiceMinutes: number
   invoiceHours: number
+  normalTimeAmountSnapshot: number | null
+  extraTimeAmountSnapshot: number | null
+  linenAmountSnapshot: number | null
+  amenitiesAmountSnapshot: number | null
+  totalAmountSnapshot: number | null
 }
 
 export interface ClientInvoiceFilterOption {
@@ -52,13 +123,18 @@ export interface ClientInvoiceFilterOption {
 export interface ClientInvoiceLineItem {
   date: string
   propertyName: string
+  normalMinutes: number
+  extraMinutes: number
   invoiceHours: number
   plannedHours: number
   extraHours: number
   cleanRateExclGst: number
-  extraExclGst: number
+  extraTimeExclGst: number
   linenExclGst: number
   amenitiesExclGst: number
+  linenPackFeeApplied: number
+  amenitiesPackFeeApplied: number
+  totalPackFeeApplied: number
   totalExclGst: number
 }
 
@@ -70,27 +146,6 @@ export interface ClientInvoicePreview {
   rows: ClientInvoiceLineItem[]
   totalInvoiceHours: number
   totalInvoiceAmount: number
-}
-
-function normalizeTagValue(value: string): string {
-  return value.trim().toLowerCase().replace(/\s+/g, ' ')
-}
-
-function normalizeTagList(value: unknown): string[] {
-  if (!Array.isArray(value)) {
-    return []
-  }
-
-  const normalized = value
-    .filter((item): item is string => typeof item === 'string')
-    .map((item) => normalizeTagValue(item))
-    .filter((item) => item.length > 0)
-
-  return Array.from(new Set(normalized))
-}
-
-function hasAnyTag(tags: string[], candidates: string[]): boolean {
-  return candidates.some((candidate) => tags.includes(candidate))
 }
 
 function toSafeMinutes(value: number | null | undefined): number {
@@ -134,6 +189,91 @@ function toPublishedSchemaError(error: { message?: string } | null | undefined):
   return new Error(`Published invoice schema mismatch in ${PUBLISHED_TABLE}. Details: ${source}`)
 }
 
+function unwrapRelation<T>(value: T | T[] | null | undefined): T | null {
+  if (Array.isArray(value)) {
+    return value[0] ?? null
+  }
+
+  return value ?? null
+}
+
+function toPropertyPricingItemDTO(row: PropertyPricingItemRow): PropertyPricingItemDTO {
+  const pricingItem = unwrapRelation(row.pricing_item)
+
+  return {
+    id: row.id,
+    property_id: row.property_id,
+    pricing_item_id: row.pricing_item_id,
+    scope: row.scope === 'default_extra' ? 'default_extra' : 'base',
+    quantity: Number(row.quantity ?? 1),
+    pricing_item: {
+      id: pricingItem?.id ?? row.pricing_item_id,
+      name: pricingItem?.name ?? '',
+      category: pricingItem?.category === 'amenities' ? 'amenities' : 'linen',
+      unit_price: Number(pricingItem?.unit_price ?? 0),
+      active: pricingItem?.active ?? true,
+    },
+    created_at: '',
+    updated_at: '',
+  }
+}
+
+function toTaskExtraItemDTO(row: TaskExtraItemRow): DailyTaskExtraItemDTO {
+  const pricingItem = unwrapRelation(row.pricing_item)
+
+  return {
+    id: row.id,
+    daily_task_id: row.daily_task_id,
+    pricing_item_id: row.pricing_item_id,
+    quantity: Number(row.quantity ?? 1),
+    note: row.note ?? null,
+    pricing_item: {
+      id: pricingItem?.id ?? row.pricing_item_id,
+      name: pricingItem?.name ?? '',
+      category: pricingItem?.category === 'amenities' ? 'amenities' : 'linen',
+      unit_price: Number(pricingItem?.unit_price ?? 0),
+      active: pricingItem?.active ?? true,
+    },
+    created_at: '',
+    updated_at: '',
+  }
+}
+
+function hasPublishedPricingSnapshot(row: AggregatedInvoiceWorkRow): boolean {
+  return row.totalAmountSnapshot !== null
+    || row.normalTimeAmountSnapshot !== null
+    || row.extraTimeAmountSnapshot !== null
+    || row.linenAmountSnapshot !== null
+    || row.amenitiesAmountSnapshot !== null
+}
+
+function calculatePackFeeApplied(input: {
+  baseLinen: number
+  extraLinen: number
+  baseAmenities: number
+  extraAmenities: number
+  linenPackFee: number | null
+  amenitiesPackFee: number | null
+  includesAmenities: boolean | null
+}): { linenPackFeeApplied: number; amenitiesPackFeeApplied: number; totalPackFeeApplied: number } {
+  const linenPackFee = toSafeCurrency(Number(input.linenPackFee ?? 0))
+  const amenitiesPackFee = toSafeCurrency(Number(input.amenitiesPackFee ?? 0))
+
+  const linenPackFeeApplied = (input.baseLinen + input.extraLinen) > 0
+    ? linenPackFee
+    : 0
+
+  const amenitiesPackFeeApplied = input.includesAmenities === false
+    ? 0
+    : ((input.baseAmenities + input.extraAmenities) > 0 ? amenitiesPackFee : 0)
+
+  return {
+    linenPackFeeApplied,
+    amenitiesPackFeeApplied,
+    totalPackFeeApplied: toSafeCurrency(linenPackFeeApplied + amenitiesPackFeeApplied),
+  }
+}
+
 export function useClientInvoices() {
   const supabase = useSupabaseClient()
 
@@ -165,7 +305,7 @@ export function useClientInvoices() {
 
     const publishedResult = await supabase
       .from(PUBLISHED_TABLE)
-      .select('work_date, daily_task_id, planned_minutes, actual_minutes, invoice_minutes_snapshot, invoice_hours_snapshot, invoice_amount_snapshot')
+      .select('work_date, daily_task_id, planned_minutes, actual_minutes, default_minutes_snapshot, invoice_normal_minutes_snapshot, invoice_extra_minutes_snapshot, invoice_minutes_snapshot, invoice_hours_snapshot, invoice_amount_snapshot, normal_time_amount_snapshot, extra_time_amount_snapshot, linen_amount_snapshot, amenities_amount_snapshot, total_amount_snapshot')
       .gte('work_date', startDate)
       .lte('work_date', endDate)
 
@@ -178,7 +318,7 @@ export function useClientInvoices() {
 
     const clientResult = await supabase
       .from('clients')
-      .select('id, name, hourly_rate, linen_combo_price, amenities_combo_price, active')
+      .select('id, name, hourly_rate, active')
       .eq('id', clientId)
       .maybeSingle<ClientInvoiceRow>()
 
@@ -205,7 +345,7 @@ export function useClientInvoices() {
 
     const tasksResult = await supabase
       .from('daily_tasks')
-      .select('id, date, property_id, tags')
+      .select('id, date, property_id')
       .in('id', dailyTaskIds)
 
     if (tasksResult.error) {
@@ -227,14 +367,32 @@ export function useClientInvoices() {
       }
     }
 
-    const propertiesResult = await supabase
-      .from('properties')
-      .select('id, client_id, name, default_tags')
-      .in('id', propertyIds)
-      .eq('client_id', clientId)
+    const [propertiesResult, propertyPricingItemsResult, taskExtraItemsResult] = await Promise.all([
+      supabase
+        .from('properties')
+        .select('id, client_id, name, default_cleaning_minutes, linen_pack_fee, amenities_pack_fee, includes_amenities')
+        .in('id', propertyIds)
+        .eq('client_id', clientId),
+      supabase
+        .from('property_pricing_items')
+        .select('id, property_id, pricing_item_id, scope, quantity, pricing_item:pricing_items(id, name, category, unit_price, active)')
+        .in('property_id', propertyIds),
+      supabase
+        .from('daily_task_extra_items')
+        .select('id, daily_task_id, pricing_item_id, quantity, note, pricing_item:pricing_items(id, name, category, unit_price, active)')
+        .in('daily_task_id', dailyTaskIds),
+    ])
 
     if (propertiesResult.error) {
       throw new Error(propertiesResult.error.message)
+    }
+
+    if (propertyPricingItemsResult.error) {
+      throw new Error(propertyPricingItemsResult.error.message)
+    }
+
+    if (taskExtraItemsResult.error) {
+      throw new Error(taskExtraItemsResult.error.message)
     }
 
     const propertyRows = (propertiesResult.data ?? []) as PropertyInvoiceRow[]
@@ -252,14 +410,30 @@ export function useClientInvoices() {
       }
     }
 
+    const propertyPricingItemsByPropertyId = new Map<string, PropertyPricingItemDTO[]>()
+    for (const row of ((propertyPricingItemsResult.data ?? []) as PropertyPricingItemRow[]).map(toPropertyPricingItemDTO)) {
+      const current = propertyPricingItemsByPropertyId.get(row.property_id) ?? []
+      current.push(row)
+      propertyPricingItemsByPropertyId.set(row.property_id, current)
+    }
+
+    const taskExtraItemsByTaskId = new Map<string, DailyTaskExtraItemDTO[]>()
+    for (const row of ((taskExtraItemsResult.data ?? []) as TaskExtraItemRow[]).map(toTaskExtraItemDTO)) {
+      const current = taskExtraItemsByTaskId.get(row.daily_task_id) ?? []
+      current.push(row)
+      taskExtraItemsByTaskId.set(row.daily_task_id, current)
+    }
+
     const taskMap = new Map(taskRows.map((task) => [task.id, task]))
     const aggregatedByTask = new Map<string, AggregatedInvoiceWorkRow>()
 
     for (const row of publishedRows) {
       const plannedMinutes = toSafeMinutes(row.planned_minutes)
       const actualMinutes = toSafeMinutes(row.actual_minutes)
-      const extraMinutes = Math.max(actualMinutes - plannedMinutes, 0)
-      const invoiceMinutes = plannedMinutes + extraMinutes
+      const defaultMinutes = toSafeMinutes(row.default_minutes_snapshot)
+      const normalMinutes = defaultMinutes
+      const extraMinutes = Math.max(actualMinutes - defaultMinutes, 0)
+      const invoiceMinutes = normalMinutes + extraMinutes
       const invoiceHours = toHours(invoiceMinutes)
       const existing = aggregatedByTask.get(row.daily_task_id)
 
@@ -267,18 +441,34 @@ export function useClientInvoices() {
         aggregatedByTask.set(row.daily_task_id, {
           dailyTaskId: row.daily_task_id,
           workDate: row.work_date,
+          defaultMinutes,
           plannedMinutes,
           actualMinutes,
+          normalMinutes,
+          extraMinutes,
           invoiceMinutes,
           invoiceHours,
+          normalTimeAmountSnapshot: row.normal_time_amount_snapshot,
+          extraTimeAmountSnapshot: row.extra_time_amount_snapshot,
+          linenAmountSnapshot: row.linen_amount_snapshot,
+          amenitiesAmountSnapshot: row.amenities_amount_snapshot,
+          totalAmountSnapshot: row.total_amount_snapshot,
         })
         continue
       }
 
+  existing.defaultMinutes = Math.max(existing.defaultMinutes, defaultMinutes)
       existing.plannedMinutes = Math.max(existing.plannedMinutes, plannedMinutes)
       existing.actualMinutes = Math.max(existing.actualMinutes, actualMinutes)
+  existing.normalMinutes = Math.max(existing.normalMinutes, normalMinutes)
+  existing.extraMinutes = Math.max(existing.extraMinutes, extraMinutes)
       existing.invoiceMinutes = Math.max(existing.invoiceMinutes, invoiceMinutes)
       existing.invoiceHours = Math.max(existing.invoiceHours, invoiceHours)
+      existing.normalTimeAmountSnapshot ??= row.normal_time_amount_snapshot
+      existing.extraTimeAmountSnapshot ??= row.extra_time_amount_snapshot
+      existing.linenAmountSnapshot ??= row.linen_amount_snapshot
+      existing.amenitiesAmountSnapshot ??= row.amenities_amount_snapshot
+      existing.totalAmountSnapshot ??= row.total_amount_snapshot
     }
 
     const rows: ClientInvoiceLineItem[] = []
@@ -294,32 +484,73 @@ export function useClientInvoices() {
         continue
       }
 
-      const taskTags = normalizeTagList(task.tags)
-      const propertyDefaultTags = normalizeTagList(property.default_tags)
-      const mergedTags = Array.from(new Set([...taskTags, ...propertyDefaultTags]))
+      const defaultMinutes = aggregated.defaultMinutes > 0
+        ? aggregated.defaultMinutes
+        : toSafeMinutes(property.default_cleaning_minutes)
+      const normalMinutes = defaultMinutes
+      const extraMinutes = Math.max(aggregated.actualMinutes - defaultMinutes, 0)
+      const invoiceMinutes = normalMinutes + extraMinutes
+      const propertyPricingItems = propertyPricingItemsByPropertyId.get(property.id) ?? []
+      const taskExtraItems = taskExtraItemsByTaskId.get(task.id) ?? []
+      const pricing = calculatePricingItems({
+        propertyBaseItems: propertyPricingItems.filter((item) => item.scope === 'base'),
+        propertyDefaultExtraItems: propertyPricingItems.filter((item) => item.scope === 'default_extra'),
+        taskExtraItems,
+        linenPackFee: Number(property.linen_pack_fee ?? 0),
+        amenitiesPackFee: Number(property.amenities_pack_fee ?? 0),
+        includesAmenities: property.includes_amenities !== false,
+      })
+      const packFeeApplied = calculatePackFeeApplied({
+        baseLinen: pricing.baseLinen,
+        extraLinen: pricing.extraLinen,
+        baseAmenities: pricing.baseAmenities,
+        extraAmenities: pricing.extraAmenities,
+        linenPackFee: property.linen_pack_fee,
+        amenitiesPackFee: property.amenities_pack_fee,
+        includesAmenities: property.includes_amenities,
+      })
 
-      const hasLinenCombo = hasAnyTag(mergedTags, ['linen', 'linen combo'])
-      const hasAmenitiesCombo = hasAnyTag(mergedTags, ['amenities', 'amenities combo'])
-
+      let cleanRate = 0
+      let extraTimeAmount = 0
+      let linenAmount = 0
+      let amenitiesAmount = 0
+      let lineTotal = 0
       const ratePerHour = toSafeRate(client.hourly_rate)
-      const plannedMinutes = aggregated.plannedMinutes
-      const extraMinutes = Math.max(aggregated.actualMinutes - plannedMinutes, 0)
-      const cleanRate = toSafeCurrency(toHours(plannedMinutes) * ratePerHour)
-      const extraTimeAmount = toSafeCurrency(toHours(extraMinutes) * ratePerHour)
-      const linenCombo = hasLinenCombo ? toSafeRate(client.linen_combo_price) : 0
-      const amenitiesCombo = hasAmenitiesCombo ? toSafeRate(client.amenities_combo_price) : 0
-      const lineTotal = toSafeCurrency(cleanRate + extraTimeAmount + linenCombo + amenitiesCombo)
+
+      if (hasPublishedPricingSnapshot(aggregated)) {
+        cleanRate = toSafeCurrency(aggregated.normalTimeAmountSnapshot)
+        extraTimeAmount = toSafeCurrency((extraMinutes / 60) * ratePerHour)
+        linenAmount = toSafeCurrency(aggregated.linenAmountSnapshot)
+        amenitiesAmount = toSafeCurrency(aggregated.amenitiesAmountSnapshot)
+        lineTotal = aggregated.totalAmountSnapshot !== null && aggregated.totalAmountSnapshot !== undefined
+          ? toSafeCurrency(aggregated.totalAmountSnapshot)
+          : toSafeCurrency(cleanRate + extraTimeAmount + linenAmount + amenitiesAmount)
+      } else {
+        // Billing totals intentionally use only pricing_items selections.
+        // Operational chocolate flags/quantities are excluded to avoid duplicate charging.
+
+        cleanRate = toSafeCurrency((normalMinutes / 60) * ratePerHour)
+        extraTimeAmount = toSafeCurrency((extraMinutes / 60) * ratePerHour)
+        linenAmount = toSafeCurrency(pricing.linenTotal)
+        amenitiesAmount = toSafeCurrency(pricing.amenitiesTotal)
+        lineTotal = toSafeCurrency(cleanRate + extraTimeAmount + linenAmount + amenitiesAmount)
+      }
 
       rows.push({
         date: task.date || aggregated.workDate,
         propertyName: property.name,
-        invoiceHours: toSafeHours(aggregated.invoiceHours),
-        plannedHours: toSafeHours(toHours(plannedMinutes)),
+        normalMinutes,
+        extraMinutes,
+        invoiceHours: toSafeHours(toHours(invoiceMinutes)),
+        plannedHours: toSafeHours(toHours(normalMinutes)),
         extraHours: toSafeHours(toHours(extraMinutes)),
         cleanRateExclGst: cleanRate,
-        extraExclGst: extraTimeAmount,
-        linenExclGst: toSafeCurrency(linenCombo),
-        amenitiesExclGst: toSafeCurrency(amenitiesCombo),
+        extraTimeExclGst: extraTimeAmount,
+        linenExclGst: linenAmount,
+        amenitiesExclGst: amenitiesAmount,
+        linenPackFeeApplied: packFeeApplied.linenPackFeeApplied,
+        amenitiesPackFeeApplied: packFeeApplied.amenitiesPackFeeApplied,
+        totalPackFeeApplied: packFeeApplied.totalPackFeeApplied,
         totalExclGst: lineTotal,
       })
     }

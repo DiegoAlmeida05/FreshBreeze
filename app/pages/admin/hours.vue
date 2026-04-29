@@ -4,6 +4,9 @@
       <header class="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h1 class="text-xl font-semibold text-foreground">Hours</h1>
+          <p v-if="lastUpdatedAt" class="mt-1 text-[11px] font-medium text-muted">
+            Last updated {{ lastUpdatedLabel }}
+          </p>
         </div>
 
         <button
@@ -47,16 +50,14 @@
               This week
             </button>
 
-            <div class="w-full text-left text-[10px] text-muted sm:ml-auto sm:w-auto sm:text-right">
-              <p class="font-medium uppercase tracking-wide">{{ weekRangeLabel }}</p>
-              <p class="mt-0.5">Week of {{ weekLabel }}</p>
-              <p class="mt-0.5">Planned {{ dayTotalPlannedMinutes }} min</p>
-            </div>
+            <p class="text-[10px] font-medium uppercase tracking-wide text-muted">
+              {{ weekRangeLabel }}
+            </p>
           </div>
 
           <div class="flex flex-col gap-2 lg:flex-row lg:items-start">
             <div class="mobile-table-scroll flex-1">
-            <div class="grid min-w-[560px] grid-cols-7 gap-1.5">
+            <div class="grid w-max min-w-full grid-cols-7 gap-1.5">
               <button
                 v-for="day in weekDays"
                 :key="day.date"
@@ -74,7 +75,7 @@
                 </span>
                 <p class="text-[9px] font-semibold uppercase leading-none tracking-wide" :class="dayWeekdayClass(day)">{{ day.weekday }}</p>
                 <p class="mt-1 text-xs font-semibold leading-none" :class="dayNumberClass(day)">{{ day.dayNumber }}</p>
-                <p class="mt-1 text-[9px] leading-none" :class="dayMetaClass(day)">{{ day.totalMinutes }}m · {{ day.totalHours.toFixed(1) }}h</p>
+                <p class="mt-1 text-[9px] leading-none" :class="dayMetaClass(day)">{{ formatMinutes(day.totalMinutes) }} · {{ day.totalHours.toFixed(1) }}h</p>
               </button>
             </div>
             </div>
@@ -97,7 +98,7 @@
               >
                 {{ selectedWeekDay.holidayNames.join(', ') || 'Holiday' }}
               </p>
-              <p class="mt-1 text-[10px]">{{ dayTotalActualMinutes }} min · {{ dayTotalHours.toFixed(2) }}h</p>
+              <p class="mt-1 text-[10px]">{{ formatMinutes(dayTotalActualMinutes) }} · {{ dayTotalHours.toFixed(2) }}h</p>
             </div>
             </div>
           </div>
@@ -144,7 +145,7 @@
               </button>
             </div>
             <div class="text-right text-sm">
-              <p class="font-semibold text-foreground">{{ dayTotalActualMinutes }} min worked</p>
+              <p class="font-semibold text-foreground">{{ formatMinutes(dayTotalActualMinutes) }} worked</p>
               <p class="text-xs text-muted">{{ dayTotalHours.toFixed(2) }}h</p>
               <p class="text-xs text-muted">{{ dayTotalPlannedMinutes }} min planned · {{ formatDiffMinutes(dayTotalActualMinutes - dayTotalPlannedMinutes) }}</p>
             </div>
@@ -187,11 +188,11 @@
               <div class="grid w-full grid-cols-3 gap-2 text-[11px] sm:w-auto">
                 <div class="rounded-md border border-primary-100/70 bg-white/70 px-2 py-1 text-right dark:border-white/10 dark:bg-white/[0.03]">
                   <p class="uppercase tracking-wide text-[9px] text-muted">Planned</p>
-                  <p class="font-semibold tabular-nums text-foreground">{{ team.totalPlannedMinutes }}m</p>
+                  <p class="font-semibold tabular-nums text-foreground">{{ formatMinutes(team.totalPlannedMinutes) }}</p>
                 </div>
                 <div class="rounded-md border border-primary-100/70 bg-white/70 px-2 py-1 text-right dark:border-white/10 dark:bg-white/[0.03]">
                   <p class="uppercase tracking-wide text-[9px] text-muted">Actual</p>
-                  <p class="font-semibold tabular-nums text-foreground">{{ team.totalActualMinutes }}m</p>
+                  <p class="font-semibold tabular-nums text-foreground">{{ formatMinutes(team.totalActualMinutes) }}</p>
                 </div>
                 <div class="rounded-md border border-primary-100/70 bg-white/70 px-2 py-1 text-right dark:border-white/10 dark:bg-white/[0.03]">
                   <p class="uppercase tracking-wide text-[9px] text-muted">Diff</p>
@@ -214,8 +215,12 @@
 
                 <div class="mb-2 flex flex-wrap items-end gap-4">
                   <div>
+                    <p class="mb-0.5 text-[10px] font-semibold uppercase tracking-wide text-muted">Default</p>
+                    <p class="text-xs font-semibold text-muted">{{ formatMinutes(task.defaultMinutes) }}</p>
+                  </div>
+                  <div>
                     <p class="mb-0.5 text-[10px] font-semibold uppercase tracking-wide text-muted">Planned</p>
-                    <p class="text-xs font-semibold text-muted">{{ task.plannedMinutes }} min</p>
+                    <p class="text-xs font-semibold text-muted">{{ formatMinutes(task.plannedMinutes) }}</p>
                   </div>
                   <div>
                     <p class="mb-0.5 text-[10px] font-semibold uppercase tracking-wide text-muted">Actual</p>
@@ -230,6 +235,10 @@
                       >
                       <span class="text-[10px] text-muted">min</span>
                     </label>
+                  </div>
+                  <div>
+                    <p class="mb-0.5 text-[10px] font-semibold uppercase tracking-wide text-muted">Extra</p>
+                    <p class="text-xs font-semibold" :class="diffClass(getTaskExtraMinutes(task))">{{ formatMinutes(getTaskExtraMinutes(task)) }}</p>
                   </div>
                   <div>
                     <p class="mb-0.5 text-[10px] font-semibold uppercase tracking-wide text-muted">Diff</p>
@@ -252,20 +261,22 @@
 
             <!-- Desktop task table -->
             <div class="hidden overflow-x-auto md:block">
-              <div class="min-w-[840px]">
-                <div class="grid grid-cols-[minmax(260px,1fr)_124px_88px_94px_88px_minmax(170px,1fr)] gap-2 border-b border-primary-100/40 px-3 py-1 text-[10px] font-semibold uppercase tracking-wide text-muted dark:border-white/10">
+              <div class="min-w-[980px]">
+                <div class="grid w-max min-w-full grid-cols-[minmax(240px,1fr)_124px_88px_88px_94px_88px_88px_minmax(170px,1fr)] gap-2 border-b border-primary-100/40 px-3 py-1 text-[10px] font-semibold uppercase tracking-wide text-muted dark:border-white/10">
                   <span>Task</span>
-                    <span class="text-left">Time</span>
-                    <span class="text-right">Planned</span>
-                    <span class="text-right">Actual</span>
-                    <span class="text-right">Diff</span>
+                  <span class="text-left">Time</span>
+                  <span class="text-right">Default</span>
+                  <span class="text-right">Planned</span>
+                  <span class="text-right">Actual</span>
+                  <span class="text-right">Extra</span>
+                  <span class="text-right">Diff</span>
                   <span>Note</span>
                 </div>
 
                 <div
                   v-for="task in team.tasks"
                   :key="taskKey(task)"
-                  class="grid grid-cols-[minmax(260px,1fr)_124px_88px_94px_88px_minmax(170px,1fr)] items-center gap-2 border-b border-primary-100/30 px-3 py-1 text-[11px] dark:border-white/10"
+                  class="grid w-max min-w-full grid-cols-[minmax(240px,1fr)_124px_88px_88px_94px_88px_88px_minmax(170px,1fr)] items-center gap-2 border-b border-primary-100/30 px-3 py-1 text-[11px] dark:border-white/10"
                 >
                   <p class="truncate font-medium text-foreground" :title="task.taskLabel">{{ task.taskLabel }}</p>
 
@@ -274,7 +285,9 @@
                     <span v-else class="text-muted/50">–</span>
                   </p>
 
-                  <p class="text-right font-semibold tabular-nums text-muted">{{ task.plannedMinutes }}m</p>
+                  <p class="text-right font-semibold tabular-nums text-muted">{{ formatMinutes(task.defaultMinutes) }}</p>
+
+                  <p class="text-right font-semibold tabular-nums text-muted">{{ formatMinutes(task.plannedMinutes) }}</p>
 
                   <label class="flex items-center justify-end gap-1">
                     <input
@@ -287,6 +300,8 @@
                     >
                     <span class="text-[10px] text-muted">min</span>
                   </label>
+
+                  <p class="text-right font-semibold tabular-nums" :class="diffClass(getTaskExtraMinutes(task))">{{ formatMinutes(getTaskExtraMinutes(task)) }}</p>
 
                   <p class="text-right font-semibold tabular-nums" :class="diffClass(getTaskDiffMinutes(task))">
                     {{ formatDiffMinutes(getTaskDiffMinutes(task)) }}
@@ -311,7 +326,8 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, nextTick, onMounted, ref, watch } from 'vue'
+import { onBeforeRouteLeave } from 'vue-router'
 import { useAuth } from '../../composables/useAuth'
 import { useTeamHoursAdmin, type TeamHoursDayItem, type TeamHoursPublicationStatus, type TeamHoursTaskRow, type TeamHoursWeekDay } from '../../composables/useTeamHoursAdmin'
 
@@ -324,10 +340,20 @@ interface TaskDraftState {
   note: string
 }
 
+interface PersistedHoursPageState {
+  selectedDate: string
+  scrollY: number
+}
+
 const { signOut } = useAuth()
 const { getWeekTeamHours, getDayTeamHours, getDayTeamHoursPublicationState, seedDayTeamHoursFromPublishedPlan, saveDayTeamHours, publishDayTeamHours } = useTeamHoursAdmin()
 const route = useRoute()
 const router = useRouter()
+
+const persistedHoursPageState = useState<PersistedHoursPageState>('admin-hours-page-state', () => ({
+  selectedDate: todayIsoDate(),
+  scrollY: 0,
+}))
 
 const isFullscreenMode = computed(() => route.query.fullscreen === '1')
 
@@ -349,7 +375,7 @@ async function toggleFullscreen(): Promise<void> {
   await router.replace({ query: nextQuery })
 }
 
-const selectedDate = ref(todayIsoDate())
+const selectedDate = ref(persistedHoursPageState.value.selectedDate || todayIsoDate())
 const weekOverview = ref<TeamHoursWeekDay[]>([])
 const overviewError = ref('')
 
@@ -366,6 +392,7 @@ const taskDrafts = ref<Record<string, TaskDraftState>>({})
 const hoursPublicationStatus = ref<TeamHoursPublicationStatus>('unsaved')
 const lastSavedAt = ref<string | null>(null)
 const lastPublishedAt = ref<string | null>(null)
+const lastUpdatedAt = ref<string | null>(null)
 
 const weekStart = computed(() => startOfWeekMonday(selectedDate.value))
 
@@ -480,6 +507,14 @@ const hoursStatusClass = computed(() => {
   return 'text-muted'
 })
 
+const lastUpdatedLabel = computed(() => {
+  if (!lastUpdatedAt.value) {
+    return ''
+  }
+
+  return formatDateTimeLabel(lastUpdatedAt.value)
+})
+
 watch(weekStart, async () => {
   await loadWeekOverview()
 })
@@ -487,6 +522,7 @@ watch(weekStart, async () => {
 watch(
   () => selectedDate.value,
   async () => {
+    persistedHoursPageState.value.selectedDate = selectedDate.value
     await loadDayTeams()
   },
 )
@@ -494,6 +530,23 @@ watch(
 onMounted(async () => {
   await loadWeekOverview()
   await loadDayTeams()
+
+  if (import.meta.client) {
+    await nextTick()
+    requestAnimationFrame(() => {
+      window.scrollTo({
+        top: persistedHoursPageState.value.scrollY,
+        behavior: 'auto',
+      })
+    })
+  }
+})
+
+onBeforeRouteLeave(() => {
+  if (import.meta.client) {
+    persistedHoursPageState.value.scrollY = window.scrollY
+    persistedHoursPageState.value.selectedDate = selectedDate.value
+  }
 })
 
 async function loadWeekOverview(): Promise<void> {
@@ -531,6 +584,9 @@ async function loadDayTeamsWithOptions(options: { showLoading: boolean }): Promi
     hoursPublicationStatus.value = publicationState.status
     lastSavedAt.value = publicationState.lastSavedAt
     lastPublishedAt.value = publicationState.lastPublishedAt
+    lastUpdatedAt.value = publicationState.lastPublishedAt
+      ?? publicationState.lastSavedAt
+      ?? new Date().toISOString()
 
     const drafts: Record<string, TaskDraftState> = {}
 
@@ -554,6 +610,7 @@ async function loadDayTeamsWithOptions(options: { showLoading: boolean }): Promi
     hoursPublicationStatus.value = 'unsaved'
     lastSavedAt.value = null
     lastPublishedAt.value = null
+    lastUpdatedAt.value = null
   } finally {
     if (options.showLoading) {
       isDayLoading.value = false
@@ -728,6 +785,14 @@ function getTaskDiffMinutes(task: TeamHoursTaskRow): number {
   return parseMinutes(getActualInput(task)) - task.plannedMinutes
 }
 
+function getTaskExtraMinutes(task: TeamHoursTaskRow): number {
+  return Math.max(parseMinutes(getActualInput(task)) - task.defaultMinutes, 0)
+}
+
+function formatMinutes(value: number): string {
+  return `${Math.max(0, Math.round(value))} min`
+}
+
 function formatDiffMinutes(value: number): string {
   if (value > 0) {
     return `+${value} min`
@@ -779,6 +844,7 @@ async function onSaveChanges(): Promise<void> {
     )
 
     await loadDayTeamsWithOptions({ showLoading: false })
+    lastUpdatedAt.value = new Date().toISOString()
     saveSuccessMessage.value = `${result.updatedCount + result.insertedCount} task row(s) saved as draft.`
   } catch (err) {
     dayError.value = err instanceof Error ? err.message : 'Failed to save day changes.'
@@ -817,6 +883,7 @@ async function onPublishChanges(): Promise<void> {
 
     const result = await publishDayTeamHours(selectedDate.value)
     await loadDayTeamsWithOptions({ showLoading: false })
+    lastUpdatedAt.value = new Date().toISOString()
     saveSuccessMessage.value = `${result.publishedCount} task row(s) published to summary.`
   } catch (err) {
     dayError.value = err instanceof Error ? err.message : 'Failed to publish day hours.'
