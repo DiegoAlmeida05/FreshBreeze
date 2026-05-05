@@ -635,7 +635,7 @@
                   >
                     Waze
                   </button>
-                  <p v-if="!canOpenWaze" class="px-1 text-xs text-muted">Waze requires coordinates.</p>
+                  <p v-if="!canOpenWaze" class="px-1 text-xs text-muted">Waze destination unavailable.</p>
 
                   <button
                     type="button"
@@ -951,7 +951,12 @@ const canOpenGoogleMaps = computed(() => {
 })
 const canOpenWaze = computed(() => {
   const target = navigationTarget.value
-  return Boolean(target && target.lat !== null && target.lng !== null)
+  if (!target) {
+    return false
+  }
+
+  const hasCoordinates = target.lat !== null && target.lng !== null
+  return hasCoordinates || target.address.trim().length > 0
 })
 
 function isReportOwner(report: PropertyReportListItemDTO): boolean {
@@ -1961,13 +1966,25 @@ function openGoogleMaps(): void {
 function openWaze(): void {
   const target = navigationTarget.value
 
-  if (!target || target.lat === null || target.lng === null) {
-    errorMessage.value = 'Waze requires coordinates.'
+  if (!target) {
     return
   }
 
-  const latLng = `${target.lat},${target.lng}`
-  const url = `https://waze.com/ul?ll=${encodeURIComponent(latLng)}&navigate=yes`
+  const hasCoordinates = target.lat !== null && target.lng !== null
+  let url = ''
+
+  if (hasCoordinates) {
+    const latLng = `${target.lat},${target.lng}`
+    url = `https://waze.com/ul?ll=${encodeURIComponent(latLng)}&navigate=yes`
+  } else if (target.address.trim()) {
+    url = `https://waze.com/ul?q=${encodeURIComponent(target.address.trim())}&navigate=yes`
+  }
+
+  if (!url) {
+    errorMessage.value = 'Waze destination unavailable.'
+    return
+  }
+
   window.open(url, '_blank', 'noopener,noreferrer')
   closeNavigationSheet()
 }

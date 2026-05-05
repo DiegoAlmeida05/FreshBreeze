@@ -246,11 +246,16 @@ export default defineNuxtConfig({
     openaiApiKey: process.env.OPENAI_API_KEY ?? '',
     resendApiKey: process.env.RESEND_API_KEY ?? '',
     resendFromEmail: process.env.RESEND_FROM_EMAIL ?? '',
+    stripeSecretKey: process.env.STRIPE_SECRET_KEY ?? '',
+    stripeWebhookSecret: process.env.STRIPE_WEBHOOK_SECRET ?? '',
+    stripePriceId: process.env.STRIPE_PRICE_ID ?? '',
+    appUrl: process.env.APP_URL ?? '',
+    platformOwnerEmails: process.env.PLATFORM_OWNER_EMAILS ?? '',
     public: {
       supabaseUrl: process.env.NUXT_PUBLIC_SUPABASE_URL ?? '',
       supabaseAnonKey: process.env.NUXT_PUBLIC_SUPABASE_KEY ?? '',
       appUpdatedAt: appBuildTimestamp,
-      googleMapsApiKey: process.env.NUXT_PUBLIC_GOOGLE_MAPS_API_KEY ?? '',
+      googleMapsApiKey: process.env.NUXT_PUBLIC_GOOGLE_MAPS_API_KEY ?? process.env.GOOGLE_MAPS_API_KEY ?? '',
     },
   },
 

@@ -10,6 +10,8 @@
       <div>
         <p class="font-medium text-foreground">Map unavailable</p>
         <p class="mt-2 text-xs">{{ errorMessage }}</p>
+        <p class="mt-2 text-[11px] text-muted">Maps key loaded: {{ isMapsKeyLoaded ? 'yes' : 'no' }}</p>
+        <p class="mt-0.5 text-[11px] text-muted">Hostname: {{ currentHostname }}</p>
       </div>
     </div>
 
@@ -60,11 +62,13 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRuntimeConfig } from '#imports'
-import { loadGoogleMaps } from '../../../composables/useGoogleMaps'
+import { hasGoogleMapsAuthFailed, loadGoogleMaps } from '../../../composables/useGoogleMaps'
 import { applyTravelMinutesRule, minutesFromDurationSeconds } from '../../../utils/routePlannerTravel'
 import { checkCoordinateDistance } from '../../../utils/routePlannerGeoUtils'
 import type { RoutePlannerMapStop } from '../../../../shared/types/RoutePlannerMapStop'
 import type { RoutePlannerTravelMetric } from '../../../../shared/types/RoutePlannerTravelMetric'
+
+let routePlannerMapActiveInstances = 0
 
 interface Props {
   stops: RoutePlannerMapStop[]
@@ -82,17 +86,29 @@ const emit = defineEmits<{
 const runtimeConfig = useRuntimeConfig()
 const mapRef = ref<HTMLElement | null>(null)
 const mapInstance = ref<any | null>(null)
-const markerInstances = ref<any[]>([])
+const markerInstances = ref<Array<{ marker: any; clickListener: any | null }>>([])
+const markerByStopId = ref<Map<string, any>>(new Map())
 const directionsRenderer = ref<any | null>(null)
 const directionsResult = ref<any | null>(null)
+const routePolyline = ref<any | null>(null)
 const geocodedPointsByStopId = ref<Record<string, { lat: number; lng: number }>>({})
 const isLoading = ref(true)
 const errorMessage = ref('')
 const lastRenderKey = ref<string>('')
 let renderDebounceTimer: ReturnType<typeof setTimeout> | null = null
 
+const orderedStops = computed(() => props.stops.map((stop, index) => ({
+  ...stop,
+  order: index + 1,
+})))
+const orderedStopIdsKey = computed(() => orderedStops.value.map((stop) => stop.id).join('|'))
+const instanceId = `route-map-${Math.random().toString(36).slice(2, 10)}`
+
+const isMapsKeyLoaded = computed(() => String(runtimeConfig.public.googleMapsApiKey ?? '').trim().length > 0)
+const currentHostname = computed(() => (import.meta.client ? window.location.hostname : 'server'))
+
 const validStops = computed(() => {
-  return props.stops
+  return orderedStops.value
     .map((stop) => {
       const hasCoordinates = Number.isFinite(stop.lat) && Number.isFinite(stop.lng)
 
@@ -115,7 +131,7 @@ const validStops = computed(() => {
     .filter((stop): stop is RoutePlannerMapStop => Boolean(stop && Number.isFinite(stop.lat) && Number.isFinite(stop.lng)))
 })
 
-const missingCoordinatesCount = computed(() => Math.max(0, props.stops.length - validStops.value.length))
+const missingCoordinatesCount = computed(() => Math.max(0, orderedStops.value.length - validStops.value.length))
 
 const suspiciousCoordinatesCount = computed(() => {
   return validStops.value.filter((stop) => {
@@ -125,20 +141,60 @@ const suspiciousCoordinatesCount = computed(() => {
 })
 
 function clearMarkers(): void {
-  for (const marker of markerInstances.value) {
-    marker.setMap(null)
+  console.info('[route-map] clearing markers', {
+    instanceId,
+    markerCountBefore: markerInstances.value.length,
+    markerByStopIdSizeBefore: markerByStopId.value.size,
+  })
+
+  for (const handle of markerInstances.value) {
+    if (handle.clickListener && import.meta.client && window.google?.maps?.event?.removeListener) {
+      window.google.maps.event.removeListener(handle.clickListener)
+    }
+
+    const marker = handle.marker
+    if (marker && typeof marker.setMap === 'function') {
+      // google.maps.Marker
+      marker.setMap(null)
+    } else if (marker && 'map' in marker) {
+      // google.maps.marker.AdvancedMarkerElement
+      marker.map = null
+    }
   }
 
-  markerInstances.value = []
+  markerInstances.value.length = 0
+  markerByStopId.value.clear()
+
+  console.info('[route-map] cleared markers', {
+    instanceId,
+    markerCountAfter: markerInstances.value.length,
+    markerByStopIdSizeAfter: markerByStopId.value.size,
+  })
 }
 
 function clearDirections(): void {
   if (directionsRenderer.value) {
     directionsRenderer.value.setMap(null)
+    if (typeof directionsRenderer.value.setDirections === 'function') {
+      directionsRenderer.value.setDirections({ routes: [] })
+    }
     directionsRenderer.value = null
   }
 
+  if (routePolyline.value) {
+    if (typeof routePolyline.value.setMap === 'function') {
+      routePolyline.value.setMap(null)
+    }
+    routePolyline.value = null
+  }
+
   directionsResult.value = null
+}
+
+function clearMapArtifacts(): void {
+  console.info('[route-map] clearing map artifacts', { instanceId })
+  clearMarkers()
+  clearDirections()
 }
 
 function contrastTextColor(hexColor: string): string {
@@ -158,11 +214,11 @@ function contrastTextColor(hexColor: string): string {
 }
 
 function buildBaseRouteMetrics(): RoutePlannerTravelMetric[] {
-  return props.stops.map((stop, index) => {
+  return orderedStops.value.map((stop, index) => {
     const geoWarning = checkCoordinateDistance(stop.lat, stop.lng)
     return {
       stopId: stop.id,
-      previousStopId: index > 0 ? (props.stops[index - 1]?.id ?? null) : null,
+      previousStopId: index > 0 ? (orderedStops.value[index - 1]?.id ?? null) : null,
       travel_minutes_from_prev_raw: 0,
       travel_minutes_from_prev_applied: 0,
       suspiciousDistance: geoWarning.suspiciousDistance,
@@ -192,8 +248,8 @@ function normalizeMarkerColor(color: string | null | undefined): string {
   return /^#([0-9A-Fa-f]{6})$/.test(trimmed) ? trimmed : fallback
 }
 
-function buildInfoWindowHtml(stop: RoutePlannerMapStop): string {
-  const title = `${stop.order}. ${stop.propertyName}`
+function buildInfoWindowHtml(stop: RoutePlannerMapStop, order: number): string {
+  const title = `${order}. ${stop.propertyName}`
   const client = stop.clientName?.trim() ? stop.clientName : 'Client unavailable'
   const address = stop.address?.trim() ? stop.address : 'Address unavailable'
 
@@ -210,7 +266,7 @@ async function geocodeMissingStops(googleMaps: any): Promise<void> {
   const geocoder = new googleMaps.maps.Geocoder()
   const updates: Record<string, { lat: number; lng: number }> = {}
 
-  for (const stop of props.stops) {
+  for (const stop of orderedStops.value) {
     const hasCoordinates = Number.isFinite(stop.lat) && Number.isFinite(stop.lng)
 
     if (hasCoordinates || geocodedPointsByStopId.value[stop.id]) {
@@ -343,17 +399,39 @@ function renderMarkers(googleMaps: any): void {
     return
   }
 
+  console.info('[route-map] rendering markers', {
+    instanceId,
+    count: orderedStops.value.length,
+    stopsLength: props.stops.length,
+    orderedStopsLength: orderedStops.value.length,
+    orderedStops: orderedStops.value.map((stop, index) => ({
+      id: stop.id,
+      label: String(index + 1),
+      lat: stop.lat,
+      lng: stop.lng,
+    })),
+  })
   clearMarkers()
 
   const infoWindow = new googleMaps.maps.InfoWindow()
 
-  for (const stop of validStops.value) {
-    if (stop.lat === null || stop.lng === null) {
+  for (let index = 0; index < orderedStops.value.length; index += 1) {
+    const orderedStop = orderedStops.value[index]
+    if (!orderedStop) {
       continue
     }
 
-    const geoWarning = checkCoordinateDistance(stop.lat, stop.lng)
-    const markerFillColor = geoWarning.suspiciousDistance ? '#F59E0B' : normalizeMarkerColor(stop.markerColor)
+    const markerOrder = index + 1
+    const geocodedPoint = geocodedPointsByStopId.value[orderedStop.id]
+    const lat = Number.isFinite(orderedStop.lat) ? orderedStop.lat : geocodedPoint?.lat ?? null
+    const lng = Number.isFinite(orderedStop.lng) ? orderedStop.lng : geocodedPoint?.lng ?? null
+
+    if (lat === null || lng === null) {
+      continue
+    }
+
+    const geoWarning = checkCoordinateDistance(lat, lng)
+    const markerFillColor = geoWarning.suspiciousDistance ? '#F59E0B' : normalizeMarkerColor(orderedStop.markerColor)
     const icon: any = {
       path: googleMaps.maps.SymbolPath.CIRCLE,
       fillColor: markerFillColor,
@@ -365,22 +443,29 @@ function renderMarkers(googleMaps: any): void {
 
     const marker = new googleMaps.maps.Marker({
       map: mapInstance.value,
-      position: { lat: stop.lat, lng: stop.lng },
+      position: { lat, lng },
       label: {
-        text: String(stop.order),
+        text: String(markerOrder),
         color: geoWarning.suspiciousDistance ? '#92400E' : contrastTextColor(markerFillColor),
         fontWeight: '700',
         fontSize: '13px',
       },
       icon,
-      zIndex: 1000 + stop.order,
+      zIndex: 1000 + markerOrder,
       title: geoWarning.suspiciousDistance
-        ? `${stop.order}. ${stop.propertyName} - Possible location issue (${geoWarning.distanceLabel} from depot)`
-        : `${stop.order}. ${stop.propertyName}`,
+        ? `${markerOrder}. ${orderedStop.propertyName} - Possible location issue (${geoWarning.distanceLabel} from depot)`
+        : `${markerOrder}. ${orderedStop.propertyName}`,
     })
 
-    marker.addListener('click', () => {
-      let html = buildInfoWindowHtml(stop)
+    marker.setLabel({
+      text: String(markerOrder),
+      color: geoWarning.suspiciousDistance ? '#92400E' : contrastTextColor(markerFillColor),
+      fontWeight: '700',
+      fontSize: '13px',
+    })
+
+    const clickListener = marker.addListener('click', () => {
+      let html = buildInfoWindowHtml(orderedStop, markerOrder)
       if (geoWarning.suspiciousDistance) {
         html = `<div style="border-bottom:2px solid #F59E0B;padding-bottom:8px;margin-bottom:8px;"><p style="margin:0;font-size:12px;font-weight:600;color:#D97706;">⚠ Location issue detected</p><p style="margin:4px 0 0 0;font-size:11px;color:#92400E;">${geoWarning.distanceLabel} from depot</p></div>${html}`
       }
@@ -391,7 +476,8 @@ function renderMarkers(googleMaps: any): void {
       })
     })
 
-    markerInstances.value.push(marker)
+    markerInstances.value.push({ marker, clickListener })
+    markerByStopId.value.set(orderedStop.id, marker)
   }
 
   fitToStops(googleMaps)
@@ -411,13 +497,13 @@ async function renderDirectionsAndMetrics(googleMaps: any): Promise<void> {
 
   // Pre-populate the metrics map and flag stops missing coordinates (index > 0 only)
   const metricsByStopId = Object.fromEntries(baseMetrics.map((metric) => [metric.stopId, metric]))
-  for (let i = 1; i < props.stops.length; i++) {
-    const stop = props.stops[i]
+  for (let i = 1; i < orderedStops.value.length; i++) {
+    const stop = orderedStops.value[i]
     if (!stop || routableStopIds.has(stop.id)) continue
     const geoWarning = checkCoordinateDistance(stop.lat, stop.lng)
     metricsByStopId[stop.id] = {
       stopId: stop.id,
-      previousStopId: props.stops[i - 1]?.id ?? null,
+      previousStopId: orderedStops.value[i - 1]?.id ?? null,
       travel_minutes_from_prev_raw: 0,
       travel_minutes_from_prev_applied: 0,
       coordinatesUnavailable: true,
@@ -539,11 +625,17 @@ async function initMap(): Promise<void> {
   errorMessage.value = ''
 
   try {
+    clearMapArtifacts()
+
     const apiKey = String(runtimeConfig.public.googleMapsApiKey ?? '')
     const googleMaps = await loadGoogleMaps(apiKey)
 
     if (!googleMaps?.maps) {
       throw new Error('Google Maps namespace not available after script load.')
+    }
+
+    if (hasGoogleMapsAuthFailed()) {
+      throw new Error('Google Maps could not load. Check API key, billing, Maps JavaScript API, and HTTP referrer restrictions for this domain.')
     }
 
     // Initialize map with default Melbourne center
@@ -560,7 +652,14 @@ async function initMap(): Promise<void> {
     renderMarkers(googleMaps)
     await renderDirectionsAndMetrics(googleMaps)
   } catch (err) {
-    errorMessage.value = err instanceof Error ? err.message : 'Failed to initialize Google Maps.'
+    if (err instanceof Error) {
+      errorMessage.value = err.message.includes('Google Maps could not load.')
+        ? err.message
+        : 'Google Maps could not load. Check API key, billing, Maps JavaScript API, and HTTP referrer restrictions for this domain.'
+    } else {
+      errorMessage.value = 'Google Maps could not load. Check API key, billing, Maps JavaScript API, and HTTP referrer restrictions for this domain.'
+    }
+
     console.error('[RoutePlannerMap] Init error:', err)
   } finally {
     isLoading.value = false
@@ -568,13 +667,82 @@ async function initMap(): Promise<void> {
 }
 
 onMounted(async () => {
+  routePlannerMapActiveInstances += 1
+  console.info('[route-map] mounted', {
+    instanceId,
+    activeInstances: routePlannerMapActiveInstances,
+  })
   await initMap()
 })
 
+function scheduleRerender(googleMaps: typeof window.google): void {
+  if (!mapInstance.value || !googleMaps?.maps) {
+    return
+  }
+
+  if (renderDebounceTimer) {
+    clearTimeout(renderDebounceTimer)
+  }
+
+  renderDebounceTimer = setTimeout(() => {
+    if (!mapInstance.value || !window.google?.maps) {
+      return
+    }
+
+    if (orderedStops.value.length === 0) {
+      clearMapArtifacts()
+      emitRouteMetrics([])
+      renderDebounceTimer = null
+      return
+    }
+
+    renderMarkers(googleMaps)
+    void renderDirectionsAndMetrics(googleMaps)
+    renderDebounceTimer = null
+  }, 50)
+}
+
+watch(
+  () => orderedStops.value.length,
+  (count) => {
+    if (count !== 0) {
+      return
+    }
+
+    clearMapArtifacts()
+    emitRouteMetrics([])
+  },
+)
+
 // Debounced watcher to avoid excessive re-renders
 watch(
-  () => JSON.stringify(props.stops.map((s) => `${s.id}-${s.lat}-${s.lng}-${s.order}`)),
+  () => orderedStopIdsKey.value,
+  (idsKey) => {
+    console.info('[route-map] watcher orderedStopIdsKey fired', {
+      instanceId,
+      idsKey,
+      propsStopsLength: props.stops.length,
+      orderedStopsLength: orderedStops.value.length,
+    })
+
+    if (!import.meta.client || !window.google?.maps || !mapInstance.value) {
+      return
+    }
+
+    scheduleRerender(window.google)
+  },
+)
+
+watch(
+  () => JSON.stringify(orderedStops.value.map((s, index) => `${index}:${s.id}:${s.lat}:${s.lng}`)),
   async (newKey) => {
+    console.info('[route-map] watcher orderedStops detail fired', {
+      instanceId,
+      newKey,
+      propsStopsLength: props.stops.length,
+      orderedStopsLength: orderedStops.value.length,
+    })
+
     if (!import.meta.client || !window.google?.maps || !mapInstance.value) {
       return
     }
@@ -585,29 +753,48 @@ watch(
     }
 
     lastRenderKey.value = newKey
+    scheduleRerender(window.google)
+  },
+)
 
-    // Clear any pending debounce
-    if (renderDebounceTimer) {
-      clearTimeout(renderDebounceTimer)
-    }
+watch(
+  () => orderedStops.value.length,
+  (len) => {
+    console.info('[route-map] watcher orderedStops.length fired', {
+      instanceId,
+      orderedStopsLength: len,
+      propsStopsLength: props.stops.length,
+    })
+  },
+)
 
-    // Debounce render by 50ms to batch rapid changes
-    renderDebounceTimer = setTimeout(() => {
-      if (!mapInstance.value || !window.google?.maps) return
-      renderMarkers(window.google)
-      void renderDirectionsAndMetrics(window.google)
-      renderDebounceTimer = null
-    }, 50)
+watch(
+  () => props.stops.length,
+  (len) => {
+    console.info('[route-map] watcher props.stops.length fired', {
+      instanceId,
+      propsStopsLength: len,
+      orderedStopsLength: orderedStops.value.length,
+    })
   },
 )
 
 onBeforeUnmount(() => {
-  clearMarkers()
-  clearDirections()
+  console.info('[route-map] unmounting', {
+    instanceId,
+    activeInstancesBefore: routePlannerMapActiveInstances,
+  })
+  clearMapArtifacts()
   mapInstance.value = null
   if (renderDebounceTimer) {
     clearTimeout(renderDebounceTimer)
   }
+
+  routePlannerMapActiveInstances = Math.max(0, routePlannerMapActiveInstances - 1)
+  console.info('[route-map] unmounted', {
+    instanceId,
+    activeInstancesAfter: routePlannerMapActiveInstances,
+  })
 })
 </script>
 

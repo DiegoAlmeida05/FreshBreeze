@@ -318,7 +318,7 @@
 
 <script setup lang="ts">
 import { useState } from '#imports'
-import { computed, onMounted, reactive, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import type { DailyTaskExtraItemInput, PricingItemDTO } from '../../../../shared/types/PricingItemDTO'
 import type { DailyTaskDTO, TaskType } from '../../../../shared/types/DailyTaskDTO'
 import type { PropertyDTO } from '../../../../shared/types/PropertyDTO'
@@ -387,6 +387,7 @@ interface Props {
   submitLabel?: string
   initialDate?: string
   initialExtraItems?: DailyTaskExtraItemInput[]
+  draftKey?: string
 }
 
 const DEFAULT_PRESET_TAGS = ['linen', 'amenities', 'vip', 'urgent']
@@ -422,6 +423,8 @@ const isApplySetModalOpen = ref(false)
 const selectedPricingSetId = ref('')
 const tagDraft = ref('')
 const presetTagsState = useState<string[]>('daily-task-preset-tags', () => [...DEFAULT_PRESET_TAGS])
+let draftSaveTimer: ReturnType<typeof setTimeout> | null = null
+const isApplyingDraft = ref(false)
 
 const form = reactive<FormState>({
   date: props.initialDate || new Date().toISOString().split('T')[0] || '',
@@ -500,6 +503,99 @@ const selectedPropertyDefaultMinutes = computed(() => selectedProperty.value?.de
 const propertyDefaultMinutesHint = computed(() => {
   return selectedPropertyDefaultMinutes.value !== null ? String(selectedPropertyDefaultMinutes.value) : 'Default cleaning time'
 })
+const resolvedDraftKey = computed(() => {
+  if (props.draftKey) {
+    return `daily-task-form:${props.draftKey}`
+  }
+
+  if (props.mode === 'edit' && props.task?.id) {
+    return `daily-task-form:edit:${props.task.id}`
+  }
+
+  return `daily-task-form:create:${props.initialDate || 'unscheduled'}`
+})
+
+function readDraft(): Partial<FormState> | null {
+  if (!import.meta.client) {
+    return null
+  }
+
+  const raw = window.localStorage.getItem(resolvedDraftKey.value)
+  if (!raw) {
+    return null
+  }
+
+  try {
+    return JSON.parse(raw) as Partial<FormState>
+  } catch {
+    return null
+  }
+}
+
+function clearDraft(): void {
+  if (!import.meta.client) {
+    return
+  }
+
+  window.localStorage.removeItem(resolvedDraftKey.value)
+}
+
+function scheduleDraftSave(): void {
+  if (!import.meta.client || isApplyingDraft.value) {
+    return
+  }
+
+  if (draftSaveTimer) {
+    clearTimeout(draftSaveTimer)
+  }
+
+  draftSaveTimer = setTimeout(() => {
+    const snapshot: FormState = {
+      date: form.date,
+      property_id: form.property_id,
+      guest_name: form.guest_name,
+      guest_checkin_date: form.guest_checkin_date,
+      tags: [...form.tags],
+      is_bsb: form.is_bsb,
+      window_start_time: form.window_start_time,
+      window_end_time: form.window_end_time,
+      desired_start_time: form.desired_start_time,
+      cleaning_minutes_override: form.cleaning_minutes_override,
+      people_count: form.people_count,
+      notes: form.notes,
+      extraItems: form.extraItems.map((entry) => ({ ...entry })),
+    }
+
+    window.localStorage.setItem(resolvedDraftKey.value, JSON.stringify(snapshot))
+    draftSaveTimer = null
+  }, 400)
+}
+
+function applyDraftIfAvailable(): void {
+  const draft = readDraft()
+  if (!draft) {
+    return
+  }
+
+  isApplyingDraft.value = true
+
+  if (typeof draft.date === 'string') form.date = draft.date
+  if (typeof draft.property_id === 'string') form.property_id = draft.property_id
+  if (typeof draft.guest_name === 'string') form.guest_name = draft.guest_name
+  if (typeof draft.guest_checkin_date === 'string') form.guest_checkin_date = draft.guest_checkin_date
+  if (Array.isArray(draft.tags)) form.tags = normalizeTags(draft.tags)
+  if (typeof draft.is_bsb === 'boolean') form.is_bsb = draft.is_bsb
+  if (typeof draft.window_start_time === 'string' || draft.window_start_time === null) form.window_start_time = draft.window_start_time
+  if (typeof draft.window_end_time === 'string' || draft.window_end_time === null) form.window_end_time = draft.window_end_time
+  if (typeof draft.desired_start_time === 'string' || draft.desired_start_time === null) form.desired_start_time = draft.desired_start_time
+  if (typeof draft.cleaning_minutes_override === 'number' || draft.cleaning_minutes_override === null) form.cleaning_minutes_override = draft.cleaning_minutes_override
+  if (typeof draft.people_count === 'number') form.people_count = Math.max(1, Math.floor(draft.people_count))
+  if (typeof draft.notes === 'string') form.notes = draft.notes
+  if (Array.isArray(draft.extraItems)) form.extraItems = draft.extraItems.map((entry) => ({ ...entry, id: createEntryId() }))
+
+  propertySearchQuery.value = selectedProperty.value?.name ?? propertySearchQuery.value
+  isApplyingDraft.value = false
+}
 
 function resetErrors(): void {
   errors.date = undefined
@@ -885,6 +981,8 @@ async function onSubmit(): Promise<void> {
     extra_towel_qty: 0,
     extra_chocolate_qty: 0,
   })
+
+  clearDraft()
 }
 
 watch(() => props.task, syncForm, { immediate: true })
@@ -919,6 +1017,22 @@ watch(activePricingItems, () => {
   syncExtraItemSearchText()
 }, { deep: true })
 
+watch(
+  () => ({ form: { ...form, extraItems: form.extraItems.map((entry) => ({ ...entry })) }, key: resolvedDraftKey.value }),
+  () => {
+    scheduleDraftSave()
+  },
+  { deep: true },
+)
+
+watch(
+  () => resolvedDraftKey.value,
+  () => {
+    syncForm()
+    applyDraftIfAvailable()
+  },
+)
+
 onMounted(async () => {
   isLoadingPricingItems.value = true
   isLoadingPricingSets.value = true
@@ -934,9 +1048,17 @@ onMounted(async () => {
     activePricingSets.value = fetchedPricingSets
     syncExtraItemSearchText()
     propertySearchQuery.value = selectedProperty.value?.name ?? ''
+    applyDraftIfAvailable()
   } finally {
     isLoadingPricingItems.value = false
     isLoadingPricingSets.value = false
+  }
+})
+
+onBeforeUnmount(() => {
+  if (draftSaveTimer) {
+    clearTimeout(draftSaveTimer)
+    draftSaveTimer = null
   }
 })
 </script>

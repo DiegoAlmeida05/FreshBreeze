@@ -1,0 +1,15 @@
+alter table public.app_subscription
+  add column if not exists stripe_customer_id text,
+  add column if not exists stripe_subscription_id text,
+  add column if not exists stripe_price_id text,
+  add column if not exists current_period_start timestamptz,
+  add column if not exists current_period_end timestamptz,
+  add column if not exists cancel_at_period_end boolean not null default false,
+  add column if not exists last_payment_status text,
+  add column if not exists last_payment_at timestamptz,
+  add column if not exists last_invoice_id text,
+  add column if not exists payment_method_brand text,
+  add column if not exists payment_method_last4 text,
+  add column if not exists payment_method_exp_month integer,
+  add column if not exists payment_method_exp_year integer,
+  add column if not exists updated_at timestamptz not null default now();

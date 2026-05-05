@@ -191,7 +191,7 @@
               >
                 Waze
               </button>
-              <p v-if="!canOpenWaze" class="px-1 text-xs text-muted">Waze requires coordinates.</p>
+              <p v-if="!canOpenWaze" class="px-1 text-xs text-muted">Waze destination unavailable.</p>
 
               <button
                 type="button"
@@ -275,7 +275,8 @@ const canOpenGoogleMaps = computed(() => {
 
 const canOpenWaze = computed(() => {
   const target = navigationTarget.value
-  return target.lat !== null && target.lng !== null
+  const hasCoordinates = target.lat !== null && target.lng !== null
+  return hasCoordinates || target.address.length > 0
 })
 
 function openNavigationSheet(): void {
@@ -312,13 +313,20 @@ function openGoogleMaps(): void {
 
 function openWaze(): void {
   const target = navigationTarget.value
+  const hasCoordinates = target.lat !== null && target.lng !== null
+  let url = ''
 
-  if (target.lat === null || target.lng === null) {
+  if (hasCoordinates) {
+    const latLng = `${target.lat},${target.lng}`
+    url = `https://waze.com/ul?ll=${encodeURIComponent(latLng)}&navigate=yes`
+  } else if (target.address) {
+    url = `https://waze.com/ul?q=${encodeURIComponent(target.address)}&navigate=yes`
+  }
+
+  if (!url) {
     return
   }
 
-  const latLng = `${target.lat},${target.lng}`
-  const url = `https://waze.com/ul?ll=${encodeURIComponent(latLng)}&navigate=yes`
   window.open(url, '_blank', 'noopener,noreferrer')
   closeNavigationSheet()
 }

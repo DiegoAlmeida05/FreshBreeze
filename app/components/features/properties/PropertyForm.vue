@@ -858,7 +858,7 @@
 
 <script setup lang="ts">
 import { useState } from '#imports'
-import { computed, onMounted, reactive, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import type { ClientDTO } from '../../../../shared/types/ClientDTO'
 import type { PricingItemDTO, PropertyPricingItemDTO, PropertyPricingItemInput, PropertyPricingItemScope } from '../../../../shared/types/PricingItemDTO'
 import type { PricingSetDTO } from '../../../../shared/types/PricingSetDTO'
@@ -955,6 +955,7 @@ interface Props {
   property?: PropertyDTO | null
   isSubmitting?: boolean
   submitLabel?: string
+  draftKey?: string
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -991,6 +992,7 @@ const applySetTargetScope = ref<PropertyPricingItemScope | null>(null)
 const selectedPricingSetId = ref('')
 const initialSnapshot = ref('')
 const isSyncingForm = ref(true)
+let draftSaveTimer: ReturnType<typeof setTimeout> | null = null
 
 const DEFAULT_PRESET_TAGS = ['one stay', 'deep clean', 'checkin', 'make sofa']
 const PRESET_TAGS_STORAGE_KEY = 'daily-task-preset-tags'
@@ -1098,9 +1100,125 @@ const propertyPricingPreview = computed(() => {
     includesAmenities: form.includes_amenities,
   })
 })
+const resolvedDraftKey = computed(() => {
+  if (props.draftKey) {
+    return `property-form:${props.draftKey}`
+  }
+
+  if (props.mode === 'edit' && props.property?.id) {
+    return `property-form:edit:${props.property.id}`
+  }
+
+  return 'property-form:create'
+})
 
 function createItemId(): string {
   return `${Date.now()}-${Math.random().toString(36).slice(2)}`
+}
+
+function readDraft(): Partial<FormState> | null {
+  if (!import.meta.client) {
+    return null
+  }
+
+  const raw = window.localStorage.getItem(resolvedDraftKey.value)
+  if (!raw) {
+    return null
+  }
+
+  try {
+    return JSON.parse(raw) as Partial<FormState>
+  } catch {
+    return null
+  }
+}
+
+function clearDraft(): void {
+  if (!import.meta.client) {
+    return
+  }
+
+  window.localStorage.removeItem(resolvedDraftKey.value)
+}
+
+function scheduleDraftSave(): void {
+  if (!import.meta.client || isSyncingForm.value) {
+    return
+  }
+
+  if (draftSaveTimer) {
+    clearTimeout(draftSaveTimer)
+  }
+
+  draftSaveTimer = setTimeout(() => {
+    const snapshot: FormState = {
+      client_id: form.client_id,
+      name: form.name,
+      address: form.address,
+      lat: form.lat,
+      lng: form.lng,
+      bathrooms: form.bathrooms,
+      beds_single: form.beds_single,
+      beds_queen: form.beds_queen,
+      beds_king: form.beds_king,
+      default_cleaning_minutes: form.default_cleaning_minutes,
+      linen_pack_fee: form.linen_pack_fee,
+      amenities_pack_fee: form.amenities_pack_fee,
+      includes_amenities: form.includes_amenities,
+      includes_chocolates: form.includes_chocolates,
+      extra_towels_default_qty: form.extra_towels_default_qty,
+      extra_dishcloths_default_qty: form.extra_dishcloths_default_qty,
+      notes: form.notes,
+      has_keys: form.has_keys,
+      active: form.active,
+      default_tags: [...form.default_tags],
+      property_keys: form.property_keys.map((item) => ({ ...item })),
+      property_resources: form.property_resources.map((item) => ({ ...item })),
+      base_items: form.base_items.map((item) => ({ ...item })),
+      default_extra_items: form.default_extra_items.map((item) => ({ ...item })),
+    }
+
+    window.localStorage.setItem(resolvedDraftKey.value, JSON.stringify(snapshot))
+    draftSaveTimer = null
+  }, 500)
+}
+
+function applyDraftIfAvailable(): void {
+  const draft = readDraft()
+  if (!draft) {
+    return
+  }
+
+  isSyncingForm.value = true
+
+  if (typeof draft.client_id === 'string') form.client_id = draft.client_id
+  if (typeof draft.name === 'string') form.name = draft.name
+  if (typeof draft.address === 'string') form.address = draft.address
+  if (typeof draft.lat === 'string') form.lat = draft.lat
+  if (typeof draft.lng === 'string') form.lng = draft.lng
+  if (typeof draft.bathrooms === 'number') form.bathrooms = draft.bathrooms
+  if (typeof draft.beds_single === 'number') form.beds_single = draft.beds_single
+  if (typeof draft.beds_queen === 'number') form.beds_queen = draft.beds_queen
+  if (typeof draft.beds_king === 'number') form.beds_king = draft.beds_king
+  if (typeof draft.default_cleaning_minutes === 'number') form.default_cleaning_minutes = draft.default_cleaning_minutes
+  if (typeof draft.linen_pack_fee === 'string') form.linen_pack_fee = draft.linen_pack_fee
+  if (typeof draft.amenities_pack_fee === 'string') form.amenities_pack_fee = draft.amenities_pack_fee
+  if (typeof draft.includes_amenities === 'boolean') form.includes_amenities = draft.includes_amenities
+  if (typeof draft.includes_chocolates === 'boolean') form.includes_chocolates = draft.includes_chocolates
+  if (typeof draft.extra_towels_default_qty === 'number') form.extra_towels_default_qty = draft.extra_towels_default_qty
+  if (typeof draft.extra_dishcloths_default_qty === 'number') form.extra_dishcloths_default_qty = draft.extra_dishcloths_default_qty
+  if (typeof draft.notes === 'string') form.notes = draft.notes
+  if (typeof draft.has_keys === 'boolean') form.has_keys = draft.has_keys
+  if (typeof draft.active === 'boolean') form.active = draft.active
+  if (Array.isArray(draft.default_tags)) form.default_tags = normalizeTagList(draft.default_tags)
+  if (Array.isArray(draft.property_keys)) form.property_keys = draft.property_keys.map((item) => ({ ...item, id: item.id || createItemId() }))
+  if (Array.isArray(draft.property_resources)) form.property_resources = draft.property_resources.map((item) => ({ ...item, id: item.id || createItemId() }))
+  if (Array.isArray(draft.base_items)) form.base_items = draft.base_items.map((item) => ({ ...item, id: item.id || createItemId() }))
+  if (Array.isArray(draft.default_extra_items)) form.default_extra_items = draft.default_extra_items.map((item) => ({ ...item, id: item.id || createItemId() }))
+
+  syncPricingItemsSearchText()
+  resetDirtyTracking()
+  isSyncingForm.value = false
 }
 
 function createEmptyKey(index = 0): FormPropertyKey {
@@ -1549,6 +1667,7 @@ async function syncForm(): Promise<void> {
 
   resetDirtyTracking()
   isSyncingForm.value = false
+  applyDraftIfAvailable()
 }
 
 watch(
@@ -1598,6 +1717,13 @@ watch(
 watch(activePricingItems, () => {
   syncPricingItemsSearchText()
 }, { deep: true })
+
+watch(
+  () => ({ form: createSnapshot(), key: resolvedDraftKey.value }),
+  () => {
+    scheduleDraftSave()
+  },
+)
 
 watch(isDirty, (value) => {
   if (isSyncingForm.value) {
@@ -1916,5 +2042,14 @@ async function onSubmit(): Promise<void> {
     propertyKeys,
     propertyResources,
   })
+
+  clearDraft()
 }
+
+onBeforeUnmount(() => {
+  if (draftSaveTimer) {
+    clearTimeout(draftSaveTimer)
+    draftSaveTimer = null
+  }
+})
 </script>

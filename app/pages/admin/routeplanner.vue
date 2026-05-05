@@ -404,7 +404,7 @@
 
                 <div class="min-h-[180px] flex-1">
                 <MapView
-                  :tasks="buildTeamMapStops(team)"
+                  :tasks="getTeamMapStops(team)"
                   empty-message="Add coordinates to team properties to render markers."
                   @route-metrics-change="updateTeamRouteMetrics(team.id, $event)"
                 />
@@ -470,6 +470,7 @@
                 mode="edit"
                 :task="editingTask"
                 :is-submitting="isEditSubmitting"
+                :draft-key="routePlannerTaskDraftKey"
                 submit-label="Save changes"
                 @submit="onEditTaskSubmit"
                 @cancel="closeEditModal"
@@ -483,7 +484,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import BaseFeedbackBanner from '../../components/ui/BaseFeedbackBanner.vue'
 import DailyTaskForm from '../../components/features/tasks/DailyTaskForm.vue'
 import MapView from '../../components/features/tasks/MapView.vue'
@@ -496,6 +497,7 @@ import { useDailyTasks } from '../../composables/useDailyTasks'
 import { useEmployees } from '../../composables/useEmployees'
 import { useHolidays } from '../../composables/useHolidays'
 import { useProperties } from '../../composables/useProperties'
+import { useRoutePlannerDraft } from '../../composables/useRoutePlannerDraft'
 import { useRoutePlans } from '../../composables/useRoutePlans'
 import { applyTravelMinutesRule } from '../../utils/routePlannerTravel'
 import type { DailyTaskDTO } from '../../../shared/types/DailyTaskDTO'
@@ -551,6 +553,7 @@ const { fetchTasksByDate, updateTask } = useDailyTasks()
 const { getEmployees } = useEmployees()
 const { getHolidaysByRange } = useHolidays()
 const { fetchProperties } = useProperties()
+const { loadDraft, saveDraft, clearDraft } = useRoutePlannerDraft()
 const { getRoutePlanByDate, saveRoutePlanDraft, publishRoutePlan, markPublishedPlanAsStale } = useRoutePlans()
 
 // ── state ─────────────────────────────────────────────────────────────────────
@@ -573,6 +576,8 @@ const expandedMapTeamId = ref<string | null>(null)
 const routeMetricsByTeam = ref<Record<string, Record<string, RoutePlannerTravelMetric>>>({})
 const route = useRoute()
 const router = useRouter()
+const isRestoringLocalDraft = ref(false)
+let localDraftSaveTimer: ReturnType<typeof setTimeout> | null = null
 
 const isFullscreenMode = computed(() => route.query.fullscreen === '1')
 
@@ -842,6 +847,11 @@ const mapModalStops = computed<RoutePlannerMapStop[]>(() => {
   return team ? buildTeamMapStops(team) : []
 })
 
+const routePlannerTaskDraftKey = computed(() => {
+  const taskId = editingTask.value?.id ?? 'new'
+  return `routeplanner-task-form:${selectedDate.value}:${taskId}`
+})
+
 // ── watchers ──────────────────────────────────────────────────────────────────
 
 watch(selectedDate, async (date) => {
@@ -849,6 +859,83 @@ watch(selectedDate, async (date) => {
   persistLastViewedDate(date)
   await loadBoardForDate(date)
 })
+
+watch(
+  () => ({
+    date: selectedDate.value,
+    unassignedTasks: unassignedTasks.value,
+    teams: teams.value,
+  }),
+  (state) => {
+    if (!import.meta.client || !state.date || isLoading.value || isRestoringLocalDraft.value) {
+      return
+    }
+
+    if (localDraftSaveTimer) {
+      clearTimeout(localDraftSaveTimer)
+    }
+
+    localDraftSaveTimer = setTimeout(() => {
+      saveDraft(state.date, {
+        selectedDate: state.date,
+        unassignedTasks: state.unassignedTasks,
+        teams: state.teams,
+      })
+      localDraftSaveTimer = null
+    }, 450)
+  },
+  { deep: true },
+)
+
+watch(
+  () => {
+    const teamA = teams.value.find((team) => team.label === 'A')
+    return {
+      teamId: teamA?.id ?? null,
+      taskCount: teamA?.tasks.length ?? 0,
+      taskIds: teamA?.tasks.map((task) => task.id) ?? [],
+    }
+  },
+  (payload) => {
+    console.info('[routeplanner-parent] watcher team A tasks', payload)
+  },
+  { deep: true },
+)
+
+watch(
+  () => {
+    const teamA = teams.value.find((team) => team.label === 'A')
+    if (!teamA) {
+      return {
+        teamId: null,
+        stopsCount: 0,
+        stopIds: [] as string[],
+      }
+    }
+
+    const stops = buildTeamMapStops(teamA)
+    return {
+      teamId: teamA.id,
+      stopsCount: stops.length,
+      stopIds: stops.map((stop) => stop.id),
+    }
+  },
+  (payload) => {
+    console.info('[routeplanner-parent] watcher team A map stops', payload)
+  },
+  { deep: true },
+)
+
+watch(
+  () => mapModalStops.value.map((stop) => stop.id).join('|'),
+  () => {
+    console.info('[routeplanner-parent] watcher map modal stops', {
+      expandedMapTeamId: expandedMapTeamId.value,
+      stopsCount: mapModalStops.value.length,
+      stopIds: mapModalStops.value.map((stop) => stop.id),
+    })
+  },
+)
 
 onMounted(async () => {
   await Promise.all([loadEmployees(), loadProperties(), loadClients()])
@@ -991,6 +1078,21 @@ function buildTeamMapStops(team: TeamState): RoutePlannerMapStop[] {
       markerColor: markerColorByTeam[team.label] ?? '#2563EB',
     }
   })
+}
+
+function getTeamMapStops(team: TeamState): RoutePlannerMapStop[] {
+  const stops = buildTeamMapStops(team)
+
+  if (team.label === 'A') {
+    console.info('[routeplanner-parent] team A map stops passed', {
+      teamId: team.id,
+      taskCount: team.tasks.length,
+      stopsCount: stops.length,
+      stopIds: stops.map((stop) => stop.id),
+    })
+  }
+
+  return stops
 }
 
 function parseTimeToMinutes(time: string | null | undefined, fallbackMinutes = 8 * 60): number {
@@ -1162,6 +1264,40 @@ function resetAssignments(tasks: DailyTaskDTO[]): void {
   resetTeamEmployeeSelections()
 }
 
+function applyLocalDraft(localDraft: { selectedDate: string; unassignedTasks: DailyTaskDTO[]; teams: TeamState[] }, tasks: DailyTaskDTO[]): boolean {
+  if (localDraft.selectedDate !== selectedDate.value) {
+    return false
+  }
+
+  const latestTasksById = new Map(tasks.map((task) => [task.id, task]))
+
+  const hydratedTeams = localDraft.teams.map((team) => ({
+    id: team.id,
+    label: team.label,
+    startTime: team.startTime,
+    employeeIds: [...team.employeeIds],
+    tasks: team.tasks
+      .map((task) => latestTasksById.get(task.id) ?? null)
+      .filter((task): task is DailyTaskDTO => task !== null),
+  }))
+
+  if (hydratedTeams.length === 0) {
+    return false
+  }
+
+  const assignedTaskIds = new Set(hydratedTeams.flatMap((team) => team.tasks.map((task) => task.id)))
+  const hydratedUnassigned = tasks.filter((task) => !assignedTaskIds.has(task.id))
+
+  teams.value = hydratedTeams
+  unassignedTasks.value = hydratedUnassigned
+  loadedPlanStatus.value = 'draft'
+  loadedPlanUpdatedAt.value = null
+  hasStaleMismatch.value = false
+  staleWarningDismissed.value = false
+  resetTeamEmployeeSelections()
+  return true
+}
+
 function buildSavePayload() {
   return {
     date: selectedDate.value,
@@ -1236,6 +1372,7 @@ async function onSaveDraft(): Promise<void> {
 
   try {
     const saved = await saveRoutePlanDraft(buildSavePayload())
+    clearDraft(selectedDate.value)
     loadedPlanStatus.value = saved.status
     loadedPlanUpdatedAt.value = saved.updated_at || null
     hasStaleMismatch.value = false
@@ -1257,6 +1394,7 @@ async function onPublishPlan(): Promise<void> {
 
   try {
     const saved = await publishRoutePlan(buildSavePayload())
+    clearDraft(selectedDate.value)
     loadedPlanStatus.value = saved.status
     loadedPlanUpdatedAt.value = saved.updated_at || null
     hasStaleMismatch.value = false
@@ -1324,6 +1462,7 @@ async function loadBoardForDate(date: string): Promise<void> {
       getRoutePlanByDate(date),
       getHolidaysByRange(formatDateForInput(start), formatDateForInput(end)).catch(() => []),
     ])
+    const localDraft = loadDraft(date)
 
     holidayNamesByDate.value = (holidays ?? []).reduce<Record<string, string[]>>((acc, holiday) => {
       if (!acc[holiday.date]) {
@@ -1333,6 +1472,17 @@ async function loadBoardForDate(date: string): Promise<void> {
       acc[holiday.date].push(holiday.name)
       return acc
     }, {})
+
+    if (localDraft) {
+      isRestoringLocalDraft.value = true
+      const restored = applyLocalDraft(localDraft, tasks)
+      isRestoringLocalDraft.value = false
+
+      if (restored) {
+        pageSuccess.value = 'Draft restored from local device.'
+        return
+      }
+    }
 
     if (persistedPlan) {
       const hasMismatch = applyPersistedPlan(persistedPlan, tasks)
@@ -1470,6 +1620,14 @@ function removeFromTeam(taskId: string, teamId: string): void {
   if (!task) return
 
   unassignedTasks.value.push(task)
+
+  if (team.label === 'A') {
+    console.info('[routeplanner-parent] team A after remove', {
+      teamId: team.id,
+      taskCount: team.tasks.length,
+      taskIds: team.tasks.map((item) => item.id),
+    })
+  }
 }
 
 function moveTask(teamId: string, index: number, direction: MoveDirection): void {
@@ -1485,6 +1643,15 @@ function moveTask(teamId: string, index: number, direction: MoveDirection): void
     if (!previous || !current) return
     source[index - 1] = current
     source[index] = previous
+
+    if (team.label === 'A') {
+      console.info('[routeplanner-parent] team A after reorder', {
+        teamId: team.id,
+        direction,
+        taskCount: source.length,
+        taskIds: source.map((item) => item.id),
+      })
+    }
     return
   }
 
@@ -1495,6 +1662,15 @@ function moveTask(teamId: string, index: number, direction: MoveDirection): void
   if (!next || !current) return
   source[index + 1] = current
   source[index] = next
+
+  if (team.label === 'A') {
+    console.info('[routeplanner-parent] team A after reorder', {
+      teamId: team.id,
+      direction,
+      taskCount: source.length,
+      taskIds: source.map((item) => item.id),
+    })
+  }
 }
 
 // ── map modal ─────────────────────────────────────────────────────────────────
@@ -1512,4 +1688,11 @@ function onMapModalVisibilityChange(value: boolean): void {
 async function onSignOut(): Promise<void> {
   await signOut()
 }
+
+onBeforeUnmount(() => {
+  if (localDraftSaveTimer) {
+    clearTimeout(localDraftSaveTimer)
+    localDraftSaveTimer = null
+  }
+})
 </script>

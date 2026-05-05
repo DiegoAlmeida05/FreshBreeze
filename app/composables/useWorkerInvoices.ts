@@ -302,27 +302,62 @@ export function useWorkerInvoices() {
 
     await replaceInvoiceLines(data.id, lineAmount, lineWorkDate, payload.line_description)
 
+    // Ensure history reload reflects the latest edits.
+    invalidate('worker-invoices-list')
+
     return data
   }
 
   async function deleteInvoice(invoiceId: string): Promise<void> {
-    const { error: linesError } = await supabase
-      .from('worker_invoice_lines')
-      .delete()
-      .eq('worker_invoice_id', invoiceId)
+    const employeeId = await getEmployeeIdForCurrentUser()
 
-    if (linesError) {
-      throw new Error(linesError.message)
-    }
-
-    const { error: invoiceError } = await supabase
+    const { data: deletedInvoice, error: invoiceError } = await supabase
       .from('worker_invoices')
       .delete()
       .eq('id', invoiceId)
+      .eq('employee_id', employeeId)
+      .select('id')
+      .maybeSingle<{ id: string }>()
+
+    if (invoiceError?.code === '23503') {
+      const { error: linesError } = await supabase
+        .from('worker_invoice_lines')
+        .delete()
+        .eq('worker_invoice_id', invoiceId)
+
+      if (linesError) {
+        throw new Error(linesError.message)
+      }
+
+      const { data: retryDeletedInvoice, error: retryInvoiceError } = await supabase
+        .from('worker_invoices')
+        .delete()
+        .eq('id', invoiceId)
+        .eq('employee_id', employeeId)
+        .select('id')
+        .maybeSingle<{ id: string }>()
+
+      if (retryInvoiceError) {
+        throw new Error(retryInvoiceError.message)
+      }
+
+      if (!retryDeletedInvoice) {
+        throw new Error('Invoice not found or you do not have permission to delete it.')
+      }
+
+      invalidate('worker-invoices-list')
+      return
+    }
 
     if (invoiceError) {
       throw new Error(invoiceError.message)
     }
+
+    if (!deletedInvoice) {
+      throw new Error('Invoice not found or you do not have permission to delete it.')
+    }
+
+    invalidate('worker-invoices-list')
   }
 
   return {

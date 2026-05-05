@@ -1,6 +1,17 @@
 let googleMapsScriptPromise: Promise<void> | null = null
 const GOOGLE_MAPS_SCRIPT_ID = 'google-maps-api'
 const GOOGLE_MAPS_LOAD_TIMEOUT_MS = 15000
+let googleMapsAuthFailed = false
+
+export function hasGoogleMapsAuthFailed(): boolean {
+  return googleMapsAuthFailed
+}
+
+function buildGoogleMapsAuthError(): Error {
+  return new Error(
+    'Google Maps authorization failed for this domain. Verify NUXT_PUBLIC_GOOGLE_MAPS_API_KEY in production and allow HTTP referrers for your production domain plus *.vercel.app in Google Cloud Console.'
+  )
+}
 
 function resolveGoogleNamespace(): typeof window.google {
   if (!import.meta.client || !window.google?.maps) {
@@ -27,8 +38,15 @@ function injectGoogleMapsScript(apiKey: string): Promise<void> {
   }
 
   const scriptSrc = buildGoogleMapsScriptSrc(apiKey)
+  googleMapsAuthFailed = false
 
   googleMapsScriptPromise = new Promise((resolve, reject) => {
+    const previousAuthFailureHandler = window.gm_authFailure
+    window.gm_authFailure = () => {
+      googleMapsAuthFailed = true
+      previousAuthFailureHandler?.()
+    }
+
     const existing = document.getElementById(GOOGLE_MAPS_SCRIPT_ID) as HTMLScriptElement | null
 
     if (window.google?.maps) {
@@ -50,6 +68,11 @@ function injectGoogleMapsScript(apiKey: string): Promise<void> {
 
     if (activeScript) {
       if (activeScript.dataset.loadState === 'loaded') {
+        if (googleMapsAuthFailed) {
+          reject(buildGoogleMapsAuthError())
+          return
+        }
+
         resolve()
         return
       }
@@ -72,6 +95,12 @@ function injectGoogleMapsScript(apiKey: string): Promise<void> {
     script.dataset.loadState = 'loading'
 
     script.onload = () => {
+      if (googleMapsAuthFailed) {
+        script.dataset.loadState = 'error'
+        reject(buildGoogleMapsAuthError())
+        return
+      }
+
       script.dataset.loadState = 'loaded'
       resolve()
     }
@@ -117,11 +146,17 @@ export async function loadGoogleMaps(apiKey: string): Promise<typeof window.goog
   }
 
   await injectGoogleMapsScript(apiKey)
+
+  if (googleMapsAuthFailed) {
+    throw buildGoogleMapsAuthError()
+  }
+
   return resolveGoogleNamespace()
 }
 
 declare global {
   interface Window {
+    gm_authFailure?: () => void
     google?: {
       maps?: any
     }

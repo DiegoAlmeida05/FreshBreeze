@@ -350,6 +350,23 @@
             <span v-if="!isDesktopCollapsed">Invoices</span>
           </NuxtLink>
 
+          <NuxtLink
+            to="/admin/billing"
+            :title="isDesktopCollapsed ? 'Billing' : undefined"
+            class="flex items-center gap-3 rounded-xl border border-transparent px-3 py-2 text-sm font-medium transition"
+            active-class="border-primary-300/60 bg-gradient-to-r from-primary-500/15 to-primary-warm-500/10 text-primary-700 shadow-sm shadow-primary-500/10"
+            :class="[
+              isDesktopCollapsed ? 'justify-center px-0' : '',
+              route.path === '/admin/billing' ? '' : 'text-muted hover:border-primary-200/70 hover:bg-primary-500/10 hover:text-foreground',
+            ]"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="1" y="4" width="22" height="16" rx="2" ry="2" />
+              <line x1="1" y1="10" x2="23" y2="10" />
+            </svg>
+            <span v-if="!isDesktopCollapsed">Billing</span>
+          </NuxtLink>
+
         </slot>
       </nav>
 
@@ -428,6 +445,9 @@
             <div class="min-w-0">
               <p class="text-xs font-medium uppercase tracking-[0.2em] text-muted">Welcome</p>
               <h1 class="truncate text-base font-semibold text-foreground">{{ fullName || greetingName }}! 😎 🚀</h1>
+              <p v-if="appUpdatedLabel" class="mt-0.5 truncate text-[10px] font-medium tracking-tight text-muted/80">
+                Updated {{ appUpdatedLabel }}
+              </p>
             </div>
           </div>
 
@@ -436,9 +456,6 @@
             <slot name="topbar-actions" />
           </div>
 
-          <p v-if="appUpdatedLabel" class="pointer-events-none absolute bottom-0.5 right-4 text-[9px] font-medium tracking-tight text-muted/70 sm:right-5 lg:right-6">
-            Updated {{ appUpdatedLabel }}
-          </p>
         </div>
       </header>
 

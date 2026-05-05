@@ -201,14 +201,13 @@
 </template>
 
 <script setup lang="ts">
-import { computed, nextTick, onMounted, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { onBeforeRouteLeave } from 'vue-router'
 import BaseFeedbackBanner from '../../components/ui/BaseFeedbackBanner.vue'
 import WorkerWeekNavigator from '../../components/features/worker/WorkerWeekNavigator.vue'
 import { useAuth } from '../../composables/useAuth'
 import { useWorkerProfileSettings } from '../../composables/useWorkerProfileSettings'
 import { useWorkerTimesheet } from '../../composables/useWorkerTimesheet'
-import { useFormPersistence } from '../../composables/useFormPersistence'
 import type { WorkerTimesheetDay, WorkerTimesheetSummary } from '../../composables/useWorkerTimesheet'
 import type { WorkerProfileSettings } from '../../composables/useWorkerProfileSettings'
 
@@ -233,10 +232,25 @@ interface WeekDayItem {
 
 type ExtraSectionsByDate = Record<string, boolean>
 
-const { signOut } = useAuth()
+interface WorkerTimesheetDraftEntry {
+  date: string
+  start_time: string
+  end_time: string
+  extra_start_time: string
+  extra_end_time: string
+  extra2_minutes: number
+  note: string
+}
+
+interface WorkerTimesheetDraftPayload {
+  selectedDate: string
+  entries: WorkerTimesheetDraftEntry[]
+  extraSectionsByDate: ExtraSectionsByDate
+}
+
+const { signOut, getCurrentUser } = useAuth()
 const { getSettings } = useWorkerProfileSettings()
 const { getWeekTimesheet, saveDayEntry } = useWorkerTimesheet()
-const { saveFormState, restoreFormState, clearFormState } = useFormPersistence()
 
 const persistedWorkerTimesheetPageState = useState<PersistedWorkerTimesheetPageState>('worker-timesheet-page-state', () => ({
   selectedDate: todayIsoDate(),
@@ -258,6 +272,9 @@ const feedbackTone = ref<FeedbackTone>('info')
 const feedbackTitle = ref('')
 const feedbackMessage = ref('')
 const isSaving = ref(false)
+const draftOwnerProfileId = ref<string>('')
+const isApplyingDraft = ref(false)
+let draftSaveTimeout: ReturnType<typeof setTimeout> | null = null
 
 const weekRangeLabel = computed(() => {
   const start = getStartOfWeek(parseIsoDate(selectedDate.value))
@@ -308,19 +325,14 @@ const selectedDay = computed<WorkerTimesheetDay | null>(() => {
 })
 
 onMounted(async () => {
-  await loadWeek()
-
-  // Tenta restaurar dados salvos em sessionStorage para este week
-  const savedData = restoreFormState<{
-    days: WorkerTimesheetDay[]
-    extraSectionsByDate: ExtraSectionsByDate
-  }>(`timesheet-week-${selectedDate.value}`)
-  
-  if (savedData?.days && savedData.days.length > 0) {
-    // Se há dados salvos, restaura (podem estar em edição)
-    days.value = savedData.days
-    extraSectionsByDate.value = savedData.extraSectionsByDate
+  try {
+    const currentUser = await getCurrentUser()
+    draftOwnerProfileId.value = currentUser.id
+  } catch {
+    draftOwnerProfileId.value = ''
   }
+
+  await loadWeek()
 
   if (import.meta.client) {
     await nextTick()
@@ -338,16 +350,159 @@ watch(selectedDate, () => {
   void loadWeek()
 })
 
-// Persiste os dias em sessionStorage sempre que mudarem (para recuperar se houver crash/background)
+function getDraftStorageKey(dateIso = selectedDate.value): string {
+  const weekStart = formatDateForInput(getStartOfWeek(parseIsoDate(dateIso)))
+  return `worker-timesheet-draft:${draftOwnerProfileId.value}:${weekStart}`
+}
+
+function buildDraftPayload(): WorkerTimesheetDraftPayload {
+  return {
+    selectedDate: selectedDate.value,
+    entries: days.value.map((day) => ({
+      date: day.date,
+      start_time: day.start_time || '',
+      end_time: day.end_time || '',
+      extra_start_time: day.extra_start_time || '',
+      extra_end_time: day.extra_end_time || '',
+      extra2_minutes: Number.isFinite(day.extra2_minutes) ? Math.max(0, Math.round(day.extra2_minutes)) : 0,
+      note: day.note || '',
+    })),
+    extraSectionsByDate: { ...extraSectionsByDate.value },
+  }
+}
+
+function scheduleDraftSave(): void {
+  if (!import.meta.client || !draftOwnerProfileId.value || isApplyingDraft.value || days.value.length === 0) {
+    return
+  }
+
+  if (draftSaveTimeout) {
+    clearTimeout(draftSaveTimeout)
+  }
+
+  draftSaveTimeout = setTimeout(() => {
+    try {
+      const storageKey = getDraftStorageKey()
+      localStorage.setItem(storageKey, JSON.stringify(buildDraftPayload()))
+    } catch {
+      // Ignore storage errors to keep the page functional.
+    }
+    draftSaveTimeout = null
+  }, 450)
+}
+
+function restoreWeekDraft(): number {
+  if (!import.meta.client || !draftOwnerProfileId.value || days.value.length === 0) {
+    return 0
+  }
+
+  const storageKey = getDraftStorageKey()
+  const rawDraft = localStorage.getItem(storageKey)
+
+  if (!rawDraft) {
+    return 0
+  }
+
+  try {
+    const parsed = JSON.parse(rawDraft) as WorkerTimesheetDraftPayload
+    if (!parsed || !Array.isArray(parsed.entries)) {
+      return 0
+    }
+
+    const entriesByDate = new Map(parsed.entries.map((entry) => [entry.date, entry]))
+    let restoredCount = 0
+
+    isApplyingDraft.value = true
+
+    for (const day of days.value) {
+      const draftEntry = entriesByDate.get(day.date)
+      if (!draftEntry) {
+        continue
+      }
+
+      day.start_time = draftEntry.start_time || ''
+      day.end_time = draftEntry.end_time || ''
+      day.extra_start_time = draftEntry.extra_start_time || ''
+      day.extra_end_time = draftEntry.extra_end_time || ''
+      day.extra2_minutes = Number.isFinite(draftEntry.extra2_minutes) ? Math.max(0, Math.round(draftEntry.extra2_minutes)) : 0
+      day.note = draftEntry.note || ''
+
+      if (parsed.extraSectionsByDate && typeof parsed.extraSectionsByDate[day.date] === 'boolean') {
+        extraSectionsByDate.value[day.date] = parsed.extraSectionsByDate[day.date] as boolean
+      }
+
+      recomputeDay(day)
+      restoredCount += 1
+    }
+
+    if (restoredCount > 0 && parsed.selectedDate) {
+      selectedDate.value = parsed.selectedDate
+    }
+
+    isApplyingDraft.value = false
+    return restoredCount
+  } catch {
+    return 0
+  }
+}
+
+function clearWeekDraft(): void {
+  if (!import.meta.client || !draftOwnerProfileId.value) {
+    return
+  }
+
+  localStorage.removeItem(getDraftStorageKey())
+}
+
+function clearDraftEntryForDay(dayDate: string): void {
+  if (!import.meta.client || !draftOwnerProfileId.value) {
+    return
+  }
+
+  const storageKey = getDraftStorageKey()
+  const rawDraft = localStorage.getItem(storageKey)
+  if (!rawDraft) {
+    return
+  }
+
+  try {
+    const parsed = JSON.parse(rawDraft) as WorkerTimesheetDraftPayload
+    if (!parsed || !Array.isArray(parsed.entries)) {
+      clearWeekDraft()
+      return
+    }
+
+    const nextEntries = parsed.entries.filter((entry) => entry.date !== dayDate)
+    const nextSections = { ...(parsed.extraSectionsByDate || {}) }
+    delete nextSections[dayDate]
+
+    if (nextEntries.length === 0) {
+      clearWeekDraft()
+      return
+    }
+
+    localStorage.setItem(storageKey, JSON.stringify({
+      selectedDate: parsed.selectedDate || selectedDate.value,
+      entries: nextEntries,
+      extraSectionsByDate: nextSections,
+    } satisfies WorkerTimesheetDraftPayload))
+  } catch {
+    clearWeekDraft()
+  }
+}
+
 watch(
   () => days.value,
-  (newDays) => {
-    if (newDays.length > 0) {
-      saveFormState(`timesheet-week-${selectedDate.value}`, {
-        days: newDays,
-        extraSectionsByDate: extraSectionsByDate.value,
-      })
-    }
+  () => {
+    scheduleDraftSave()
+  },
+  { deep: true },
+)
+
+watch(
+  () => extraSectionsByDate.value,
+  () => {
+    scheduleDraftSave()
   },
   { deep: true },
 )
@@ -359,14 +514,7 @@ onBeforeRouteLeave(() => {
 
   persistedWorkerTimesheetPageState.value.selectedDate = selectedDate.value
   persistedWorkerTimesheetPageState.value.scrollY = window.scrollY
-  
-  // Salva dados em sessionStorage antes de sair
-  if (days.value.length > 0) {
-    saveFormState(`timesheet-week-${selectedDate.value}`, {
-      days: days.value,
-      extraSectionsByDate: extraSectionsByDate.value,
-    })
-  }
+  scheduleDraftSave()
 })
 
 async function loadWeek(): Promise<void> {
@@ -385,6 +533,11 @@ async function loadWeek(): Promise<void> {
 
     for (const day of days.value) {
       recomputeDay(day)
+    }
+
+    const restoredCount = restoreWeekDraft()
+    if (restoredCount > 0) {
+      setFeedback('info', 'Draft restored', 'Draft restored')
     }
   } catch (error: unknown) {
     setFeedback('error', 'Timesheet unavailable', error instanceof Error ? error.message : 'Failed to load timesheet data.')
@@ -515,6 +668,7 @@ async function saveDay(day: WorkerTimesheetDay): Promise<void> {
     recomputeDay(day)
     await saveDayEntry(day)
     day.saved_at = new Date().toISOString()
+    clearDraftEntryForDay(day.date)
     setFeedback('success', 'Day saved', `${formatDayLabel(day.date)} updated successfully.`)
   } catch (error: unknown) {
     setFeedback('error', 'Save failed', error instanceof Error ? error.message : 'Unable to save day entry.')
@@ -645,4 +799,11 @@ async function onSignOut(): Promise<void> {
   await signOut()
   await navigateTo('/login')
 }
+
+onBeforeUnmount(() => {
+  if (draftSaveTimeout) {
+    clearTimeout(draftSaveTimeout)
+    draftSaveTimeout = null
+  }
+})
 </script>
