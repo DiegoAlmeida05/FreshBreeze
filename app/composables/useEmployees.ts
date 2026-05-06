@@ -9,11 +9,16 @@ function normalizeRole(value: unknown): 'admin' | 'worker' {
   return value === 'admin' ? 'admin' : 'worker'
 }
 
-function toEmployeeDTO(row: Record<string, unknown>, role: 'admin' | 'worker' = 'worker'): EmployeeDTO {
+function toEmployeeDTO(
+  row: Record<string, unknown>,
+  role: 'admin' | 'worker' = 'worker',
+  isPlatformOwner = false,
+): EmployeeDTO {
   return {
     id: String(row.id),
     profile_id: (row.profile_id ?? null) as string | null,
     role,
+    is_platform_owner: isPlatformOwner,
     full_name: String(row.full_name ?? ''),
     email: (row.email ?? null) as string | null,
     phone: (row.phone ?? null) as string | null,
@@ -32,11 +37,15 @@ function toEmployeeDTO(row: Record<string, unknown>, role: 'admin' | 'worker' = 
 export function useEmployees() {
   const supabase = useSupabaseClient()
 
-  async function loadRoleMap(profileIds: string[]): Promise<Map<string, 'admin' | 'worker'>> {
+  async function loadRoleMap(profileIds: string[]): Promise<{
+    roleMap: Map<string, 'admin' | 'worker'>
+    ownerMap: Map<string, boolean>
+  }> {
     const roleMap = new Map<string, 'admin' | 'worker'>()
+    const ownerMap = new Map<string, boolean>()
 
     if (profileIds.length === 0) {
-      return roleMap
+      return { roleMap, ownerMap }
     }
 
     const {
@@ -69,14 +78,22 @@ export function useEmployees() {
       throw new Error(message)
     }
 
-    const payload = await response.json() as { roles?: Record<string, UserRole> }
+    const payload = await response.json() as {
+      roles?: Record<string, UserRole>
+      owners?: Record<string, boolean>
+    }
     const roles = payload.roles ?? {}
+    const owners = payload.owners ?? {}
 
     for (const [id, role] of Object.entries(roles)) {
       roleMap.set(id, normalizeRole(role))
     }
 
-    return roleMap
+    for (const [id, isOwner] of Object.entries(owners)) {
+      ownerMap.set(id, Boolean(isOwner))
+    }
+
+    return { roleMap, ownerMap }
   }
 
   async function getEmployees(): Promise<EmployeeDTO[]> {
@@ -94,11 +111,16 @@ export function useEmployees() {
       .map((row) => row.profile_id)
       .filter((value): value is string => typeof value === 'string' && value.trim().length > 0)
 
-    const roleMap = await loadRoleMap(profileIds)
+    const { roleMap, ownerMap } = await loadRoleMap(profileIds)
 
     return employeeRows.map((row) => {
       const profileId = typeof row.profile_id === 'string' ? row.profile_id : null
-      return toEmployeeDTO(row, profileId ? (roleMap.get(profileId) ?? 'worker') : 'worker')
+
+      if (!profileId) {
+        return toEmployeeDTO(row, 'worker', false)
+      }
+
+      return toEmployeeDTO(row, roleMap.get(profileId) ?? 'worker', ownerMap.get(profileId) ?? false)
     })
   }
 
@@ -121,11 +143,11 @@ export function useEmployees() {
     const profileId = typeof employeeRow.profile_id === 'string' ? employeeRow.profile_id : null
 
     if (!profileId) {
-      return toEmployeeDTO(employeeRow, 'worker')
+      return toEmployeeDTO(employeeRow, 'worker', false)
     }
 
-    const roleMap = await loadRoleMap([profileId])
-    return toEmployeeDTO(employeeRow, roleMap.get(profileId) ?? 'worker')
+    const { roleMap, ownerMap } = await loadRoleMap([profileId])
+    return toEmployeeDTO(employeeRow, roleMap.get(profileId) ?? 'worker', ownerMap.get(profileId) ?? false)
   }
 
   async function createEmployee(payload: CreateEmployeeDTO): Promise<EmployeeDTO> {
@@ -139,7 +161,7 @@ export function useEmployees() {
       throw new Error(error?.message ?? 'Failed to create employee.')
     }
 
-    return toEmployeeDTO(data as Record<string, unknown>, 'worker')
+    return toEmployeeDTO(data as Record<string, unknown>, 'worker', false)
   }
 
   async function updateEmployee(id: string, payload: UpdateEmployeeDTO): Promise<EmployeeDTO> {
@@ -158,11 +180,11 @@ export function useEmployees() {
     const profileId = typeof employeeRow.profile_id === 'string' ? employeeRow.profile_id : null
 
     if (!profileId) {
-      return toEmployeeDTO(employeeRow, 'worker')
+      return toEmployeeDTO(employeeRow, 'worker', false)
     }
 
-    const roleMap = await loadRoleMap([profileId])
-    return toEmployeeDTO(employeeRow, roleMap.get(profileId) ?? 'worker')
+    const { roleMap, ownerMap } = await loadRoleMap([profileId])
+    return toEmployeeDTO(employeeRow, roleMap.get(profileId) ?? 'worker', ownerMap.get(profileId) ?? false)
   }
 
   async function deleteEmployee(id: string): Promise<void> {

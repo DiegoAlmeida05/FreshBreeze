@@ -1,5 +1,6 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 import { createError, defineEventHandler, getHeader, type H3Event } from 'h3'
+import { isPlatformOwnerEmail, normalizeEmail } from '../../utils/platformOwner'
 
 type UserRole = 'admin' | 'worker'
 
@@ -32,24 +33,6 @@ interface AppSubscriptionRow {
 type AccessReason = 'active_subscription' | 'trial_active' | 'manual_with_expiry' | 'manual_without_expiry' | 'inactive'
 
 const APP_KEY = 'freshbreeze'
-
-function normalizeEmail(value: string | null | undefined): string | null {
-  if (typeof value !== 'string') {
-    return null
-  }
-
-  const normalized = value.trim().toLowerCase()
-  return normalized.length > 0 ? normalized : null
-}
-
-function parseOwnerEmails(rawValue: string): Set<string> {
-  return new Set(
-    rawValue
-      .split(',')
-      .map((email) => normalizeEmail(email))
-      .filter((email): email is string => Boolean(email)),
-  )
-}
 
 function resolveAccess(subscription: AppSubscriptionRow, now: Date): { enabled: boolean, reason: AccessReason } {
   if (subscription.status === 'active') {
@@ -129,19 +112,13 @@ export default defineEventHandler(async (event) => {
   const adminClient = createClient(supabaseUrl, supabaseServiceRoleKey)
   const requester = await requireAdminUser(event, adminClient)
 
-  const runtimeOwnerEmails = typeof config.platformOwnerEmails === 'string' ? config.platformOwnerEmails : ''
-  const rawOwnerEmails = runtimeOwnerEmails.trim().length > 0
-    ? runtimeOwnerEmails
-    : (process.env.PLATFORM_OWNER_EMAILS ?? '')
-  const ownerEmails = parseOwnerEmails(rawOwnerEmails)
-
   const normalizedRequesterEmail =
     normalizeEmail(requester.userEmail) ||
     normalizeEmail(requester.email) ||
     normalizeEmail(requester.profileEmail) ||
     ''
 
-  const isPlatformOwner = normalizedRequesterEmail.length > 0 && ownerEmails.has(normalizedRequesterEmail)
+  const isPlatformOwner = isPlatformOwnerEmail(normalizedRequesterEmail)
 
   const { data: subscription, error } = await adminClient
     .schema('public')
@@ -158,7 +135,9 @@ export default defineEventHandler(async (event) => {
   }
 
   const now = new Date()
-  const access = resolveAccess(subscription, now)
+  const access = isPlatformOwner
+    ? { enabled: true, reason: 'active_subscription' as AccessReason }
+    : resolveAccess(subscription, now)
 
   return {
     subscription,

@@ -1,4 +1,4 @@
-import { defineNuxtRouteMiddleware, navigateTo, useState } from '#app'
+import { defineNuxtRouteMiddleware, navigateTo } from '#app'
 import { useAuthBootstrap } from '../composables/useAuthBootstrap'
 import { useSupabaseClient } from '../composables/useSupabaseClient'
 
@@ -7,9 +7,8 @@ interface BillingAccessResponse {
     enabled: boolean
     checkedAt: string
   }
+  isPlatformOwner?: boolean
 }
-
-const ACCESS_CACHE_MS = 5 * 60_000
 
 function isRouteAllowedWithoutAccess(path: string): boolean {
   return path === '/login' || path === '/admin/billing' || path === '/blocked'
@@ -28,20 +27,6 @@ export default defineNuxtRouteMiddleware(async (to) => {
 
   if (!isProtectedAppRoute) {
     return
-  }
-
-  const cachedAccessEnabled = useState<boolean | null>('billing-access-enabled', () => null)
-  const cachedAccessCheckedAt = useState<number>('billing-access-checked-at', () => 0)
-  const now = Date.now()
-
-  if (now - cachedAccessCheckedAt.value < ACCESS_CACHE_MS) {
-    if (cachedAccessEnabled.value === false) {
-      return navigateTo('/blocked', { replace: true })
-    }
-
-    if (cachedAccessEnabled.value === true) {
-      return
-    }
   }
 
   const { waitForAuthBootstrap } = useAuthBootstrap()
@@ -63,10 +48,11 @@ export default defineNuxtRouteMiddleware(async (to) => {
       },
     })
 
-    cachedAccessEnabled.value = billing.access.enabled
-    cachedAccessCheckedAt.value = now
+    if (billing.isPlatformOwner === true) {
+      return
+    }
 
-    if (!billing.access.enabled) {
+    if (!billing.access.enabled && billing.isPlatformOwner !== true) {
       return navigateTo('/blocked', { replace: true })
     }
   }

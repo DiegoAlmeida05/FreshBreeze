@@ -31,6 +31,12 @@
               <div class="min-w-0 flex-1">
                 <p class="truncate text-sm font-semibold text-foreground">{{ employee.full_name }}</p>
                 <p class="mt-0.5 truncate text-xs text-muted/90">{{ employee.email || 'No email' }}</p>
+                <span
+                  v-if="isPlatformOwner(employee)"
+                  class="mt-1 inline-flex rounded-full bg-primary-100 px-2 py-0.5 text-[11px] font-semibold text-primary-700 dark:bg-primary-500/20 dark:text-primary-300"
+                >
+                  Owner 👑
+                </span>
 
                 <div class="mt-1.5 grid grid-cols-1 gap-1 text-xs text-muted">
                   <span class="rounded-md bg-primary-50/60 px-2 py-1 dark:bg-white/5">
@@ -48,7 +54,7 @@
               type="button"
               class="inline-flex items-center rounded-full p-0.5 transition focus:outline-none focus:ring-2 focus:ring-primary-500/30"
               :class="employee.active ? 'bg-success/25' : 'bg-slate-300/80 dark:bg-slate-600/70'"
-              :disabled="isToggling(employee.id)"
+              :disabled="isToggling(employee.id) || isPlatformOwner(employee)"
               :title="employee.active ? 'Deactivate employee' : 'Activate employee'"
               :aria-label="employee.active ? 'Deactivate employee' : 'Activate employee'"
               @click="emit('toggle-active', employee)"
@@ -67,6 +73,7 @@
 
           <div class="flex items-center justify-end gap-2 pt-1">
             <button
+              v-if="!isPlatformOwner(employee)"
               type="button"
               class="btn-outline min-w-[92px] !px-3 !py-1.5 text-xs"
               title="Edit employee"
@@ -76,7 +83,7 @@
               Edit
             </button>
             <button
-              v-if="canDeleteUsers"
+              v-if="canDeleteUsers && !isPlatformOwner(employee)"
               type="button"
               class="btn-outline inline-flex h-9 w-9 items-center justify-center !px-0 !py-0 text-error-600 dark:text-error-400"
               title="Delete user"
@@ -117,6 +124,12 @@
                   {{ getInitials(employee.full_name) }}
                 </div>
                 <p class="text-sm font-semibold text-foreground">{{ employee.full_name }}</p>
+                <span
+                  v-if="isPlatformOwner(employee)"
+                  class="inline-flex rounded-full bg-primary-100 px-2 py-0.5 text-[11px] font-semibold text-primary-700 dark:bg-primary-500/20 dark:text-primary-300"
+                >
+                  Owner 👑
+                </span>
               </div>
             </td>
             <td class="text-sm text-muted/90">{{ employee.email || '-' }}</td>
@@ -129,7 +142,7 @@
                 type="button"
                 class="inline-flex items-center rounded-full p-0.5 transition focus:outline-none focus:ring-2 focus:ring-primary-500/30"
                 :class="employee.active ? 'bg-success/25' : 'bg-slate-300/80 dark:bg-slate-600/70'"
-                :disabled="isToggling(employee.id)"
+                :disabled="isToggling(employee.id) || isPlatformOwner(employee)"
                 :title="employee.active ? 'Deactivate employee' : 'Activate employee'"
                 :aria-label="employee.active ? 'Deactivate employee' : 'Activate employee'"
                 @click="emit('toggle-active', employee)"
@@ -148,6 +161,7 @@
             <td>
               <div class="inline-flex items-center gap-1 rounded-lg border border-border/80 px-1 py-1">
                 <button
+                  v-if="!isPlatformOwner(employee)"
                   type="button"
                   class="inline-flex h-9 w-9 items-center justify-center rounded-lg text-primary-600 transition hover:bg-primary-100/60 focus:outline-none focus:ring-2 focus:ring-primary-500/30 dark:text-primary-400 dark:hover:bg-white/10"
                   title="Edit employee"
@@ -160,7 +174,7 @@
                   </svg>
                 </button>
                 <button
-                  v-if="canDeleteUsers"
+                  v-if="canDeleteUsers && !isPlatformOwner(employee)"
                   type="button"
                   class="inline-flex h-9 w-9 items-center justify-center rounded-lg text-error-600 transition hover:bg-error-100/60 focus:outline-none focus:ring-2 focus:ring-error-500/30 dark:text-error-400 dark:hover:bg-error-500/10"
                   title="Delete user"
@@ -254,6 +268,10 @@ function formatRate(value: number): string {
 
 function isToggling(employeeId: string): boolean {
   return props.togglingActiveIds?.includes(employeeId) ?? false
+}
+
+function isPlatformOwner(employee: EmployeeDTO): boolean {
+  return employee.is_platform_owner === true
 }
 
 function clearFeedback(): void {

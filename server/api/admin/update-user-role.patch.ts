@@ -1,5 +1,6 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 import { createError, defineEventHandler, getHeader, readBody } from 'h3'
+import { isPlatformOwnerEmail } from '../../utils/platformOwner'
 
 type UserRole = 'admin' | 'worker'
 
@@ -77,6 +78,32 @@ export default defineEventHandler(async (event) => {
   }
 
   const { userId, role } = parseBody(await readBody(event))
+
+  const { data: targetProfile, error: targetProfileError } = await adminClient
+    .from('profiles')
+    .select('email')
+    .eq('id', userId)
+    .maybeSingle<{ email: string | null }>()
+
+  if (targetProfileError) {
+    throw createError({ statusCode: 500, statusMessage: targetProfileError.message })
+  }
+
+  let targetEmail = targetProfile?.email ?? null
+
+  if (!targetEmail) {
+    const { data: targetAuthUserData, error: targetAuthUserError } = await adminClient.auth.admin.getUserById(userId)
+
+    if (targetAuthUserError) {
+      throw createError({ statusCode: 500, statusMessage: targetAuthUserError.message })
+    }
+
+    targetEmail = targetAuthUserData.user?.email ?? null
+  }
+
+  if (isPlatformOwnerEmail(targetEmail)) {
+    throw createError({ statusCode: 403, statusMessage: 'Cannot modify platform owner' })
+  }
 
   if (requesterData.user.id === userId && role !== 'admin') {
     throw createError({

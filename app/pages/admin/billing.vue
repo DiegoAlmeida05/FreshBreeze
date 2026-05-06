@@ -20,6 +20,13 @@
         <p class="mt-0.5 text-xs opacity-90">{{ accessSubtitle }}</p>
       </div>
 
+      <div
+        v-if="billingData?.isPlatformOwner === true"
+        class="rounded-xl border border-primary-100 bg-primary-50/60 px-4 py-3 text-xs text-muted dark:border-white/10 dark:bg-white/[0.03]"
+      >
+        Owner mode enabled. Advanced billing controls are visible.
+      </div>
+
       <!-- Success banner -->
       <div
         v-if="checkoutResult === 'success'"
@@ -103,9 +110,9 @@
           <h3 class="text-base font-semibold text-foreground">App Subscription</h3>
           <span
             class="inline-flex rounded-full px-2.5 py-1 text-xs font-semibold"
-            :class="access?.enabled ? 'bg-success/15 text-success' : 'bg-danger/15 text-danger'"
+            :class="isSubscriptionActive ? 'bg-success/15 text-success' : 'bg-muted/20 text-muted-foreground dark:bg-white/10 dark:text-slate-300'"
           >
-            {{ access?.enabled ? 'Access enabled' : 'Access disabled' }}
+            {{ isSubscriptionActive ? 'Active' : 'Inactive' }}
           </span>
         </div>
 
@@ -129,29 +136,53 @@
             </span>
           </div>
           <div class="flex items-center justify-between px-6 py-4">
-            <span class="text-sm text-muted">Currency</span>
-            <span class="text-sm font-medium text-foreground uppercase">{{ subscription.currency }}</span>
-          </div>
-          <div class="flex items-center justify-between px-6 py-4">
             <span class="text-sm text-muted">Subscription status</span>
-            <span class="text-sm font-medium text-foreground uppercase">{{ subscription.status }}</span>
+            <span
+              class="inline-flex rounded-full px-2.5 py-1 text-xs font-semibold"
+              :class="isSubscriptionActive ? 'bg-success/15 text-success' : 'bg-muted/20 text-muted-foreground dark:bg-white/10 dark:text-slate-300'"
+            >
+              {{ isSubscriptionActive ? 'Active' : 'Inactive' }}
+            </span>
           </div>
           <div class="flex items-center justify-between px-6 py-4">
-            <span class="text-sm text-muted">Trial ends</span>
-            <span class="text-sm font-medium text-foreground">{{ formatDateTime(subscription.trial_ends_at) }}</span>
+            <span class="text-sm text-muted">Next billing date</span>
+            <span class="text-sm font-medium text-foreground">{{ formatDate(subscription.current_period_end ?? null) }}</span>
           </div>
-          <div class="flex items-center justify-between px-6 py-4">
-            <span class="text-sm text-muted">Manual access</span>
-            <span class="text-sm font-medium text-foreground">{{ subscription.manual_access_enabled ? 'Enabled' : 'Disabled' }}</span>
-          </div>
-          <div class="flex items-center justify-between px-6 py-4">
-            <span class="text-sm text-muted">Manual access until</span>
-            <span class="text-sm font-medium text-foreground">{{ formatDateTime(subscription.manual_access_until) }}</span>
-          </div>
-          <div class="flex items-center justify-between gap-4 px-6 py-4">
-            <span class="text-sm text-muted">Manual access reason</span>
-            <span class="text-right text-sm font-medium text-foreground">{{ subscription.manual_access_reason || 'N/A' }}</span>
-          </div>
+
+          <template v-if="billingData?.isPlatformOwner === true">
+            <div class="flex items-center justify-between px-6 py-4">
+              <span class="text-sm text-muted">Manual access</span>
+              <span class="text-sm font-medium text-foreground">{{ subscription.manual_access_enabled ? 'Enabled' : 'Disabled' }}</span>
+            </div>
+            <div class="flex items-center justify-between px-6 py-4">
+              <span class="text-sm text-muted">Manual access until</span>
+              <span class="text-sm font-medium text-foreground">{{ formatDateTime(subscription.manual_access_until) }}</span>
+            </div>
+            <div class="flex items-center justify-between gap-4 px-6 py-4">
+              <span class="text-sm text-muted">Manual access reason</span>
+              <span class="text-right text-sm font-medium text-foreground">{{ subscription.manual_access_reason || 'N/A' }}</span>
+            </div>
+            <div class="flex items-center justify-between px-6 py-4">
+              <span class="text-sm text-muted">Trial ends</span>
+              <span class="text-sm font-medium text-foreground">{{ formatDateTime(subscription.trial_ends_at) }}</span>
+            </div>
+            <div class="flex items-center justify-between gap-4 px-6 py-4">
+              <span class="text-sm text-muted">Stripe customer ID</span>
+              <span class="text-right text-sm font-medium text-foreground">{{ subscription.stripe_customer_id || 'N/A' }}</span>
+            </div>
+            <div class="flex items-center justify-between px-6 py-4">
+              <span class="text-sm text-muted">App key</span>
+              <span class="text-sm font-medium text-foreground">{{ subscription.app_key }}</span>
+            </div>
+            <div class="flex items-center justify-between px-6 py-4">
+              <span class="text-sm text-muted">Access reason</span>
+              <span class="text-sm font-medium text-foreground">{{ access?.reason || 'N/A' }}</span>
+            </div>
+            <div class="flex items-center justify-between px-6 py-4">
+              <span class="text-sm text-muted">Checked at</span>
+              <span class="text-sm font-medium text-foreground">{{ formatDateTime(access?.checkedAt || null) }}</span>
+            </div>
+          </template>
         </div>
 
         <div class="flex items-center justify-end gap-3 border-t border-border px-6 py-4">
@@ -170,7 +201,7 @@
             <span v-else>Manage billing</span>
           </button>
           <button
-            v-if="!access?.enabled"
+            v-if="shouldShowSubscribeButton"
             type="button"
             class="btn-primary"
             :disabled="isRedirecting"
@@ -184,7 +215,7 @@
             </span>
             <span v-else>Subscribe</span>
           </button>
-          <span v-else class="text-sm font-medium text-success">✓ App access is currently enabled</span>
+          <span v-else class="text-sm font-medium text-success">Active subscription connected</span>
         </div>
       </div>
 
@@ -273,6 +304,7 @@ interface AppSubscription {
   monthly_amount: number
   currency: string
   stripe_customer_id: string | null
+  current_period_end?: string | null
   trial_ends_at: string | null
   manual_access_enabled: boolean
   manual_access_until: string | null
@@ -310,7 +342,14 @@ const manualAccessReason = ref('')
 
 const subscription = computed(() => billingData.value?.subscription ?? null)
 const access = computed(() => billingData.value?.access ?? null)
+const isSubscriptionActive = computed(() => (subscription.value?.status ?? '').toLowerCase() === 'active')
 const canManageBilling = computed(() => Boolean(subscription.value?.stripe_customer_id))
+const shouldShowSubscribeButton = computed(() => {
+  const subscriptionStatus = (subscription.value?.status ?? '').toLowerCase()
+  const hasStripeCustomer = Boolean(subscription.value?.stripe_customer_id)
+
+  return subscriptionStatus !== 'active' || !hasStripeCustomer
+})
 const accessSubtitle = computed(() => {
   if (!billingData.value || !subscription.value || !access.value) {
     return ''
@@ -350,7 +389,27 @@ function formatAmount(amount: number, currency: string): string {
   return new Intl.NumberFormat('en-AU', {
     style: 'currency',
     currency: currency.toUpperCase(),
-  }).format(amount)
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 2,
+  }).format(amount) + '/month'
+}
+
+function formatDate(value: string | null): string {
+  if (!value) {
+    return 'N/A'
+  }
+
+  const date = new Date(value)
+
+  if (Number.isNaN(date.getTime())) {
+    return 'N/A'
+  }
+
+  return date.toLocaleDateString('en-GB', {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+  })
 }
 
 function formatDateTime(value: string | null): string {

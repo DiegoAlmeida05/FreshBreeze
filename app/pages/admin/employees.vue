@@ -259,6 +259,11 @@ async function openEditForm(employee: EmployeeDTO): Promise<void> {
   pageError.value = ''
   pageSuccess.value = ''
 
+  if (employee.is_platform_owner) {
+    pageError.value = 'Platform owner cannot be modified.'
+    return
+  }
+
   try {
     const loaded = await getEmployeeById(employee.id)
 
@@ -310,6 +315,10 @@ async function onSubmitForm(payload: EmployeeFormPayload | CreateEmployeeFormPay
       const nextRole = editPayload.role
       const userId = selectedEmployee.value?.profile_id
 
+      if (selectedEmployee.value?.is_platform_owner) {
+        throw new Error('Platform owner cannot be modified.')
+      }
+
       if (nextRole !== previousRole) {
         if (!userId) {
           throw new Error('Cannot update role for this user because profile_id is missing.')
@@ -360,6 +369,11 @@ function onTableError(message: string): void {
 }
 
 async function onToggleEmployeeActive(employee: EmployeeDTO): Promise<void> {
+  if (employee.is_platform_owner) {
+    pageError.value = 'Platform owner cannot be modified.'
+    return
+  }
+
   const nextActive = !employee.active
 
   togglingActiveIds.value = [...togglingActiveIds.value, employee.id]

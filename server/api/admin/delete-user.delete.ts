@@ -5,6 +5,7 @@ import {
   getHeader,
   readBody,
 } from 'h3'
+import { isPlatformOwnerEmail } from '../../utils/platformOwner'
 
 interface DeleteUserBody {
   userId: string
@@ -71,6 +72,32 @@ export default defineEventHandler(async (event) => {
   }
 
   const { userId } = parseBody(await readBody(event))
+
+  const { data: targetProfile, error: targetProfileError } = await adminClient
+    .from('profiles')
+    .select('email')
+    .eq('id', userId)
+    .maybeSingle<{ email: string | null }>()
+
+  if (targetProfileError) {
+    throw createError({ statusCode: 500, statusMessage: targetProfileError.message })
+  }
+
+  let targetEmail = targetProfile?.email ?? null
+
+  if (!targetEmail) {
+    const { data: targetAuthUserData, error: targetAuthUserError } = await adminClient.auth.admin.getUserById(userId)
+
+    if (targetAuthUserError) {
+      throw createError({ statusCode: 500, statusMessage: targetAuthUserError.message })
+    }
+
+    targetEmail = targetAuthUserData.user?.email ?? null
+  }
+
+  if (isPlatformOwnerEmail(targetEmail)) {
+    throw createError({ statusCode: 403, statusMessage: 'Cannot delete platform owner' })
+  }
 
   const { error: deleteEmployeesError } = await adminClient
     .from('employees')

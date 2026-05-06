@@ -1,5 +1,6 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 import { createError, defineEventHandler, getHeader, readBody } from 'h3'
+import { isPlatformOwnerEmail } from '../../utils/platformOwner'
 
 type UserRole = 'admin' | 'worker'
 
@@ -16,6 +17,7 @@ interface AuthProfile {
 interface RoleRow {
   id: string
   role: UserRole
+  email: string | null
 }
 
 function parseBody(body: unknown): ProfilesRolesBody {
@@ -80,12 +82,13 @@ export default defineEventHandler(async (event) => {
   if (profileIds.length === 0) {
     return {
       roles: {} as Record<string, UserRole>,
+      owners: {} as Record<string, boolean>,
     }
   }
 
   const { data, error } = await adminClient
     .from('profiles')
-    .select('id, role')
+    .select('id, role, email')
     .in('id', profileIds)
 
   if (error) {
@@ -93,10 +96,12 @@ export default defineEventHandler(async (event) => {
   }
 
   const roles: Record<string, UserRole> = {}
+  const owners: Record<string, boolean> = {}
 
   for (const row of (data ?? []) as RoleRow[]) {
     roles[row.id] = row.role === 'admin' ? 'admin' : 'worker'
+    owners[row.id] = isPlatformOwnerEmail(row.email)
   }
 
-  return { roles }
+  return { roles, owners }
 })
