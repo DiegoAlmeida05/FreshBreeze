@@ -168,14 +168,22 @@ const searchTerm = ref('')
 const currentPage = ref(1)
 const pageSize = ref(10)
 
+const visibleEmployees = computed(() => {
+  if (isCurrentAdminPlatformOwner.value) {
+    return employees.value
+  }
+
+  return employees.value.filter((employee) => !employee.is_platform_owner)
+})
+
 const filteredEmployees = computed(() => {
   const query = searchTerm.value.trim().toLowerCase()
 
   if (!query) {
-    return employees.value
+    return visibleEmployees.value
   }
 
-  return employees.value.filter((employee) => {
+  return visibleEmployees.value.filter((employee) => {
     const nameMatch = employee.full_name.toLowerCase().includes(query)
     const emailMatch = (employee.email ?? '').toLowerCase().includes(query)
     const phoneMatch = (employee.phone ?? '').toLowerCase().includes(query)

@@ -1,4 +1,5 @@
 import { useAuth } from './useAuth'
+import { useDataCache } from './useDataCache'
 import { useSupabaseClient } from './useSupabaseClient'
 
 export interface WorkerProfileSettings {
@@ -111,7 +112,6 @@ export function useWorkerProfileSettings() {
   }
 
   async function getSettings(): Promise<WorkerProfileSettings> {
-    // Verifica cache primeiro (válido por 15 minutos)
     const cachedSettings = getCached<WorkerProfileSettings>('worker-profile-settings')
     if (cachedSettings) {
       return cachedSettings
@@ -131,18 +131,18 @@ export function useWorkerProfileSettings() {
     if (error) {
       throw new Error(error.message)
     }
-const settings = toSettings(data)
-    
-    // Armazena no cache (15 minutos)
-    setCached('worker-profile-settings', settings, 15 * 60 * 1000)
-    
-    return settings
+
     if (!data) {
       const base = defaultSettings(employeeId, profile.email, profile.full_name)
-      return await saveSettings(base)
+      const createdSettings = await saveSettings(base)
+      setCached('worker-profile-settings', createdSettings, 15 * 60 * 1000)
+      return createdSettings
     }
 
-    return toSettings(data)
+    const settings = toSettings(data)
+    setCached('worker-profile-settings', settings, 15 * 60 * 1000)
+
+    return settings
   }
 
   async function saveSettings(payload: WorkerProfileSettings): Promise<WorkerProfileSettings> {
@@ -165,12 +165,7 @@ const settings = toSettings(data)
       signature_data_url: payload.signature_data_url.trim() || null,
       updated_at: new Date().toISOString(),
     }
-const settings = toSettings(data)
-    
-    // Invalida cache após salvar para forçar refresh
-    invalidate('worker-profile-settings')
-    
-    return settings
+
     const { data, error } = await supabase
       .from('worker_profiles')
       .upsert(upsertPayload, { onConflict: 'employee_id' })
@@ -181,7 +176,11 @@ const settings = toSettings(data)
       throw new Error(error?.message ?? 'Failed to save worker settings.')
     }
 
-    return toSettings(data)
+    const settings = toSettings(data)
+    invalidate('worker-profile-settings')
+    setCached('worker-profile-settings', settings, 15 * 60 * 1000)
+
+    return settings
   }
 
   return {

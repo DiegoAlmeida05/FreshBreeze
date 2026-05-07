@@ -27,24 +27,36 @@
       <section class="grid grid-cols-2 gap-2 sm:grid-cols-2 xl:grid-cols-4 xl:gap-3">
         <div class="min-h-[74px] rounded-xl border border-primary-100 bg-surface px-2.5 py-2 dark:border-white/10 dark:bg-white/[0.03]">
           <p class="text-[11px] text-muted">Task hours</p>
-          <p class="mt-1 text-sm font-semibold text-foreground sm:text-base">{{ formatHoursWithMinutes(summary.total_task_hours) }}</p>
+          <p class="mt-1 text-sm font-semibold text-foreground sm:text-base">{{ formatHoursWithMinutes(displayedSummary.total_task_hours) }}</p>
         </div>
 
         <div class="min-h-[74px] rounded-xl border border-primary-100 bg-surface px-2.5 py-2 dark:border-white/10 dark:bg-white/[0.03]">
           <p class="text-[11px] text-muted">Worked hours</p>
-          <p class="mt-1 text-sm font-semibold text-foreground sm:text-base">{{ formatHoursWithMinutes(summary.total_worked_hours) }}</p>
+          <p class="mt-1 text-sm font-semibold text-foreground sm:text-base">{{ formatHoursWithMinutes(displayedSummary.total_worked_hours) }}</p>
         </div>
 
         <div class="min-h-[74px] rounded-xl border border-primary-100 bg-surface px-2.5 py-2 dark:border-white/10 dark:bg-white/[0.03]">
           <p class="text-[11px] text-muted">Extra hours</p>
-          <p class="mt-1 text-sm font-semibold text-foreground sm:text-base">{{ formatHoursWithMinutes(summary.total_extra_hours) }}</p>
+          <p class="mt-1 text-sm font-semibold text-foreground sm:text-base">{{ formatHoursWithMinutes(displayedSummary.total_extra_hours) }}</p>
         </div>
 
         <div class="min-h-[74px] rounded-xl border border-success/30 bg-success/10 px-2.5 py-2 dark:border-success/30 dark:bg-success/10">
-          <p class="text-[11px] text-success">Estimated pay</p>
-          <p class="mt-1 text-sm font-semibold text-success sm:text-base">{{ toCurrency(summary.estimated_weekly_pay) }}</p>
+          <p class="text-[11px] text-success">{{ isDaySummaryMode ? 'Estimated day pay' : 'Estimated pay' }}</p>
+          <p class="mt-1 text-sm font-semibold text-success sm:text-base">{{ toCurrency(displayedSummary.estimated_weekly_pay) }}</p>
         </div>
       </section>
+
+      <div class="flex items-center justify-between px-1">
+        <p class="text-xs text-muted">{{ isDaySummaryMode && selectedDay ? `Cards filtered by ${formatDayLabel(selectedDay.date)}` : 'Cards showing selected week totals' }}</p>
+        <button
+          v-if="isDaySummaryMode"
+          type="button"
+          class="btn-outline !px-2.5 !py-1 text-xs"
+          @click="showWeekTotals"
+        >
+          Show week total
+        </button>
+      </div>
 
       <section class="space-y-2.5 sm:space-y-3">
         <div class="grid grid-cols-7 gap-1">
@@ -62,7 +74,7 @@
               : day.isToday
                 ? 'border-primary-200 bg-primary-50 text-foreground hover:border-primary-300 hover:bg-primary-100/70 dark:border-white/15 dark:bg-white/5'
               : 'border-border bg-surface text-foreground hover:border-primary-200 hover:bg-primary-50/50 dark:hover:bg-white/5'"
-            @click="selectedDate = day.iso"
+            @click="onSelectDay(day.iso)"
           >
             <span
               v-if="day.isHoliday"
@@ -275,6 +287,7 @@ const isSaving = ref(false)
 const draftOwnerProfileId = ref<string>('')
 const isApplyingDraft = ref(false)
 const shouldRestoreDraftOnNextLoad = ref(true)
+const summaryFilterMode = ref<'week' | 'day'>('week')
 let draftSaveTimeout: ReturnType<typeof setTimeout> | null = null
 
 const weekRangeLabel = computed(() => {
@@ -323,6 +336,22 @@ const selectedDay = computed<WorkerTimesheetDay | null>(() => {
   }
 
   return days.value[0] ?? null
+})
+
+const isDaySummaryMode = computed(() => summaryFilterMode.value === 'day' && Boolean(selectedDay.value))
+
+const displayedSummary = computed<WorkerTimesheetSummary>(() => {
+  if (!isDaySummaryMode.value || !selectedDay.value) {
+    return summary.value
+  }
+
+  const day = selectedDay.value
+  return {
+    total_task_hours: Number(day.source_task_hours || 0),
+    total_worked_hours: Number(day.worked_hours || 0),
+    total_extra_hours: Number((getExtra1Hours(day) + getExtra2Hours(day)).toFixed(2)),
+    estimated_weekly_pay: Number(day.estimated_daily_pay || 0),
+  }
 })
 
 onMounted(async () => {
@@ -711,10 +740,21 @@ function shiftWeek(delta: number): void {
   const date = parseIsoDate(selectedDate.value)
   date.setDate(date.getDate() + (delta * 7))
   selectedDate.value = formatDateForInput(date)
+  summaryFilterMode.value = 'week'
 }
 
 function goToCurrentWeek(): void {
   selectedDate.value = todayIsoDate()
+  summaryFilterMode.value = 'week'
+}
+
+function onSelectDay(dateIso: string): void {
+  selectedDate.value = dateIso
+  summaryFilterMode.value = 'day'
+}
+
+function showWeekTotals(): void {
+  summaryFilterMode.value = 'week'
 }
 
 function formatDayLabel(dateIso: string): string {
