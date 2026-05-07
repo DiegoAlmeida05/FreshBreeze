@@ -54,7 +54,7 @@
               type="button"
               class="inline-flex items-center rounded-full p-0.5 transition focus:outline-none focus:ring-2 focus:ring-primary-500/30"
               :class="employee.active ? 'bg-success/25' : 'bg-slate-300/80 dark:bg-slate-600/70'"
-              :disabled="isToggling(employee.id) || isPlatformOwner(employee)"
+              :disabled="isToggling(employee.id) || (isPlatformOwner(employee) && !canManageOwner(employee))"
               :title="employee.active ? 'Deactivate employee' : 'Activate employee'"
               :aria-label="employee.active ? 'Deactivate employee' : 'Activate employee'"
               @click="emit('toggle-active', employee)"
@@ -73,7 +73,7 @@
 
           <div class="flex items-center justify-end gap-2 pt-1">
             <button
-              v-if="!isPlatformOwner(employee)"
+              v-if="!isPlatformOwner(employee) || canManageOwner(employee)"
               type="button"
               class="btn-outline min-w-[92px] !px-3 !py-1.5 text-xs"
               title="Edit employee"
@@ -142,7 +142,7 @@
                 type="button"
                 class="inline-flex items-center rounded-full p-0.5 transition focus:outline-none focus:ring-2 focus:ring-primary-500/30"
                 :class="employee.active ? 'bg-success/25' : 'bg-slate-300/80 dark:bg-slate-600/70'"
-                :disabled="isToggling(employee.id) || isPlatformOwner(employee)"
+                :disabled="isToggling(employee.id) || (isPlatformOwner(employee) && !canManageOwner(employee))"
                 :title="employee.active ? 'Deactivate employee' : 'Activate employee'"
                 :aria-label="employee.active ? 'Deactivate employee' : 'Activate employee'"
                 @click="emit('toggle-active', employee)"
@@ -161,7 +161,7 @@
             <td>
               <div class="inline-flex items-center gap-1 rounded-lg border border-border/80 px-1 py-1">
                 <button
-                  v-if="!isPlatformOwner(employee)"
+                  v-if="!isPlatformOwner(employee) || canManageOwner(employee)"
                   type="button"
                   class="inline-flex h-9 w-9 items-center justify-center rounded-lg text-primary-600 transition hover:bg-primary-100/60 focus:outline-none focus:ring-2 focus:ring-primary-500/30 dark:text-primary-400 dark:hover:bg-white/10"
                   title="Edit employee"
@@ -219,12 +219,14 @@ interface Props {
   employees: EmployeeDTO[]
   isLoading?: boolean
   canDeleteUsers?: boolean
+  canManageOwnerControls?: boolean
   togglingActiveIds?: string[]
 }
 
 const props = withDefaults(defineProps<Props>(), {
   isLoading: false,
   canDeleteUsers: false,
+  canManageOwnerControls: false,
   togglingActiveIds: () => [],
 })
 
@@ -272,6 +274,10 @@ function isToggling(employeeId: string): boolean {
 
 function isPlatformOwner(employee: EmployeeDTO): boolean {
   return employee.is_platform_owner === true
+}
+
+function canManageOwner(employee: EmployeeDTO): boolean {
+  return isPlatformOwner(employee) && props.canManageOwnerControls
 }
 
 function clearFeedback(): void {

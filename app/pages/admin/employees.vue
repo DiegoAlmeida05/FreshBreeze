@@ -67,6 +67,7 @@
         :employees="paginatedEmployees"
         :is-loading="isLoading"
         :can-delete-users="canDeleteUsers"
+        :can-manage-owner-controls="isCurrentAdminPlatformOwner"
         :toggling-active-ids="togglingActiveIds"
         @edit="openEditForm"
         @toggle-active="onToggleEmployeeActive"
@@ -148,7 +149,7 @@ import type { CreateEmployeeFormPayload, EmployeeFormPayload } from '../../compo
 
 const { signOut, getProfile } = useAuth()
 const { createUser } = useCreateUser()
-const { getEmployees, getEmployeeById, updateEmployee, updateEmployeeUserRole } = useEmployees()
+const { getEmployees, getEmployeeById, updateEmployee, updateEmployeeUserRole, getRequesterOwnerStatus } = useEmployees()
 
 const employees = ref<EmployeeDTO[]>([])
 const selectedEmployee = ref<EmployeeDTO | null>(null)
@@ -158,6 +159,7 @@ const isSubmitting = ref(false)
 const isFormOpen = ref(false)
 const formInstanceKey = ref(0)
 const currentAdminProfileId = ref<string | null>(null)
+const isCurrentAdminPlatformOwner = ref(false)
 const canDeleteUsers = ref(false)
 const pageError = ref('')
 const pageSuccess = ref('')
@@ -227,9 +229,11 @@ async function loadPermissions(): Promise<void> {
     const profile = await getProfile()
     canDeleteUsers.value = profile.role === 'admin'
     currentAdminProfileId.value = profile.id
+    isCurrentAdminPlatformOwner.value = await getRequesterOwnerStatus()
   } catch {
     canDeleteUsers.value = false
     currentAdminProfileId.value = null
+    isCurrentAdminPlatformOwner.value = false
   }
 }
 
@@ -259,7 +263,7 @@ async function openEditForm(employee: EmployeeDTO): Promise<void> {
   pageError.value = ''
   pageSuccess.value = ''
 
-  if (employee.is_platform_owner) {
+  if (employee.is_platform_owner && !isCurrentAdminPlatformOwner.value) {
     pageError.value = 'Platform owner cannot be modified.'
     return
   }
@@ -315,7 +319,7 @@ async function onSubmitForm(payload: EmployeeFormPayload | CreateEmployeeFormPay
       const nextRole = editPayload.role
       const userId = selectedEmployee.value?.profile_id
 
-      if (selectedEmployee.value?.is_platform_owner) {
+      if (selectedEmployee.value?.is_platform_owner && !isCurrentAdminPlatformOwner.value) {
         throw new Error('Platform owner cannot be modified.')
       }
 
@@ -369,7 +373,7 @@ function onTableError(message: string): void {
 }
 
 async function onToggleEmployeeActive(employee: EmployeeDTO): Promise<void> {
-  if (employee.is_platform_owner) {
+  if (employee.is_platform_owner && !isCurrentAdminPlatformOwner.value) {
     pageError.value = 'Platform owner cannot be modified.'
     return
   }

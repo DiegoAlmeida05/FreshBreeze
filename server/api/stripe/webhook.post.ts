@@ -22,6 +22,49 @@ function resolvePriceId(subscription: Stripe.Subscription | null): string | null
   return subscription.items.data[0]?.price?.id ?? null
 }
 
+function resolvePriceSnapshot(subscription: Stripe.Subscription | null): {
+  stripePriceId: string | null
+  monthlyAmount: number | null
+  currency: string | null
+} {
+  const stripePriceId = resolvePriceId(subscription)
+  const price = subscription?.items?.data?.[0]?.price
+
+  if (!price) {
+    return {
+      stripePriceId,
+      monthlyAmount: null,
+      currency: null,
+    }
+  }
+
+  const monthlyAmount = typeof price.unit_amount === 'number'
+    ? Number((price.unit_amount / 100).toFixed(2))
+    : null
+
+  return {
+    stripePriceId,
+    monthlyAmount,
+    currency: price.currency ? String(price.currency).toUpperCase() : null,
+  }
+}
+
+function toPriceUpdatePayload(snapshot: ReturnType<typeof resolvePriceSnapshot>): UpdatePayload {
+  const payload: UpdatePayload = {
+    stripe_price_id: snapshot.stripePriceId,
+  }
+
+  if (snapshot.monthlyAmount !== null) {
+    payload.monthly_amount = snapshot.monthlyAmount
+  }
+
+  if (snapshot.currency) {
+    payload.currency = snapshot.currency
+  }
+
+  return payload
+}
+
 async function getPaymentMethodSnapshot(stripe: Stripe, customerId: string | null): Promise<UpdatePayload> {
   if (!customerId) {
     return {}
@@ -178,13 +221,14 @@ export default defineEventHandler(async (event) => {
       const appKey = session.metadata?.app_key || DEFAULT_APP_KEY
       const subscription = await retrieveSubscription(stripe, subscriptionId)
       const paymentSnapshot = await getPaymentMethodSnapshot(stripe, customerId)
+      const priceSnapshot = resolvePriceSnapshot(subscription)
 
       await updateAppSubscription(
         adminClient,
         {
           stripe_customer_id: customerId,
           stripe_subscription_id: subscriptionId,
-          stripe_price_id: resolvePriceId(subscription),
+          ...toPriceUpdatePayload(priceSnapshot),
           status: subscription?.status || 'active',
           current_period_start: unixToIso(subscription?.current_period_start),
           current_period_end: unixToIso(subscription?.current_period_end),
@@ -210,6 +254,7 @@ export default defineEventHandler(async (event) => {
       const invoiceId = invoice.id || null
       const subscription = await retrieveSubscription(stripe, subscriptionId)
       const paymentSnapshot = await getPaymentMethodSnapshot(stripe, customerId)
+      const priceSnapshot = resolvePriceSnapshot(subscription)
 
       await updateAppSubscription(
         adminClient,
@@ -217,7 +262,7 @@ export default defineEventHandler(async (event) => {
           status: 'active',
           stripe_customer_id: customerId,
           stripe_subscription_id: subscriptionId,
-          stripe_price_id: resolvePriceId(subscription),
+          ...toPriceUpdatePayload(priceSnapshot),
           last_payment_status: 'paid',
           last_payment_at: nowIso,
           last_invoice_id: invoiceId,
@@ -266,13 +311,14 @@ export default defineEventHandler(async (event) => {
       const customerId = typeof subscription.customer === 'string' ? subscription.customer : null
       const subscriptionId = subscription.id
       const paymentSnapshot = await getPaymentMethodSnapshot(stripe, customerId)
+      const priceSnapshot = resolvePriceSnapshot(subscription)
 
       await updateAppSubscription(
         adminClient,
         {
           stripe_customer_id: customerId,
           stripe_subscription_id: subscriptionId,
-          stripe_price_id: resolvePriceId(subscription),
+          ...toPriceUpdatePayload(priceSnapshot),
           status: subscription.status,
           current_period_start: unixToIso(subscription.current_period_start),
           current_period_end: unixToIso(subscription.current_period_end),

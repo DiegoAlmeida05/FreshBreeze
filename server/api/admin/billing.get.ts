@@ -1,4 +1,5 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
+import Stripe from 'stripe'
 import { createError, defineEventHandler, getHeader, type H3Event } from 'h3'
 import { isPlatformOwnerEmail, normalizeEmail } from '../../utils/platformOwner'
 
@@ -24,6 +25,8 @@ interface AppSubscriptionRow {
   monthly_amount: number
   currency: string
   stripe_customer_id: string | null
+  stripe_price_id: string | null
+  current_period_end: string | null
   trial_ends_at: string | null
   manual_access_enabled: boolean
   manual_access_until: string | null
@@ -101,6 +104,7 @@ export default defineEventHandler(async (event) => {
   const config = useRuntimeConfig(event)
   const supabaseUrl = config.public.supabaseUrl || config.supabaseUrl
   const supabaseServiceRoleKey = config.supabaseServiceRoleKey
+  const stripeSecretKey = config.stripeSecretKey || process.env.STRIPE_SECRET_KEY || ''
 
   if (!supabaseUrl || !supabaseServiceRoleKey) {
     throw createError({
@@ -123,7 +127,7 @@ export default defineEventHandler(async (event) => {
   const { data: subscription, error } = await adminClient
     .schema('public')
     .from('app_subscription')
-    .select('app_key, app_name, status, monthly_amount, currency, stripe_customer_id, trial_ends_at, manual_access_enabled, manual_access_until, manual_access_reason')
+    .select('app_key, app_name, status, monthly_amount, currency, stripe_customer_id, stripe_price_id, current_period_end, trial_ends_at, manual_access_enabled, manual_access_until, manual_access_reason')
     .eq('app_key', APP_KEY)
     .single<AppSubscriptionRow>()
 
@@ -135,12 +139,36 @@ export default defineEventHandler(async (event) => {
   }
 
   const now = new Date()
+  let resolvedMonthlyAmount = Number(subscription.monthly_amount)
+  let resolvedCurrency = subscription.currency
+
+  if (stripeSecretKey && subscription.stripe_price_id) {
+    try {
+      const stripe = new Stripe(stripeSecretKey)
+      const price = await stripe.prices.retrieve(subscription.stripe_price_id)
+
+      if (typeof price.unit_amount === 'number') {
+        resolvedMonthlyAmount = Number((price.unit_amount / 100).toFixed(2))
+      }
+
+      if (price.currency) {
+        resolvedCurrency = String(price.currency).toUpperCase()
+      }
+    } catch {
+      // Keep DB value when Stripe lookup fails.
+    }
+  }
+
   const access = isPlatformOwner
     ? { enabled: true, reason: 'active_subscription' as AccessReason }
     : resolveAccess(subscription, now)
 
   return {
-    subscription,
+    subscription: {
+      ...subscription,
+      monthly_amount: resolvedMonthlyAmount,
+      currency: resolvedCurrency,
+    },
     access: {
       enabled: access.enabled,
       reason: access.reason,

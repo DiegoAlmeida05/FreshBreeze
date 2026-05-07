@@ -1,9 +1,44 @@
 import Stripe from 'stripe'
-import { createClient } from '@supabase/supabase-js'
-import { createError, defineEventHandler } from 'h3'
+import { createClient, type SupabaseClient } from '@supabase/supabase-js'
+import { createError, defineEventHandler, getHeader, type H3Event } from 'h3'
 import { config as loadDotenv } from 'dotenv'
 
 const APP_KEY = 'freshbreeze'
+
+type UserRole = 'admin' | 'worker'
+
+interface AuthProfile {
+  id: string
+  role: UserRole
+  active: boolean
+}
+
+async function requireAdminUser(event: H3Event, adminClient: SupabaseClient): Promise<void> {
+  const authorization = getHeader(event, 'authorization')
+  const accessToken = authorization?.startsWith('Bearer ')
+    ? authorization.slice('Bearer '.length)
+    : null
+
+  if (!accessToken) {
+    throw createError({ statusCode: 401, statusMessage: 'Missing authorization token.' })
+  }
+
+  const { data: requesterData, error: requesterError } = await adminClient.auth.getUser(accessToken)
+
+  if (requesterError || !requesterData.user) {
+    throw createError({ statusCode: 401, statusMessage: 'Invalid authorization token.' })
+  }
+
+  const { data: requesterProfile, error: requesterProfileError } = await adminClient
+    .from('profiles')
+    .select('id, role, active')
+    .eq('id', requesterData.user.id)
+    .maybeSingle<AuthProfile>()
+
+  if (requesterProfileError || !requesterProfile || !requesterProfile.active || requesterProfile.role !== 'admin') {
+    throw createError({ statusCode: 403, statusMessage: 'Only admins can access billing.' })
+  }
+}
 
 // Ensure server routes can read local env files during development.
 loadDotenv()
@@ -49,6 +84,7 @@ export default defineEventHandler(async (event) => {
   }
 
   const adminClient = createClient(supabaseUrl, supabaseServiceKey)
+  await requireAdminUser(event, adminClient)
 
   const { data: subscription, error: fetchError } = await adminClient
     .schema('public')
@@ -65,6 +101,7 @@ export default defineEventHandler(async (event) => {
   }
 
   const stripe = new Stripe(stripeSecretKey)
+  const idempotencyKey = getHeader(event, 'x-idempotency-key') || undefined
 
   const sessionParams: Stripe.Checkout.SessionCreateParams = {
     mode: 'subscription',
@@ -86,7 +123,7 @@ export default defineEventHandler(async (event) => {
     sessionParams.customer = subscription.stripe_customer_id
   }
 
-  const session = await stripe.checkout.sessions.create(sessionParams)
+  const session = await stripe.checkout.sessions.create(sessionParams, idempotencyKey ? { idempotencyKey } : undefined)
 
   if (!session.url) {
     throw createError({

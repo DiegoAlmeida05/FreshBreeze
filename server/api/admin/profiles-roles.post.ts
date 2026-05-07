@@ -12,6 +12,7 @@ interface AuthProfile {
   id: string
   role: UserRole
   active: boolean
+  email: string | null
 }
 
 interface RoleRow {
@@ -69,7 +70,7 @@ export default defineEventHandler(async (event) => {
 
   const { data: requesterProfile, error: requesterProfileError } = await adminClient
     .from('profiles')
-    .select('id, role, active')
+    .select('id, role, active, email')
     .eq('id', requesterData.user.id)
     .maybeSingle<AuthProfile>()
 
@@ -78,11 +79,13 @@ export default defineEventHandler(async (event) => {
   }
 
   const { profileIds } = parseBody(await readBody(event))
+  const requesterIsOwner = isPlatformOwnerEmail(requesterData.user.email ?? requesterProfile.email)
 
   if (profileIds.length === 0) {
     return {
       roles: {} as Record<string, UserRole>,
       owners: {} as Record<string, boolean>,
+      requesterIsOwner,
     }
   }
 
@@ -103,5 +106,5 @@ export default defineEventHandler(async (event) => {
     owners[row.id] = isPlatformOwnerEmail(row.email)
   }
 
-  return { roles, owners }
+  return { roles, owners, requesterIsOwner }
 })

@@ -485,15 +485,21 @@ async function fetchSubscription(): Promise<void> {
 }
 
 async function startCheckout(): Promise<void> {
+  if (isRedirecting.value) {
+    return
+  }
+
   checkoutError.value = null
   isRedirecting.value = true
 
   try {
     const accessToken = await getAccessToken()
+    const idempotencyKey = `billing-checkout:${Date.now()}:${Math.random().toString(36).slice(2)}`
     const response = await $fetch<{ url: string }>('/api/stripe/create-checkout', {
       method: 'POST',
       headers: {
         Authorization: `Bearer ${accessToken}`,
+        'x-idempotency-key': idempotencyKey,
       },
     })
 
@@ -513,6 +519,10 @@ async function startCheckout(): Promise<void> {
 }
 
 async function openBillingPortal(): Promise<void> {
+  if (isRedirectingPortal.value) {
+    return
+  }
+
   checkoutError.value = null
   isRedirectingPortal.value = true
 

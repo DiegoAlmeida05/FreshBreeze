@@ -37,17 +37,7 @@ function toEmployeeDTO(
 export function useEmployees() {
   const supabase = useSupabaseClient()
 
-  async function loadRoleMap(profileIds: string[]): Promise<{
-    roleMap: Map<string, 'admin' | 'worker'>
-    ownerMap: Map<string, boolean>
-  }> {
-    const roleMap = new Map<string, 'admin' | 'worker'>()
-    const ownerMap = new Map<string, boolean>()
-
-    if (profileIds.length === 0) {
-      return { roleMap, ownerMap }
-    }
-
+  async function getAccessToken(): Promise<string> {
     const {
       data: { session },
     } = await supabase.auth.getSession()
@@ -56,11 +46,28 @@ export function useEmployees() {
       throw new Error('No active session. Please log in first.')
     }
 
+    return session.access_token
+  }
+
+  async function loadRoleMap(profileIds: string[]): Promise<{
+    roleMap: Map<string, 'admin' | 'worker'>
+    ownerMap: Map<string, boolean>
+    requesterIsOwner: boolean
+  }> {
+    const roleMap = new Map<string, 'admin' | 'worker'>()
+    const ownerMap = new Map<string, boolean>()
+
+    if (profileIds.length === 0) {
+      return { roleMap, ownerMap, requesterIsOwner: false }
+    }
+
+    const accessToken = await getAccessToken()
+
     const response = await fetch('/api/admin/profiles-roles', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        Authorization: `Bearer ${session.access_token}`,
+        Authorization: `Bearer ${accessToken}`,
       },
       body: JSON.stringify({ profileIds }),
     })
@@ -81,6 +88,7 @@ export function useEmployees() {
     const payload = await response.json() as {
       roles?: Record<string, UserRole>
       owners?: Record<string, boolean>
+      requesterIsOwner?: boolean
     }
     const roles = payload.roles ?? {}
     const owners = payload.owners ?? {}
@@ -93,7 +101,7 @@ export function useEmployees() {
       ownerMap.set(id, Boolean(isOwner))
     }
 
-    return { roleMap, ownerMap }
+    return { roleMap, ownerMap, requesterIsOwner: Boolean(payload.requesterIsOwner) }
   }
 
   async function getEmployees(): Promise<EmployeeDTO[]> {
@@ -165,18 +173,36 @@ export function useEmployees() {
   }
 
   async function updateEmployee(id: string, payload: UpdateEmployeeDTO): Promise<EmployeeDTO> {
-    const { data, error } = await supabase
-      .from('employees')
-      .update(payload)
-      .eq('id', id)
-      .select(employeeSelectFieldsBase)
-      .single()
+    const accessToken = await getAccessToken()
+    const response = await fetch('/api/admin/update-employee', {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${accessToken}`,
+      },
+      body: JSON.stringify({ employeeId: id, payload }),
+    })
 
-    if (error || !data) {
-      throw new Error(error?.message ?? 'Failed to update employee.')
+    if (!response.ok) {
+      let message = `API error: ${response.status}`
+
+      try {
+        const body = await response.json() as { statusMessage?: string; message?: string }
+        message = body.statusMessage || body.message || message
+      } catch {
+        // Keep default message when response is not JSON.
+      }
+
+      throw new Error(message)
     }
 
-    const employeeRow = data as Record<string, unknown>
+    const responseBody = await response.json() as { employee?: Record<string, unknown> }
+    const employeeRow = responseBody.employee
+
+    if (!employeeRow) {
+      throw new Error('Failed to update employee.')
+    }
+
     const profileId = typeof employeeRow.profile_id === 'string' ? employeeRow.profile_id : null
 
     if (!profileId) {
@@ -185,6 +211,35 @@ export function useEmployees() {
 
     const { roleMap, ownerMap } = await loadRoleMap([profileId])
     return toEmployeeDTO(employeeRow, roleMap.get(profileId) ?? 'worker', ownerMap.get(profileId) ?? false)
+  }
+
+  async function getRequesterOwnerStatus(): Promise<boolean> {
+    const accessToken = await getAccessToken()
+
+    const response = await fetch('/api/admin/profiles-roles', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${accessToken}`,
+      },
+      body: JSON.stringify({ profileIds: [] }),
+    })
+
+    if (!response.ok) {
+      let message = `API error: ${response.status}`
+
+      try {
+        const body = await response.json() as { statusMessage?: string; message?: string }
+        message = body.statusMessage || body.message || message
+      } catch {
+        // Keep default message when response is not JSON.
+      }
+
+      throw new Error(message)
+    }
+
+    const payload = await response.json() as { requesterIsOwner?: boolean }
+    return Boolean(payload.requesterIsOwner)
   }
 
   async function deleteEmployee(id: string): Promise<void> {
@@ -267,6 +322,7 @@ export function useEmployees() {
     getEmployeeById,
     createEmployee,
     updateEmployee,
+    getRequesterOwnerStatus,
     deleteEmployee,
     deleteEmployeeUser,
     updateEmployeeUserRole,

@@ -274,6 +274,7 @@ const feedbackMessage = ref('')
 const isSaving = ref(false)
 const draftOwnerProfileId = ref<string>('')
 const isApplyingDraft = ref(false)
+const shouldRestoreDraftOnNextLoad = ref(true)
 let draftSaveTimeout: ReturnType<typeof setTimeout> | null = null
 
 const weekRangeLabel = computed(() => {
@@ -332,7 +333,8 @@ onMounted(async () => {
     draftOwnerProfileId.value = ''
   }
 
-  await loadWeek()
+  await loadWeek(shouldRestoreDraftOnNextLoad.value)
+  shouldRestoreDraftOnNextLoad.value = false
 
   if (import.meta.client) {
     await nextTick()
@@ -347,7 +349,7 @@ onMounted(async () => {
 
 watch(selectedDate, () => {
   persistedWorkerTimesheetPageState.value.selectedDate = selectedDate.value
-  void loadWeek()
+  void loadWeek(false)
 })
 
 function getDraftStorageKey(dateIso = selectedDate.value): string {
@@ -435,10 +437,6 @@ function restoreWeekDraft(): number {
       restoredCount += 1
     }
 
-    if (restoredCount > 0 && parsed.selectedDate) {
-      selectedDate.value = parsed.selectedDate
-    }
-
     isApplyingDraft.value = false
     return restoredCount
   } catch {
@@ -517,7 +515,7 @@ onBeforeRouteLeave(() => {
   scheduleDraftSave()
 })
 
-async function loadWeek(): Promise<void> {
+async function loadWeek(restoreDraft = false): Promise<void> {
   try {
     clearFeedback()
     const settings = await getSettings()
@@ -535,9 +533,8 @@ async function loadWeek(): Promise<void> {
       recomputeDay(day)
     }
 
-    const restoredCount = restoreWeekDraft()
-    if (restoredCount > 0) {
-      setFeedback('info', 'Draft restored', 'Draft restored')
+    if (restoreDraft) {
+      restoreWeekDraft()
     }
   } catch (error: unknown) {
     setFeedback('error', 'Timesheet unavailable', error instanceof Error ? error.message : 'Failed to load timesheet data.')
@@ -714,12 +711,10 @@ function shiftWeek(delta: number): void {
   const date = parseIsoDate(selectedDate.value)
   date.setDate(date.getDate() + (delta * 7))
   selectedDate.value = formatDateForInput(date)
-  void loadWeek()
 }
 
 function goToCurrentWeek(): void {
   selectedDate.value = todayIsoDate()
-  void loadWeek()
 }
 
 function formatDayLabel(dateIso: string): string {
