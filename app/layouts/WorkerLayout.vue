@@ -346,18 +346,23 @@
             <NuxtLink
               to="/worker/schedule"
               prefetch
-              class="relative z-10 -mt-4 flex touch-manipulation flex-col items-center justify-center gap-1 rounded-2xl border border-primary-300/70 bg-gradient-to-b from-primary-500 to-primary-600 px-2 py-3 text-center text-white shadow-[0_12px_22px_rgba(0,119,230,0.35)] transition-transform duration-75 active:scale-95 dark:border-primary-300/50"
+              class="relative z-10 -mt-5 flex touch-manipulation flex-col items-center justify-center gap-1 text-center transition-transform duration-150 active:scale-95"
               :class="isNavActive('/worker/schedule') ? '' : 'opacity-95 hover:opacity-100'"
               aria-label="Schedule"
               @pointerdown="onNavPress('/worker/schedule')"
             >
-              <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
-                <line x1="16" y1="2" x2="16" y2="6" />
-                <line x1="8" y1="2" x2="8" y2="6" />
-                <line x1="3" y1="10" x2="21" y2="10" />
-              </svg>
-              <span class="text-[10px] font-semibold leading-none">Schedule</span>
+              <span
+                class="flex h-14 w-14 items-center justify-center rounded-full border border-primary-200/80 bg-gradient-to-b from-primary-500 to-primary-600 text-white shadow-[0_10px_20px_rgba(0,119,230,0.28)] transition-all duration-200"
+                :class="isNavActive('/worker/schedule') ? 'translate-y-0 shadow-[0_12px_24px_rgba(0,119,230,0.34)]' : 'translate-y-0.5'"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
+                  <line x1="16" y1="2" x2="16" y2="6" />
+                  <line x1="8" y1="2" x2="8" y2="6" />
+                  <line x1="3" y1="10" x2="21" y2="10" />
+                </svg>
+              </span>
+              <span class="text-[10px] font-semibold leading-none text-primary-700 dark:text-primary-300">Schedule</span>
             </NuxtLink>
 
             <!-- Invoice -->

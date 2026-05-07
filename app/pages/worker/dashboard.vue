@@ -7,12 +7,12 @@
         <p class="text-sm text-muted">Overview of your productivity and estimated earnings.</p>
       </header>
 
-      <div class="flex items-center gap-2 rounded-xl border border-primary-100 bg-surface p-2 dark:border-white/10 dark:bg-white/[0.03]">
+      <div class="flex items-center gap-2 rounded-2xl border border-primary-100/80 bg-surface/90 p-2 shadow-sm dark:border-white/10 dark:bg-white/[0.03]">
         <button
           v-for="option in filterOptions"
           :key="option.value"
           type="button"
-          class="flex-1 rounded-lg px-3 py-2 text-xs font-semibold uppercase tracking-wide transition"
+          class="flex-1 rounded-xl px-3 py-2 text-xs font-semibold uppercase tracking-wide transition"
           :class="selectedFilter === option.value
             ? 'bg-primary-500 text-white shadow-sm'
             : 'text-muted hover:bg-primary-500/10 hover:text-foreground'"
@@ -22,31 +22,39 @@
         </button>
       </div>
 
-      <div class="flex items-center gap-2 rounded-xl border border-primary-100 bg-surface p-2 dark:border-white/10 dark:bg-white/[0.03]">
-        <button
-          type="button"
-          class="btn-outline !px-3 !py-1.5 text-xs"
-          @click="goToPreviousPeriod"
-        >
-          Previous
-        </button>
-        <button
-          type="button"
-          class="btn-outline !px-3 !py-1.5 text-xs"
-          @click="resetToCurrentPeriod"
-        >
-          Current period
-        </button>
-        <button
-          type="button"
-          class="btn-outline !px-3 !py-1.5 text-xs"
-          @click="goToNextPeriod"
-        >
-          Next
-        </button>
-      </div>
+      <div class="rounded-2xl border border-primary-100/80 bg-surface/90 p-2.5 shadow-sm dark:border-white/10 dark:bg-white/[0.03]">
+        <div class="mx-auto grid w-full max-w-sm grid-cols-[2.25rem_1fr_2.25rem] items-center gap-2">
+          <button
+            type="button"
+            class="inline-flex h-9 w-9 items-center justify-center rounded-full border border-primary-200/80 text-sm font-semibold text-primary-700 transition hover:bg-primary-500/10 dark:border-white/10 dark:text-primary-300 dark:hover:bg-white/10"
+            aria-label="Previous period"
+            @click="goToPreviousPeriod"
+          >
+            &lt;
+          </button>
 
-      <p class="text-xs text-muted">Showing {{ rangeLabel }}</p>
+          <p class="text-center text-sm font-semibold tracking-tight text-foreground">{{ rangeLabel }}</p>
+
+          <button
+            type="button"
+            class="inline-flex h-9 w-9 items-center justify-center rounded-full border border-primary-200/80 text-sm font-semibold text-primary-700 transition hover:bg-primary-500/10 dark:border-white/10 dark:text-primary-300 dark:hover:bg-white/10"
+            aria-label="Next period"
+            @click="goToNextPeriod"
+          >
+            &gt;
+          </button>
+        </div>
+
+        <div class="mt-2 flex justify-center">
+          <button
+            type="button"
+            class="inline-flex items-center rounded-full border border-primary-200/80 bg-white/80 px-3 py-1.5 text-xs font-semibold uppercase tracking-wide text-primary-700 transition hover:bg-primary-500/10 dark:border-white/10 dark:bg-white/[0.03] dark:text-primary-300 dark:hover:bg-white/10"
+            @click="resetToCurrentPeriod"
+          >
+            {{ resetPeriodLabel }}
+          </button>
+        </div>
+      </div>
 
       <div v-if="isLoading" class="grid grid-cols-2 gap-2 sm:grid-cols-2 xl:grid-cols-4 xl:gap-3">
         <div class="h-24 animate-pulse rounded-xl bg-primary-100/70 dark:bg-white/10" />
@@ -182,6 +190,17 @@ const selectedPeriodRange = computed(() => {
 })
 
 const rangeLabel = computed(() => selectedPeriodRange.value.label)
+const resetPeriodLabel = computed(() => {
+  if (selectedFilter.value === 'month') {
+    return 'This month'
+  }
+
+  if (selectedFilter.value === 'year') {
+    return 'This year'
+  }
+
+  return 'This week'
+})
 
 watch(selectedFilter, () => {
   periodCursor.value = new Date()
