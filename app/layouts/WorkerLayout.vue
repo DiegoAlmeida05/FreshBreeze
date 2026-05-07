@@ -41,7 +41,7 @@
       <!-- Sidebar header -->
       <div class="relative flex shrink-0 items-center justify-center px-2 py-0 min-h-40">
         <div class="pointer-events-none absolute inset-x-6 bottom-0 h-px bg-gradient-to-r from-transparent via-primary-200/70 to-transparent dark:via-white/10" />
-        <NuxtLink to="/worker/schedule" class="relative z-10 flex items-center justify-center" aria-label="Go to dashboard">
+        <NuxtLink to="/worker/dashboard" class="relative z-10 flex items-center justify-center" aria-label="Go to dashboard">
           <img
             v-if="!isDesktopCollapsed"
             src="/logo/logo_escrito_transparente.png"
@@ -70,23 +70,23 @@
 
         <slot name="sidebar-nav">
           <NuxtLink
-            to="/worker/schedule"
-            :title="isDesktopCollapsed ? 'Schedule' : undefined"
+            to="/worker/dashboard"
+            :title="isDesktopCollapsed ? 'Dashboard' : undefined"
             class="flex items-center gap-3 rounded-xl border border-transparent px-3 py-2 text-sm font-medium transition"
             active-class="border-primary-300/60 bg-gradient-to-r from-primary-500/15 to-primary-warm-500/10 text-primary-700 shadow-sm shadow-primary-500/10"
             exact-active-class="border-primary-300/60 bg-gradient-to-r from-primary-500/15 to-primary-warm-500/10 text-primary-700 shadow-sm shadow-primary-500/10"
             :class="[
               isDesktopCollapsed ? 'justify-center px-0' : '',
-              route.path === '/worker/schedule' ? '' : 'text-muted hover:border-primary-200/70 hover:bg-primary-500/10 hover:text-foreground',
+              route.path === '/worker/dashboard' ? '' : 'text-muted hover:border-primary-200/70 hover:bg-primary-500/10 hover:text-foreground',
             ]"
           >
             <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
-              <line x1="16" y1="2" x2="16" y2="6" />
-              <line x1="8" y1="2" x2="8" y2="6" />
-              <line x1="3" y1="10" x2="21" y2="10" />
+              <rect x="3" y="3" width="7" height="7" rx="1" />
+              <rect x="14" y="3" width="7" height="7" rx="1" />
+              <rect x="14" y="14" width="7" height="7" rx="1" />
+              <rect x="3" y="14" width="7" height="7" rx="1" />
             </svg>
-            <span v-if="!isDesktopCollapsed">Schedule</span>
+            <span v-if="!isDesktopCollapsed">Dashboard</span>
           </NuxtLink>
 
           <NuxtLink
@@ -104,6 +104,26 @@
               <path d="M7 14l3-3 3 2 4-5" />
             </svg>
             <span v-if="!isDesktopCollapsed">Timesheet</span>
+          </NuxtLink>
+
+          <NuxtLink
+            to="/worker/schedule"
+            :title="isDesktopCollapsed ? 'Schedule' : undefined"
+            class="flex items-center gap-3 rounded-xl border border-transparent px-3 py-2 text-sm font-medium transition"
+            active-class="border-primary-300/60 bg-gradient-to-r from-primary-500/15 to-primary-warm-500/10 text-primary-700 shadow-sm shadow-primary-500/10"
+            exact-active-class="border-primary-300/60 bg-gradient-to-r from-primary-500/15 to-primary-warm-500/10 text-primary-700 shadow-sm shadow-primary-500/10"
+            :class="[
+              isDesktopCollapsed ? 'justify-center px-0' : '',
+              route.path === '/worker/schedule' ? '' : 'text-muted hover:border-primary-200/70 hover:bg-primary-500/10 hover:text-foreground',
+            ]"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
+              <line x1="16" y1="2" x2="16" y2="6" />
+              <line x1="8" y1="2" x2="8" y2="6" />
+              <line x1="3" y1="10" x2="21" y2="10" />
+            </svg>
+            <span v-if="!isDesktopCollapsed">Schedule</span>
           </NuxtLink>
 
           <NuxtLink
@@ -279,31 +299,31 @@
         <div
           class="mx-auto w-full max-w-md rounded-[26px] border border-white/70 bg-white/85 p-2 shadow-[0_24px_50px_rgba(15,23,42,0.26)] backdrop-blur-xl dark:border-white/10 dark:bg-neutral-950/90"
         >
-          <div class="relative grid grid-cols-4 gap-1">
+          <div class="relative grid grid-cols-5 gap-1">
             <div
-              class="pointer-events-none absolute inset-y-0 left-0 w-1/4 p-0.5 transition-transform duration-300 ease-out"
+              class="pointer-events-none absolute inset-y-0 left-0 w-1/5 p-0.5 transition-transform duration-300 ease-out"
               :style="{ transform: `translateX(${activeNavIndex * 100}%)` }"
               aria-hidden="true"
             >
               <div class="h-full rounded-2xl bg-primary-500/15 shadow-[inset_0_0_0_1px_rgba(0,119,230,0.22)] dark:bg-primary-500/20 dark:shadow-[inset_0_0_0_1px_rgba(96,165,250,0.35)]" />
             </div>
 
-            <!-- Schedule -->
+            <!-- Dashboard -->
             <NuxtLink
-              to="/worker/schedule"
+              to="/worker/dashboard"
               prefetch
               class="relative z-10 flex touch-manipulation flex-col items-center justify-center gap-1 rounded-2xl px-2 py-3 text-center transition-transform duration-75 active:scale-95"
-              :class="isNavActive('/worker/schedule') ? 'text-primary-700 dark:text-primary-300' : 'text-muted hover:bg-primary-500/10 hover:text-foreground'"
-              aria-label="Schedule"
-              @pointerdown="onNavPress('/worker/schedule')"
+              :class="isNavActive('/worker/dashboard') ? 'text-primary-700 dark:text-primary-300' : 'text-muted hover:bg-primary-500/10 hover:text-foreground'"
+              aria-label="Dashboard"
+              @pointerdown="onNavPress('/worker/dashboard')"
             >
               <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
-                <line x1="16" y1="2" x2="16" y2="6" />
-                <line x1="8" y1="2" x2="8" y2="6" />
-                <line x1="3" y1="10" x2="21" y2="10" />
+                <rect x="3" y="3" width="7" height="7" rx="1" />
+                <rect x="14" y="3" width="7" height="7" rx="1" />
+                <rect x="14" y="14" width="7" height="7" rx="1" />
+                <rect x="3" y="14" width="7" height="7" rx="1" />
               </svg>
-              <span class="text-[10px] font-semibold leading-none">Schedule</span>
+              <span class="text-[10px] font-semibold leading-none">Dashboard</span>
             </NuxtLink>
 
             <!-- Timesheet -->
@@ -320,6 +340,24 @@
                 <path d="M7 14l3-3 3 2 4-5" />
               </svg>
               <span class="text-[10px] font-semibold leading-none">Timesheet</span>
+            </NuxtLink>
+
+            <!-- Schedule -->
+            <NuxtLink
+              to="/worker/schedule"
+              prefetch
+              class="relative z-10 -mt-4 flex touch-manipulation flex-col items-center justify-center gap-1 rounded-2xl border border-primary-300/70 bg-gradient-to-b from-primary-500 to-primary-600 px-2 py-3 text-center text-white shadow-[0_12px_22px_rgba(0,119,230,0.35)] transition-transform duration-75 active:scale-95 dark:border-primary-300/50"
+              :class="isNavActive('/worker/schedule') ? '' : 'opacity-95 hover:opacity-100'"
+              aria-label="Schedule"
+              @pointerdown="onNavPress('/worker/schedule')"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
+                <line x1="16" y1="2" x2="16" y2="6" />
+                <line x1="8" y1="2" x2="8" y2="6" />
+                <line x1="3" y1="10" x2="21" y2="10" />
+              </svg>
+              <span class="text-[10px] font-semibold leading-none">Schedule</span>
             </NuxtLink>
 
             <!-- Invoice -->
@@ -387,7 +425,7 @@ const emit = defineEmits<{
 
 const runtimeConfig = useRuntimeConfig()
 const route = useRoute()
-const MOBILE_NAV_PATHS = ['/worker/schedule', '/worker/timesheet', '/worker/invoice', '/worker/settings'] as const
+const MOBILE_NAV_PATHS = ['/worker/dashboard', '/worker/timesheet', '/worker/schedule', '/worker/invoice', '/worker/settings'] as const
 const shellLayoutMode = useState<'mobile' | 'desktop'>('app-shell-layout-mode', () => 'mobile')
 const shellHeartbeat = useState<{ layout: 'admin' | 'worker' | null, path: string, at: number }>('app-shell-heartbeat', () => ({
   layout: null,
@@ -446,8 +484,20 @@ const appUpdatedLabel = computed(() => {
 const isDesktopCollapsed = computed(() => isDesktop.value && sidebarCollapsed.value)
 const dailyMotivationQuote = computed(() => getDailyQuoteForDate())
 
+function resolveMobileNavPath(path: string): string {
+  if (path.startsWith('/worker/job/')) {
+    return '/worker/schedule'
+  }
+
+  if (path.startsWith('/worker/profile')) {
+    return '/worker/settings'
+  }
+
+  return path
+}
+
 const activeNavIndex = computed(() => {
-  const currentPath = pressedNavPath.value ?? route.path
+  const currentPath = resolveMobileNavPath(pressedNavPath.value ?? route.path)
 
   const index = MOBILE_NAV_PATHS.findIndex((basePath) => {
     return currentPath === basePath || currentPath.startsWith(`${basePath}/`)
