@@ -22,6 +22,30 @@
         </button>
       </div>
 
+      <div class="flex items-center gap-2 rounded-xl border border-primary-100 bg-surface p-2 dark:border-white/10 dark:bg-white/[0.03]">
+        <button
+          type="button"
+          class="btn-outline !px-3 !py-1.5 text-xs"
+          @click="goToPreviousPeriod"
+        >
+          Previous
+        </button>
+        <button
+          type="button"
+          class="btn-outline !px-3 !py-1.5 text-xs"
+          @click="resetToCurrentPeriod"
+        >
+          Current period
+        </button>
+        <button
+          type="button"
+          class="btn-outline !px-3 !py-1.5 text-xs"
+          @click="goToNextPeriod"
+        >
+          Next
+        </button>
+      </div>
+
       <p class="text-xs text-muted">Showing {{ rangeLabel }}</p>
 
       <div v-if="isLoading" class="grid grid-cols-2 gap-2 sm:grid-cols-2 xl:grid-cols-4 xl:gap-3">
@@ -110,6 +134,7 @@ const { getCached, setCached } = useDataCache()
 const supabase = useSupabaseClient()
 
 const selectedFilter = ref<DashboardFilter>('week')
+const periodCursor = ref(new Date())
 const isLoading = ref(false)
 const loadError = ref('')
 const employeeId = ref('')
@@ -121,10 +146,10 @@ const summary = ref<WorkerDashboardSummary>({
 })
 
 const selectedPeriodRange = computed(() => {
-  const now = new Date()
+  const cursor = new Date(periodCursor.value)
 
   if (selectedFilter.value === 'year') {
-    const year = now.getFullYear()
+    const year = cursor.getFullYear()
     return {
       from: `${year}-01-01`,
       to: `${year}-12-31`,
@@ -133,8 +158,8 @@ const selectedPeriodRange = computed(() => {
   }
 
   if (selectedFilter.value === 'month') {
-    const year = now.getFullYear()
-    const month = now.getMonth()
+    const year = cursor.getFullYear()
+    const month = cursor.getMonth()
     const first = new Date(year, month, 1)
     const last = new Date(year, month + 1, 0)
 
@@ -145,20 +170,21 @@ const selectedPeriodRange = computed(() => {
     }
   }
 
-  const monday = startOfWeek(now)
+  const monday = startOfWeek(cursor)
   const sunday = new Date(monday)
   sunday.setDate(monday.getDate() + 6)
 
   return {
     from: toIsoDate(monday),
     to: toIsoDate(sunday),
-    label: `${monday.toLocaleDateString('en-AU', { day: '2-digit', month: 'short' })} - ${sunday.toLocaleDateString('en-AU', { day: '2-digit', month: 'short', year: 'numeric' })}`,
+    label: `${monday.toLocaleDateString('en-AU', { day: 'numeric', month: 'short' })} - ${sunday.toLocaleDateString('en-AU', { day: 'numeric', month: 'short', year: 'numeric' })}`,
   }
 })
 
 const rangeLabel = computed(() => selectedPeriodRange.value.label)
 
 watch(selectedFilter, () => {
+  periodCursor.value = new Date()
   void loadDashboardSummary()
 })
 
@@ -291,6 +317,41 @@ function startOfWeek(date: Date): Date {
   value.setDate(value.getDate() + diff)
   value.setHours(0, 0, 0, 0)
   return value
+}
+
+function goToPreviousPeriod(): void {
+  const cursor = new Date(periodCursor.value)
+
+  if (selectedFilter.value === 'week') {
+    cursor.setDate(cursor.getDate() - 7)
+  } else if (selectedFilter.value === 'month') {
+    cursor.setMonth(cursor.getMonth() - 1)
+  } else {
+    cursor.setFullYear(cursor.getFullYear() - 1)
+  }
+
+  periodCursor.value = cursor
+  void loadDashboardSummary()
+}
+
+function goToNextPeriod(): void {
+  const cursor = new Date(periodCursor.value)
+
+  if (selectedFilter.value === 'week') {
+    cursor.setDate(cursor.getDate() + 7)
+  } else if (selectedFilter.value === 'month') {
+    cursor.setMonth(cursor.getMonth() + 1)
+  } else {
+    cursor.setFullYear(cursor.getFullYear() + 1)
+  }
+
+  periodCursor.value = cursor
+  void loadDashboardSummary()
+}
+
+function resetToCurrentPeriod(): void {
+  periodCursor.value = new Date()
+  void loadDashboardSummary()
 }
 
 function toIsoDate(date: Date): string {
