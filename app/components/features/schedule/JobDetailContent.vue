@@ -19,24 +19,34 @@
       @dismiss="successMessage = ''"
     />
 
-    <div v-if="isLoading" class="flex items-center justify-center py-16">
-      <div class="h-6 w-6 animate-spin rounded-full border-2 border-primary-500 border-t-transparent" />
-      <span class="ml-3 text-sm text-muted">Loading job detail...</span>
+    <div v-if="isLoading" class="space-y-3 py-2" aria-live="polite" aria-label="Loading job detail">
+      <div class="h-10 animate-pulse rounded-xl border border-primary-100 bg-primary-100/50 dark:border-white/10 dark:bg-white/10" />
+      <div class="h-44 animate-pulse rounded-xl border border-primary-100 bg-primary-100/50 dark:border-white/10 dark:bg-white/10" />
+      <div class="h-24 animate-pulse rounded-xl border border-primary-100 bg-primary-100/50 dark:border-white/10 dark:bg-white/10" />
     </div>
 
     <div
       v-else-if="!jobDetail"
       class="rounded-xl border border-primary-100 bg-primary-50/40 px-5 py-8 text-center text-sm text-muted dark:border-white/10 dark:bg-white/5"
     >
-      Job not found for this route stop.
+      {{ emptyDetailMessage }}
     </div>
 
     <template v-else>
+      <div v-if="isOffline && hasCachedJobDetail" class="inline-flex items-center rounded-full border border-warning/40 bg-warning/10 px-2.5 py-1 text-[11px] font-medium text-warning dark:border-warning/30 dark:bg-warning/10">
+        Offline - showing saved job details
+        <span v-if="offlineSavedDetailLabel" class="ml-1 text-[10px] text-warning/80">({{ offlineSavedDetailLabel }})</span>
+      </div>
+
+      <div v-if="showSavedDetailBadge" class="inline-flex items-center rounded-full border border-primary-300/50 bg-primary-500/10 px-2.5 py-1 text-[11px] font-medium text-primary-700 dark:border-primary-400/40 dark:bg-primary-500/20 dark:text-primary-200">
+        Showing saved data
+      </div>
+
       <div class="flex flex-wrap items-center justify-between gap-3">
         <NuxtLink :to="backTo" class="btn-outline !px-3 !py-1.5 text-xs">
           Back to schedule
         </NuxtLink>
-        <span class="inline-flex rounded-full bg-primary-100 px-2.5 py-1 text-xs font-semibold text-primary-700 dark:bg-white/10 dark:text-white">
+        <span class="inline-flex rounded-full bg-primary-100 px-2.5 py-1 text-xs font-semibold text-primary-700 dark:bg-primary-500/20 dark:text-primary-200">
           Team {{ jobDetail.groupLabel }} · #{{ jobDetail.orderIndex + 1 }}
         </span>
       </div>
@@ -180,7 +190,7 @@
         <section class="rounded-xl border border-border bg-surface p-4 shadow-card">
           <div class="mb-3 flex items-center justify-between gap-2">
             <h3 class="text-sm font-semibold text-foreground">Team Members</h3>
-            <span class="inline-flex rounded-full bg-primary-100 px-2.5 py-1 text-xs font-semibold text-primary-700 dark:bg-white/10 dark:text-white">{{ teamMembers.length }}</span>
+            <span class="inline-flex rounded-full bg-primary-100 px-2.5 py-1 text-xs font-semibold text-primary-700 dark:bg-primary-500/20 dark:text-primary-200">{{ teamMembers.length }}</span>
           </div>
 
           <div v-if="isLoadingTeam" class="space-y-2">
@@ -300,15 +310,22 @@
         <div class="mb-3 flex items-center justify-between gap-2">
           <h3 class="text-sm font-semibold text-foreground">Reports</h3>
           <div class="flex items-center gap-2">
-            <span class="inline-flex rounded-full bg-primary-100 px-2.5 py-1 text-xs font-semibold text-primary-700 dark:bg-white/10 dark:text-white">{{ openReports.length }}</span>
+            <span class="inline-flex rounded-full bg-primary-100 px-2.5 py-1 text-xs font-semibold text-primary-700 dark:bg-primary-500/20 dark:text-primary-200">{{ openReports.length }}</span>
             <button
               type="button"
               class="btn-primary !px-3 !py-1.5 text-xs"
-              :disabled="isCreatingReport || isUploadingReportPhotos"
+              :disabled="isCreatingReport || isUploadingReportPhotos || isUploadingEditReportPhotos"
               @click="openCreateReportModal"
             >
               New report
             </button>
+          </div>
+        </div>
+
+        <div v-if="showUploadProgress" class="mb-3 rounded-lg border border-primary-100/80 bg-primary-50/50 p-2 dark:border-white/10 dark:bg-white/[0.03]">
+          <p class="text-[11px] font-medium text-foreground dark:text-slate-200">{{ uploadProgressLabel }}</p>
+          <div class="mt-1 h-2 w-full overflow-hidden rounded-full bg-primary-100 dark:bg-white/10">
+            <div class="h-full rounded-full bg-primary-500 transition-all duration-200" :style="{ width: `${uploadProgress}%` }" />
           </div>
         </div>
 
@@ -662,6 +679,10 @@ import BaseConfirmModal from '../../ui/BaseConfirmModal.vue'
 import BaseFeedbackBanner from '../../ui/BaseFeedbackBanner.vue'
 import { useAuth } from '../../../composables/useAuth'
 import { useDailyTaskExtraItems } from '../../../composables/useDailyTaskExtraItems'
+import { useWorkerNetworkStatus } from '../../../composables/useWorkerNetworkStatus'
+import { useWorkerOfflineCache } from '../../../composables/useWorkerOfflineCache'
+import { useWorkerSharedState } from '../../../composables/useWorkerSharedState'
+import { useWorkerSyncStatus } from '../../../composables/useWorkerSyncStatus'
 import { useSupabaseClient } from '../../../composables/useSupabaseClient'
 import { usePropertyReports } from '../../../composables/usePropertyReports'
 import { usePropertyReportPhotos } from '../../../composables/usePropertyReportPhotos'
@@ -817,10 +838,23 @@ interface TeamMemberItem {
   photoUrl: string | null
 }
 
+interface JobDetailCachedPayload {
+  jobDetail: JobDetailData
+  teamMembers: TeamMemberItem[]
+  reports: PropertyReportAdminListItemDTO[]
+  taskExtraItems: DailyTaskExtraItemDTO[]
+  keyPhotoUrls: string[]
+  reportPhotosByReportId: Record<string, ExistingReportPhotoItem[]>
+}
+
 const props = defineProps<Props>()
 
 const supabase = useSupabaseClient()
 const { getProfile } = useAuth()
+const { isOnline, isOffline } = useWorkerNetworkStatus()
+const { getCached: getPersistentCached, setCached: setPersistentCached } = useWorkerOfflineCache()
+const { getJobDetail: getSharedJobDetail, setJobDetail: setSharedJobDetail } = useWorkerSharedState()
+const { startSync, finishSync } = useWorkerSyncStatus()
 const { getTaskExtraItems } = useDailyTaskExtraItems()
 const { getReportsByProperty, createReport, deleteReport, resolveReport, updateReportStatus, updateReport, setReportPrimaryPhoto } = usePropertyReports()
 const { getPhotosByReportIds, createPhotos, deletePhotos } = usePropertyReportPhotos()
@@ -834,6 +868,9 @@ const isCreatingReport = ref(false)
 const isUpdatingReport = ref(false)
 const isUploadingReportPhotos = ref(false)
 const isUploadingEditReportPhotos = ref(false)
+const uploadProgress = ref(0)
+const uploadProgressPhase = ref<'compressing' | 'uploading' | null>(null)
+const uploadProgressFileName = ref('')
 const isLoadingProfile = ref(false)
 const deletingReportIds = ref<Set<string>>(new Set())
 const statusUpdatingReportIds = ref<Set<string>>(new Set())
@@ -867,6 +904,37 @@ const errorFeedbackTimer = ref<ReturnType<typeof setTimeout> | null>(null)
 const successFeedbackTimer = ref<ReturnType<typeof setTimeout> | null>(null)
 const copiedToken = ref<string | null>(null)
 const copyFeedbackTimer = ref<ReturnType<typeof setTimeout> | null>(null)
+const hasCachedJobDetail = ref(false)
+const cachedJobDetailSavedAt = ref<number | null>(null)
+const hasHydratedInitialCache = ref(false)
+const fetchFailedWithCache = ref(false)
+const lastValidJobDetail = ref<JobDetailCachedPayload | null>(null)
+const JOB_DETAIL_OFFLINE_CACHE_TTL = 30 * 60 * 1000
+
+const showSavedDetailBadge = computed(() => {
+  return hasHydratedInitialCache.value && (isOffline.value || fetchFailedWithCache.value)
+})
+
+const offlineSavedDetailLabel = computed(() => {
+  if (!cachedJobDetailSavedAt.value) {
+    return ''
+  }
+
+  return new Date(cachedJobDetailSavedAt.value).toLocaleString('en-AU', {
+    day: '2-digit',
+    month: 'short',
+    hour: '2-digit',
+    minute: '2-digit',
+  })
+})
+
+const emptyDetailMessage = computed(() => {
+  if (isOffline.value) {
+    return 'No saved job details available offline.'
+  }
+
+  return 'Job not found for this route stop.'
+})
 
 watch(errorMessage, (message) => {
   if (errorFeedbackTimer.value) {
@@ -958,6 +1026,31 @@ const canOpenWaze = computed(() => {
   const hasCoordinates = target.lat !== null && target.lng !== null
   return hasCoordinates || target.address.trim().length > 0
 })
+
+const showUploadProgress = computed(() => {
+  return (isUploadingReportPhotos.value || isUploadingEditReportPhotos.value) && uploadProgress.value > 0 && uploadProgress.value < 100
+})
+
+const uploadProgressLabel = computed(() => {
+  const phaseLabel = uploadProgressPhase.value === 'compressing' ? 'Compressing' : 'Uploading'
+  const fileLabel = uploadProgressFileName.value ? ` ${uploadProgressFileName.value}` : ' photos'
+  return `${phaseLabel}${fileLabel} (${uploadProgress.value}%)`
+})
+
+function resetUploadProgress(): void {
+  uploadProgress.value = 0
+  uploadProgressPhase.value = null
+  uploadProgressFileName.value = ''
+}
+
+function handleUploadProgress(
+  progress: number,
+  meta: { phase: 'compressing' | 'uploading'; fileName: string },
+): void {
+  uploadProgress.value = progress
+  uploadProgressPhase.value = meta.phase
+  uploadProgressFileName.value = meta.fileName
+}
 
 function isReportOwner(report: PropertyReportListItemDTO): boolean {
   return currentProfile.value?.id === report.created_by_profile_id
@@ -1051,6 +1144,8 @@ async function onSaveReportDetail(payload: {
   }
 
   isUpdatingReport.value = true
+  isUploadingEditReportPhotos.value = (payload.addedPhotos?.length ?? 0) > 0
+  resetUploadProgress()
   errorMessage.value = ''
   successMessage.value = ''
 
@@ -1085,7 +1180,14 @@ async function onSaveReportDetail(payload: {
     }
 
     if ((payload.addedPhotos?.length ?? 0) > 0) {
-      const uploadedUrls = await uploadReportPhotos(payload.addedPhotos ?? [])
+      const uploadedUrls = await uploadReportPhotos(payload.addedPhotos ?? [], {
+        onProgress(progress, meta) {
+          handleUploadProgress(progress, {
+            phase: meta.phase,
+            fileName: meta.fileName,
+          })
+        },
+      })
       await createPhotos(selectedReportForDetail.value.id, uploadedUrls)
     }
 
@@ -1102,6 +1204,8 @@ async function onSaveReportDetail(payload: {
     errorMessage.value = err instanceof Error ? err.message : 'Failed to update report.'
   } finally {
     isUpdatingReport.value = false
+    isUploadingEditReportPhotos.value = false
+    resetUploadProgress()
   }
 }
 
@@ -1357,6 +1461,7 @@ async function onUpdateReport(payload: ReportFormPayload): Promise<void> {
 
   isUpdatingReport.value = true
   isUploadingEditReportPhotos.value = editPendingReportPhotos.value.length > 0
+  resetUploadProgress()
   errorMessage.value = ''
   successMessage.value = ''
 
@@ -1386,7 +1491,14 @@ async function onUpdateReport(payload: ReportFormPayload): Promise<void> {
 
     if (editPendingReportPhotos.value.length > 0) {
       const filesToUpload = editPendingReportPhotos.value.map((item) => item.file)
-      const uploadedUrls = await uploadReportPhotos(filesToUpload)
+      const uploadedUrls = await uploadReportPhotos(filesToUpload, {
+        onProgress(progress, meta) {
+          handleUploadProgress(progress, {
+            phase: meta.phase,
+            fileName: meta.fileName,
+          })
+        },
+      })
       await createPhotos(editingReportId.value, uploadedUrls)
     }
 
@@ -1398,6 +1510,7 @@ async function onUpdateReport(payload: ReportFormPayload): Promise<void> {
   } finally {
     isUpdatingReport.value = false
     isUploadingEditReportPhotos.value = false
+    resetUploadProgress()
   }
 }
 
@@ -1410,13 +1523,12 @@ async function loadKeyPhotos(): Promise<void> {
     const photos = await getPhotosByPropertyId(jobDetail.value.propertyId)
     keyPhotoUrls.value = photos.map((p) => p.photo_url)
   } catch {
-    keyPhotoUrls.value = []
+    fetchFailedWithCache.value = true
   }
 }
 
 async function loadReportPhotos(): Promise<void> {
   if (reports.value.length === 0) {
-    reportPhotosByReportId.value = {}
     return
   }
 
@@ -1433,7 +1545,7 @@ async function loadReportPhotos(): Promise<void> {
     }
     reportPhotosByReportId.value = mappedPhotos
   } catch {
-    reportPhotosByReportId.value = {}
+    fetchFailedWithCache.value = true
   }
 }
 
@@ -1475,17 +1587,72 @@ async function loadTeamMembers(routeGroupId: string): Promise<void> {
       }))
       .sort((a, b) => a.fullName.localeCompare(b.fullName))
   } catch (err) {
-    teamMembers.value = []
+    fetchFailedWithCache.value = true
     errorMessage.value = err instanceof Error ? err.message : 'Failed to load team members.'
   } finally {
     isLoadingTeam.value = false
   }
 }
 
+function getJobDetailCacheKey(routeStopId: string): string {
+  return `worker-job-detail:${routeStopId}`
+}
+
+function applyCachedJobDetail(payload: JobDetailCachedPayload, savedAt: number | null): void {
+  jobDetail.value = payload.jobDetail
+  teamMembers.value = payload.teamMembers
+  reports.value = payload.reports
+  taskExtraItems.value = payload.taskExtraItems
+  keyPhotoUrls.value = payload.keyPhotoUrls
+  reportPhotosByReportId.value = payload.reportPhotosByReportId
+  hasCachedJobDetail.value = true
+  hasHydratedInitialCache.value = true
+  lastValidJobDetail.value = payload
+  cachedJobDetailSavedAt.value = savedAt
+}
+
+function createCachedJobDetailPayload(): JobDetailCachedPayload | null {
+  if (!jobDetail.value) {
+    return null
+  }
+
+  return {
+    jobDetail: jobDetail.value,
+    teamMembers: teamMembers.value,
+    reports: reports.value,
+    taskExtraItems: taskExtraItems.value,
+    keyPhotoUrls: keyPhotoUrls.value,
+    reportPhotosByReportId: reportPhotosByReportId.value,
+  }
+}
+
 async function loadJobDetail(): Promise<void> {
   isLoading.value = true
   errorMessage.value = ''
-  taskExtraItems.value = []
+  fetchFailedWithCache.value = false
+  const cacheKey = getJobDetailCacheKey(props.routeStopId)
+  let syncStarted = false
+
+  const sharedCached = getSharedJobDetail<JobDetailCachedPayload>(props.routeStopId)
+  const persistentCached = getPersistentCached<JobDetailCachedPayload>(cacheKey)
+  const resolvedCache = sharedCached?.value ?? persistentCached?.data ?? lastValidJobDetail.value
+
+  if (resolvedCache) {
+    applyCachedJobDetail(resolvedCache, sharedCached?.savedAt ?? persistentCached?.savedAt ?? null)
+    isLoading.value = false
+  } else {
+    hasCachedJobDetail.value = false
+    cachedJobDetailSavedAt.value = null
+  }
+
+  if (!isOnline.value) {
+    isLoading.value = false
+    fetchFailedWithCache.value = Boolean(resolvedCache)
+    return
+  }
+
+  startSync()
+  syncStarted = true
 
   try {
     const { data: stopData, error: stopError } = await supabase
@@ -1499,8 +1666,9 @@ async function loadJobDetail(): Promise<void> {
     }
 
     if (!stopData) {
-      jobDetail.value = null
-      taskExtraItems.value = []
+      if (!lastValidJobDetail.value) {
+        jobDetail.value = null
+      }
       return
     }
 
@@ -1528,8 +1696,9 @@ async function loadJobDetail(): Promise<void> {
     }
 
     if (!taskData) {
-      jobDetail.value = null
-      taskExtraItems.value = []
+      if (!lastValidJobDetail.value) {
+        jobDetail.value = null
+      }
       return
     }
 
@@ -1548,8 +1717,9 @@ async function loadJobDetail(): Promise<void> {
     }
 
     if (!propertyData) {
-      jobDetail.value = null
-      taskExtraItems.value = []
+      if (!lastValidJobDetail.value) {
+        jobDetail.value = null
+      }
       return
     }
 
@@ -1643,11 +1813,27 @@ async function loadJobDetail(): Promise<void> {
       loadKeyPhotos(),
       loadTaskExtraItems(task.id),
     ])
+
+    const nextCachedPayload = createCachedJobDetailPayload()
+    if (nextCachedPayload) {
+      setSharedJobDetail(props.routeStopId, nextCachedPayload)
+      setPersistentCached(cacheKey, nextCachedPayload, JOB_DETAIL_OFFLINE_CACHE_TTL)
+      lastValidJobDetail.value = nextCachedPayload
+      hasHydratedInitialCache.value = true
+      hasCachedJobDetail.value = true
+      cachedJobDetailSavedAt.value = Date.now()
+    }
   } catch (err) {
-    teamMembers.value = []
-    taskExtraItems.value = []
-    errorMessage.value = err instanceof Error ? err.message : 'Failed to load job detail.'
+    if (!resolvedCache && !lastValidJobDetail.value) {
+      errorMessage.value = err instanceof Error ? err.message : 'Failed to load job detail.'
+    } else {
+      fetchFailedWithCache.value = true
+    }
   } finally {
+    if (syncStarted) {
+      finishSync()
+    }
+
     isLoading.value = false
   }
 }
@@ -1656,13 +1842,12 @@ async function loadTaskExtraItems(taskId: string): Promise<void> {
   try {
     taskExtraItems.value = await getTaskExtraItems(taskId)
   } catch {
-    taskExtraItems.value = []
+    fetchFailedWithCache.value = true
   }
 }
 
 async function loadReports(): Promise<void> {
   if (!jobDetail.value) {
-    reports.value = []
     return
   }
 
@@ -1679,7 +1864,7 @@ async function loadReports(): Promise<void> {
     await loadReportPhotos()
   } catch (err) {
     errorMessage.value = err instanceof Error ? err.message : 'Failed to load reports.'
-    reports.value = []
+    fetchFailedWithCache.value = true
   } finally {
     isLoadingReports.value = false
   }
@@ -1692,6 +1877,7 @@ async function onCreateReport(payload: ReportFormPayload): Promise<void> {
 
   isCreatingReport.value = true
   isUploadingReportPhotos.value = createPendingReportPhotos.value.length > 0
+  resetUploadProgress()
   errorMessage.value = ''
   successMessage.value = ''
 
@@ -1720,7 +1906,14 @@ async function onCreateReport(payload: ReportFormPayload): Promise<void> {
     reports.value = [optimisticReport, ...reports.value.filter((item) => item.id !== optimisticReport.id)]
 
     if (pendingFiles.length > 0) {
-      const uploadedUrls = await uploadReportPhotos(pendingFiles)
+      const uploadedUrls = await uploadReportPhotos(pendingFiles, {
+        onProgress(progress, meta) {
+          handleUploadProgress(progress, {
+            phase: meta.phase,
+            fileName: meta.fileName,
+          })
+        },
+      })
       await createPhotos(newReport.id, uploadedUrls)
     }
 
@@ -1732,6 +1925,7 @@ async function onCreateReport(payload: ReportFormPayload): Promise<void> {
   } finally {
     isCreatingReport.value = false
     isUploadingReportPhotos.value = false
+    resetUploadProgress()
   }
 }
 
@@ -1994,5 +2188,9 @@ onMounted(async () => {
     loadCurrentProfile(),
     loadJobDetail(),
   ])
+})
+
+watch(() => props.routeStopId, () => {
+  void loadJobDetail()
 })
 </script>

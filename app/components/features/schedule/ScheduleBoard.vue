@@ -152,14 +152,25 @@
       {{ displayDate }}
     </p>
 
+    <div v-if="showOfflineScheduleBadge" class="inline-flex items-center gap-1 rounded-full border border-warning/40 bg-warning/10 px-2.5 py-1 text-[11px] font-medium text-warning dark:border-warning/30 dark:bg-warning/10">
+      Offline mode - showing last saved schedule
+      <span v-if="offlineScheduleUpdatedLabel" class="text-[10px] text-warning/80">({{ offlineScheduleUpdatedLabel }})</span>
+    </div>
+
+    <div v-if="showSavedScheduleBadge" class="inline-flex items-center gap-1 rounded-full border border-primary-300/50 bg-primary-500/10 px-2.5 py-1 text-[11px] font-medium text-primary-700 dark:border-primary-400/40 dark:bg-primary-500/20 dark:text-primary-200">
+      Showing saved data
+      <span v-if="offlineScheduleUpdatedLabel" class="text-[10px] text-primary-700/80 dark:text-primary-200/80">({{ offlineScheduleUpdatedLabel }})</span>
+    </div>
+
     <div
-      v-if="isLoading"
-      class="flex items-center justify-center py-16"
+      v-if="showInitialScheduleSkeleton"
+      class="space-y-3 py-2"
       aria-live="polite"
       aria-label="Loading schedule"
     >
-      <div class="h-6 w-6 animate-spin rounded-full border-2 border-primary-500 border-t-transparent" />
-      <span class="ml-3 text-sm text-muted">Loading schedule...</span>
+      <div class="h-20 animate-pulse rounded-xl border border-primary-100 bg-primary-100/50 dark:border-white/10 dark:bg-white/10" />
+      <div class="h-20 animate-pulse rounded-xl border border-primary-100 bg-primary-100/50 dark:border-white/10 dark:bg-white/10" />
+      <div class="h-20 animate-pulse rounded-xl border border-primary-100 bg-primary-100/50 dark:border-white/10 dark:bg-white/10" />
     </div>
 
     <div
@@ -216,6 +227,11 @@
 <script setup lang="ts">
 import { computed, ref, watch, onMounted } from 'vue'
 import { navigateTo } from '#imports'
+import { useDataCache } from '../../../composables/useDataCache'
+import { useWorkerOfflineCache } from '../../../composables/useWorkerOfflineCache'
+import { useWorkerNetworkStatus } from '../../../composables/useWorkerNetworkStatus'
+import { useWorkerSharedState } from '../../../composables/useWorkerSharedState'
+import { useWorkerSyncStatus } from '../../../composables/useWorkerSyncStatus'
 import { useHolidays } from '../../../composables/useHolidays'
 import { useWorkerSchedule } from '../../../composables/useWorkerSchedule'
 import type { ScheduleItem } from '../../../composables/useWorkerSchedule'
@@ -228,8 +244,14 @@ interface Props {
 const props = defineProps<Props>()
 
 const { getSchedule } = useWorkerSchedule()
+const { getCached, setCached } = useDataCache()
+const { getCached: getPersistentCached, setCached: setPersistentCached } = useWorkerOfflineCache()
+const { isOnline, isOffline } = useWorkerNetworkStatus()
+const { getSchedule: getSharedSchedule, setSchedule: setSharedSchedule } = useWorkerSharedState()
+const { startSync, finishSync } = useWorkerSyncStatus()
 const { getHolidaysByRange } = useHolidays()
 const LAST_VIEWED_DATE_STORAGE_KEY = 'freshbreeze:last-viewed-board-date'
+const SCHEDULE_OFFLINE_CACHE_TTL = 30 * 60 * 1000
 
 function formatDateForInput(date: Date): string {
   const year = date.getFullYear()
@@ -250,10 +272,42 @@ const scheduleItems = ref<ScheduleItem[]>([])
 const availableGroups = ref<string[]>([])
 const holidayNamesByDate = ref<Record<string, string[]>>({})
 const scheduleRequestId = ref(0)
+const offlineScheduleSavedAt = ref<number | null>(null)
+const hasOfflineScheduleCache = ref(false)
+const hasHydratedInitialCache = ref(false)
+const fetchFailedWithCache = ref(false)
+const lastValidSchedule = ref<{
+  scheduleItems: ScheduleItem[]
+  availableGroups: string[]
+  holidayNamesByDate: Record<string, string[]>
+} | null>(null)
 
 const showGroupFilter = computed(() => props.mode === 'admin')
+const showInitialScheduleSkeleton = computed(() => isLoading.value && scheduleItems.value.length === 0 && !error.value)
+const isOfflineWithoutCache = computed(() => isOffline.value && !hasOfflineScheduleCache.value)
+const showOfflineScheduleBadge = computed(() => isOffline.value && hasOfflineScheduleCache.value)
+const showSavedScheduleBadge = computed(() => {
+  return hasHydratedInitialCache.value && (isOffline.value || fetchFailedWithCache.value)
+})
+
+const offlineScheduleUpdatedLabel = computed(() => {
+  if (!offlineScheduleSavedAt.value) {
+    return ''
+  }
+
+  return new Date(offlineScheduleSavedAt.value).toLocaleString('en-AU', {
+    day: '2-digit',
+    month: 'short',
+    hour: '2-digit',
+    minute: '2-digit',
+  })
+})
 
 const emptyMessage = computed(() => {
+  if (isOfflineWithoutCache.value) {
+    return 'No saved schedule available offline.'
+  }
+
   if (props.mode === 'admin') {
     return 'No published route plan found for this date.'
   }
@@ -337,8 +391,54 @@ const displayDate = computed(() => {
 async function loadSchedule(): Promise<void> {
   const requestId = scheduleRequestId.value + 1
   scheduleRequestId.value = requestId
-  isLoading.value = true
   error.value = null
+  fetchFailedWithCache.value = false
+
+  const cacheKey = `schedule-board:${props.mode}:${selectedDate.value}:${selectedGroup.value}`
+  const sharedCached = getSharedSchedule<{
+    scheduleItems: ScheduleItem[]
+    availableGroups: string[]
+    holidayNamesByDate: Record<string, string[]>
+  }>(cacheKey)
+
+  const cached = getCached<{
+    scheduleItems: ScheduleItem[]
+    availableGroups: string[]
+    holidayNamesByDate: Record<string, string[]>
+  }>(cacheKey)
+
+  const persistentCached = getPersistentCached<{
+    scheduleItems: ScheduleItem[]
+    availableGroups: string[]
+    holidayNamesByDate: Record<string, string[]>
+  }>(cacheKey)
+
+  const resolvedCache = sharedCached?.value ?? cached ?? persistentCached?.data ?? lastValidSchedule.value
+  hasOfflineScheduleCache.value = Boolean(resolvedCache)
+  offlineScheduleSavedAt.value = sharedCached?.savedAt ?? persistentCached?.savedAt ?? null
+
+  if (resolvedCache) {
+    scheduleItems.value = resolvedCache.scheduleItems
+    availableGroups.value = resolvedCache.availableGroups
+    holidayNamesByDate.value = resolvedCache.holidayNamesByDate
+    lastValidSchedule.value = resolvedCache
+    hasHydratedInitialCache.value = true
+    isLoading.value = false
+
+    if (!cached) {
+      setCached(cacheKey, resolvedCache, 3 * 60 * 1000)
+    }
+  } else {
+    isLoading.value = true
+  }
+
+  if (!isOnline.value) {
+    fetchFailedWithCache.value = Boolean(lastValidSchedule.value)
+    isLoading.value = false
+    return
+  }
+
+  startSync()
 
   try {
     const weekStart = getStartOfWeek(parseIsoDate(selectedDate.value))
@@ -368,16 +468,48 @@ async function loadSchedule(): Promise<void> {
 
     scheduleItems.value = result.scheduleItems
     availableGroups.value = result.availableGroups
+
+    setCached(cacheKey, {
+      scheduleItems: result.scheduleItems,
+      availableGroups: result.availableGroups,
+      holidayNamesByDate: holidayNamesByDate.value,
+    }, 3 * 60 * 1000)
+
+    setPersistentCached(cacheKey, {
+      scheduleItems: result.scheduleItems,
+      availableGroups: result.availableGroups,
+      holidayNamesByDate: holidayNamesByDate.value,
+    }, SCHEDULE_OFFLINE_CACHE_TTL)
+
+    setSharedSchedule(cacheKey, {
+      scheduleItems: result.scheduleItems,
+      availableGroups: result.availableGroups,
+      holidayNamesByDate: holidayNamesByDate.value,
+    })
+
+    lastValidSchedule.value = {
+      scheduleItems: result.scheduleItems,
+      availableGroups: result.availableGroups,
+      holidayNamesByDate: holidayNamesByDate.value,
+    }
+    hasHydratedInitialCache.value = true
+
+    hasOfflineScheduleCache.value = true
+    offlineScheduleSavedAt.value = Date.now()
   } catch (err) {
     if (requestId !== scheduleRequestId.value) {
       return
     }
 
-    error.value = err instanceof Error ? err.message : 'Failed to load schedule.'
-    scheduleItems.value = []
-    availableGroups.value = []
-    holidayNamesByDate.value = {}
+    const hasAnyCachedPayload = Boolean(lastValidSchedule.value || resolvedCache)
+    fetchFailedWithCache.value = hasAnyCachedPayload
+
+    if (!hasAnyCachedPayload) {
+      error.value = err instanceof Error ? err.message : 'Failed to load schedule.'
+    }
   } finally {
+    finishSync()
+
     if (requestId === scheduleRequestId.value) {
       isLoading.value = false
     }

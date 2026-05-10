@@ -5,6 +5,13 @@
         <p class="text-[11px] font-semibold uppercase tracking-[0.12em] text-primary-600">Worker</p>
         <h2 class="text-xl font-semibold text-foreground sm:text-2xl">Dashboard</h2>
         <p class="text-sm text-muted">Overview of your productivity and estimated earnings.</p>
+        <div v-if="isOffline" class="inline-flex items-center rounded-full border border-warning/40 bg-warning/10 px-2.5 py-1 text-[11px] font-medium text-warning dark:border-warning/30 dark:bg-warning/10">
+          Offline mode
+          <span v-if="offlineSummaryUpdatedLabel" class="ml-1 text-[10px] text-warning/80">Last updated {{ offlineSummaryUpdatedLabel }}</span>
+        </div>
+        <div v-if="showSavedSummaryBadge" class="inline-flex items-center rounded-full border border-primary-300/50 bg-primary-500/10 px-2.5 py-1 text-[11px] font-medium text-primary-700 dark:border-primary-400/40 dark:bg-primary-500/20 dark:text-primary-200">
+          Showing saved data
+        </div>
       </header>
 
       <div class="flex items-center gap-2 rounded-2xl border border-primary-100/80 bg-surface/90 p-2 shadow-sm dark:border-white/10 dark:bg-white/[0.03]">
@@ -64,7 +71,7 @@
       </div>
 
       <BaseFeedbackBanner
-        v-else-if="loadError"
+        v-else-if="showLoadError"
         tone="error"
         title="Dashboard unavailable"
         :message="loadError"
@@ -102,10 +109,15 @@
 
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue'
+import { preloadRouteComponents } from '#imports'
 import BaseFeedbackBanner from '../../components/ui/BaseFeedbackBanner.vue'
 import WorkerKpiCard from '../../components/features/worker/WorkerKpiCard.vue'
 import { useAuth } from '../../composables/useAuth'
 import { useDataCache } from '../../composables/useDataCache'
+import { useWorkerOfflineCache } from '../../composables/useWorkerOfflineCache'
+import { useWorkerNetworkStatus } from '../../composables/useWorkerNetworkStatus'
+import { useWorkerSharedState } from '../../composables/useWorkerSharedState'
+import { useWorkerSyncStatus } from '../../composables/useWorkerSyncStatus'
 import { useSupabaseClient } from '../../composables/useSupabaseClient'
 import { useWorkerProfileSettings } from '../../composables/useWorkerProfileSettings'
 
@@ -139,7 +151,12 @@ const filterOptions: Array<{ label: string, value: DashboardFilter }> = [
 const { signOut, getCurrentUser } = useAuth()
 const { getSettings } = useWorkerProfileSettings()
 const { getCached, setCached } = useDataCache()
+const { getCached: getPersistentCached, setCached: setPersistentCached } = useWorkerOfflineCache()
+const { isOnline, isOffline } = useWorkerNetworkStatus()
+const { getDashboard: getSharedDashboard, setDashboard: setSharedDashboard } = useWorkerSharedState()
+const { startSync, finishSync } = useWorkerSyncStatus()
 const supabase = useSupabaseClient()
+const DASHBOARD_OFFLINE_CACHE_TTL = 30 * 60 * 1000
 
 const selectedFilter = ref<DashboardFilter>('week')
 const periodCursor = ref(new Date())
@@ -152,6 +169,43 @@ const summary = ref<WorkerDashboardSummary>({
   workedDays: 0,
   averageHoursPerDay: 0,
 })
+const offlineSummarySavedAt = ref<number | null>(null)
+const lastValidSummary = ref<WorkerDashboardSummary | null>(null)
+const hasHydratedInitialCache = ref(false)
+const fetchFailedWithCache = ref(false)
+
+const showSavedSummaryBadge = computed(() => {
+  return hasHydratedInitialCache.value && (isOffline.value || fetchFailedWithCache.value)
+})
+
+const showLoadError = computed(() => {
+  return loadError.value.length > 0 && !hasHydratedInitialCache.value
+})
+
+const offlineSummaryUpdatedLabel = computed(() => {
+  if (!offlineSummarySavedAt.value) {
+    return ''
+  }
+
+  return new Date(offlineSummarySavedAt.value).toLocaleString('en-AU', {
+    day: '2-digit',
+    month: 'short',
+    hour: '2-digit',
+    minute: '2-digit',
+  })
+})
+
+function startDevTimer(label: string): () => void {
+  if (!import.meta.dev || !import.meta.client) {
+    return () => {}
+  }
+
+  const startedAt = performance.now()
+  return () => {
+    const elapsed = Math.round((performance.now() - startedAt) * 100) / 100
+    console.info(`[worker-perf] ${label}: ${elapsed}ms`)
+  }
+}
 
 const selectedPeriodRange = computed(() => {
   const cursor = new Date(periodCursor.value)
@@ -208,6 +262,11 @@ watch(selectedFilter, () => {
 })
 
 onMounted(async () => {
+  if (import.meta.client) {
+    void preloadRouteComponents('/worker/timesheet')
+    void preloadRouteComponents('/worker/schedule')
+  }
+
   await resolveEmployeeId()
   await loadDashboardSummary()
 })
@@ -237,8 +296,10 @@ async function resolveEmployeeId(): Promise<void> {
 }
 
 async function loadDashboardSummary(): Promise<void> {
-  isLoading.value = true
+  const stopTimer = startDevTimer('dashboard:load-summary')
   loadError.value = ''
+  let syncStarted = false
+  fetchFailedWithCache.value = false
 
   try {
     if (!employeeId.value) {
@@ -247,12 +308,39 @@ async function loadDashboardSummary(): Promise<void> {
 
     const { from, to } = selectedPeriodRange.value
     const cacheKey = `worker-dashboard:${employeeId.value}:${selectedFilter.value}:${from}:${to}`
+    const sharedCached = getSharedDashboard<WorkerDashboardSummary>(cacheKey)
     const cached = getCached<WorkerDashboardSummary>(cacheKey)
+    const persistentCached = getPersistentCached<WorkerDashboardSummary>(cacheKey)
+    const resolvedCache = sharedCached?.value ?? cached ?? persistentCached?.data ?? lastValidSummary.value
 
-    if (cached) {
-      summary.value = cached
+    offlineSummarySavedAt.value = sharedCached?.savedAt ?? persistentCached?.savedAt ?? null
+
+    if (resolvedCache) {
+      summary.value = resolvedCache
+      lastValidSummary.value = resolvedCache
+      hasHydratedInitialCache.value = true
+      isLoading.value = false
+
+      if (!cached) {
+        setCached(cacheKey, resolvedCache, 5 * 60 * 1000)
+      }
+    } else {
+      isLoading.value = true
+    }
+
+    if (!isOnline.value) {
+      if (!resolvedCache) {
+        loadError.value = 'No saved dashboard data available offline.'
+      } else {
+        fetchFailedWithCache.value = true
+      }
+
+      isLoading.value = false
       return
     }
+
+    startSync()
+    syncStarted = true
 
     const [settings, entriesResult] = await Promise.all([
       getSettings(),
@@ -306,11 +394,27 @@ async function loadDashboardSummary(): Promise<void> {
     }
 
     summary.value = computedSummary
+    lastValidSummary.value = computedSummary
+    hasHydratedInitialCache.value = true
     setCached(cacheKey, computedSummary, 5 * 60 * 1000)
+    setPersistentCached(cacheKey, computedSummary, DASHBOARD_OFFLINE_CACHE_TTL)
+    setSharedDashboard(cacheKey, computedSummary)
+    offlineSummarySavedAt.value = Date.now()
   } catch (error: unknown) {
-    loadError.value = error instanceof Error ? error.message : 'Failed to load dashboard summary.'
+    if (!lastValidSummary.value) {
+      loadError.value = error instanceof Error ? error.message : 'Failed to load dashboard summary.'
+    } else {
+      fetchFailedWithCache.value = true
+      summary.value = lastValidSummary.value
+      hasHydratedInitialCache.value = true
+    }
   } finally {
+    if (syncStarted) {
+      finishSync()
+    }
+
     isLoading.value = false
+    stopTimer()
   }
 }
 

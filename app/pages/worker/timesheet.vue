@@ -17,6 +17,15 @@
         @dismiss="clearFeedback"
       />
 
+      <div v-if="isOffline && hasOfflineWeekCache" class="inline-flex items-center rounded-full border border-warning/40 bg-warning/10 px-2.5 py-1 text-[11px] font-medium text-warning dark:border-warning/30 dark:bg-warning/10">
+        Offline mode - showing last saved week
+        <span v-if="offlineWeekUpdatedLabel" class="ml-1 text-[10px] text-warning/80">({{ offlineWeekUpdatedLabel }})</span>
+      </div>
+
+      <div v-if="showSavedWeekBadge" class="inline-flex items-center rounded-full border border-primary-300/50 bg-primary-500/10 px-2.5 py-1 text-[11px] font-medium text-primary-700 dark:border-primary-400/40 dark:bg-primary-500/20 dark:text-primary-200">
+        Showing saved data
+      </div>
+
       <WorkerWeekNavigator
         v-model="selectedDate"
         :label="weekRangeLabel"
@@ -24,7 +33,17 @@
         @go-today="goToCurrentWeek"
       />
 
-      <section class="grid grid-cols-2 gap-2 sm:grid-cols-2 xl:grid-cols-4 xl:gap-3">
+      <section v-if="isInitialLoadPending" class="space-y-2.5 sm:space-y-3">
+        <div class="grid grid-cols-2 gap-2 sm:grid-cols-2 xl:grid-cols-4 xl:gap-3">
+          <div class="min-h-[74px] animate-pulse rounded-xl border border-primary-100 bg-primary-100/60 dark:border-white/10 dark:bg-white/10" />
+          <div class="min-h-[74px] animate-pulse rounded-xl border border-primary-100 bg-primary-100/60 dark:border-white/10 dark:bg-white/10" />
+          <div class="min-h-[74px] animate-pulse rounded-xl border border-primary-100 bg-primary-100/60 dark:border-white/10 dark:bg-white/10" />
+          <div class="min-h-[74px] animate-pulse rounded-xl border border-primary-100 bg-primary-100/60 dark:border-white/10 dark:bg-white/10" />
+        </div>
+        <div class="h-56 animate-pulse rounded-2xl border border-primary-100 bg-primary-100/50 dark:border-white/10 dark:bg-white/10" />
+      </section>
+
+      <section v-if="!isInitialLoadPending" class="grid grid-cols-2 gap-2 sm:grid-cols-2 xl:grid-cols-4 xl:gap-3">
         <div class="min-h-[74px] rounded-xl border border-primary-100 bg-surface px-2.5 py-2 dark:border-white/10 dark:bg-white/[0.03]">
           <p class="text-[11px] text-muted">Task hours</p>
           <p class="mt-1 text-sm font-semibold text-foreground sm:text-base">{{ formatHoursWithMinutes(displayedSummary.total_task_hours) }}</p>
@@ -46,7 +65,7 @@
         </div>
       </section>
 
-      <div class="flex items-center justify-between px-1">
+      <div v-if="!isInitialLoadPending" class="flex items-center justify-between px-1">
         <p class="text-xs text-muted">{{ isDaySummaryMode && selectedDay ? `Cards filtered by ${formatDayLabel(selectedDay.date)}` : 'Cards showing selected week totals' }}</p>
         <button
           v-if="isDaySummaryMode"
@@ -58,7 +77,7 @@
         </button>
       </div>
 
-      <section class="space-y-2.5 sm:space-y-3">
+      <section v-if="!isInitialLoadPending" class="space-y-2.5 sm:space-y-3">
         <div class="grid grid-cols-7 gap-1">
           <button
             v-for="day in weekDays"
@@ -103,7 +122,7 @@
                 {{ rateTypeLabel(selectedDay.applied_rate_type) }} · {{ toCurrency(selectedDay.hourly_rate) }}/h
               </p>
             </div>
-            <p class="w-full rounded-full bg-primary-100 px-2.5 py-1 text-center text-[11px] font-semibold text-primary-700 dark:bg-white/10 dark:text-white sm:w-auto sm:text-left">
+            <p class="w-full rounded-full bg-primary-100 px-2.5 py-1 text-center text-[11px] font-semibold text-primary-700 dark:bg-primary-500/20 dark:text-primary-100 sm:w-auto sm:text-left">
               Task: {{ formatHoursWithMinutes(selectedDay.source_task_hours) }}
             </p>
           </div>
@@ -215,9 +234,15 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { onBeforeRouteLeave } from 'vue-router'
+import { preloadRouteComponents } from '#imports'
 import BaseFeedbackBanner from '../../components/ui/BaseFeedbackBanner.vue'
 import WorkerWeekNavigator from '../../components/features/worker/WorkerWeekNavigator.vue'
 import { useAuth } from '../../composables/useAuth'
+import { useWorkerOfflineCache } from '../../composables/useWorkerOfflineCache'
+import { useWorkerNetworkStatus } from '../../composables/useWorkerNetworkStatus'
+import { useWorkerSyncStatus } from '../../composables/useWorkerSyncStatus'
+import { useWorkerSharedState } from '../../composables/useWorkerSharedState'
+import { useWorkerPendingSync } from '../../composables/useWorkerPendingSync'
 import { useWorkerProfileSettings } from '../../composables/useWorkerProfileSettings'
 import { useWorkerTimesheet } from '../../composables/useWorkerTimesheet'
 import type { WorkerTimesheetDay, WorkerTimesheetSummary } from '../../composables/useWorkerTimesheet'
@@ -260,9 +285,21 @@ interface WorkerTimesheetDraftPayload {
   extraSectionsByDate: ExtraSectionsByDate
 }
 
+interface WorkerTimesheetOfflineWeekPayload {
+  days: WorkerTimesheetDay[]
+  summary: WorkerTimesheetSummary
+  settings: WorkerProfileSettings
+}
+
 const { signOut, getCurrentUser } = useAuth()
+const { getCached: getPersistentCached, setCached: setPersistentCached } = useWorkerOfflineCache()
+const { isOnline, isOffline } = useWorkerNetworkStatus()
+const { startSync, finishSync } = useWorkerSyncStatus()
+const { getTimesheet: getSharedTimesheet, setTimesheet: setSharedTimesheet } = useWorkerSharedState()
+const { enqueueAction } = useWorkerPendingSync()
 const { getSettings } = useWorkerProfileSettings()
 const { getWeekTimesheet, saveDayEntry } = useWorkerTimesheet()
+const TIMESHEET_OFFLINE_CACHE_TTL = 30 * 60 * 1000
 
 const persistedWorkerTimesheetPageState = useState<PersistedWorkerTimesheetPageState>('worker-timesheet-page-state', () => ({
   selectedDate: todayIsoDate(),
@@ -284,11 +321,34 @@ const feedbackTone = ref<FeedbackTone>('info')
 const feedbackTitle = ref('')
 const feedbackMessage = ref('')
 const isSaving = ref(false)
+const isLoadingWeek = ref(false)
 const draftOwnerProfileId = ref<string>('')
 const isApplyingDraft = ref(false)
 const shouldRestoreDraftOnNextLoad = ref(true)
 const summaryFilterMode = ref<'week' | 'day'>('week')
+const offlineWeekSavedAt = ref<number | null>(null)
+const hasOfflineWeekCache = ref(false)
+const hasHydratedInitialCache = ref(false)
+const fetchFailedWithCache = ref(false)
+const lastValidWeek = ref<WorkerTimesheetOfflineWeekPayload | null>(null)
 let draftSaveTimeout: ReturnType<typeof setTimeout> | null = null
+
+const showSavedWeekBadge = computed(() => {
+  return hasHydratedInitialCache.value && (isOffline.value || fetchFailedWithCache.value)
+})
+
+const offlineWeekUpdatedLabel = computed(() => {
+  if (!offlineWeekSavedAt.value) {
+    return ''
+  }
+
+  return new Date(offlineWeekSavedAt.value).toLocaleString('en-AU', {
+    day: '2-digit',
+    month: 'short',
+    hour: '2-digit',
+    minute: '2-digit',
+  })
+})
 
 const weekRangeLabel = computed(() => {
   const start = getStartOfWeek(parseIsoDate(selectedDate.value))
@@ -339,6 +399,7 @@ const selectedDay = computed<WorkerTimesheetDay | null>(() => {
 })
 
 const isDaySummaryMode = computed(() => summaryFilterMode.value === 'day' && Boolean(selectedDay.value))
+const isInitialLoadPending = computed(() => isLoadingWeek.value && days.value.length === 0)
 
 const displayedSummary = computed<WorkerTimesheetSummary>(() => {
   if (!isDaySummaryMode.value || !selectedDay.value) {
@@ -355,6 +416,10 @@ const displayedSummary = computed<WorkerTimesheetSummary>(() => {
 })
 
 onMounted(async () => {
+  if (import.meta.client) {
+    void preloadRouteComponents('/worker/schedule')
+  }
+
   try {
     const currentUser = await getCurrentUser()
     draftOwnerProfileId.value = currentUser.id
@@ -384,6 +449,11 @@ watch(selectedDate, () => {
 function getDraftStorageKey(dateIso = selectedDate.value): string {
   const weekStart = formatDateForInput(getStartOfWeek(parseIsoDate(dateIso)))
   return `worker-timesheet-draft:${draftOwnerProfileId.value}:${weekStart}`
+}
+
+function getTimesheetOfflineCacheKey(dateIso = selectedDate.value): string {
+  const weekStart = formatDateForInput(getStartOfWeek(parseIsoDate(dateIso)))
+  return `worker-timesheet-week:${weekStart}`
 }
 
 function buildDraftPayload(): WorkerTimesheetDraftPayload {
@@ -545,8 +615,54 @@ onBeforeRouteLeave(() => {
 })
 
 async function loadWeek(restoreDraft = false): Promise<void> {
+  const startedAt = import.meta.dev && import.meta.client ? performance.now() : 0
+  isLoadingWeek.value = true
+  clearFeedback()
+  let syncStarted = false
+  fetchFailedWithCache.value = false
+
+  const cacheKey = getTimesheetOfflineCacheKey(selectedDate.value)
+  const sharedWeek = getSharedTimesheet<WorkerTimesheetOfflineWeekPayload>(cacheKey)
+  const cachedWeek = getPersistentCached<WorkerTimesheetOfflineWeekPayload>(cacheKey)
+  const resolvedWeek = sharedWeek?.value ?? cachedWeek?.data ?? lastValidWeek.value
+
+  if (resolvedWeek) {
+    currentSettings.value = resolvedWeek.settings
+    days.value = resolvedWeek.days
+    summary.value = resolvedWeek.summary
+    extraSectionsByDate.value = resolvedWeek.days.reduce<ExtraSectionsByDate>((acc, day) => {
+      acc[day.date] = hasExistingExtraData(day)
+      return acc
+    }, {})
+    hasOfflineWeekCache.value = true
+    offlineWeekSavedAt.value = sharedWeek?.savedAt ?? cachedWeek?.savedAt ?? null
+    lastValidWeek.value = resolvedWeek
+    hasHydratedInitialCache.value = true
+    isLoadingWeek.value = false
+
+    if (restoreDraft) {
+      restoreWeekDraft()
+    }
+  } else {
+    hasOfflineWeekCache.value = false
+    offlineWeekSavedAt.value = null
+  }
+
+  if (!isOnline.value) {
+    if (!resolvedWeek) {
+      setFeedback('warning', 'Offline mode', 'No saved timesheet available offline.')
+    } else {
+      fetchFailedWithCache.value = true
+    }
+
+    isLoadingWeek.value = false
+    return
+  }
+
+  startSync()
+  syncStarted = true
+
   try {
-    clearFeedback()
     const settings = await getSettings()
     currentSettings.value = settings
     const week = await getWeekTimesheet(selectedDate.value, settings)
@@ -565,8 +681,45 @@ async function loadWeek(restoreDraft = false): Promise<void> {
     if (restoreDraft) {
       restoreWeekDraft()
     }
+
+    setPersistentCached(cacheKey, {
+      days: week.days,
+      summary: week.summary,
+      settings,
+    }, TIMESHEET_OFFLINE_CACHE_TTL)
+
+    setSharedTimesheet(cacheKey, {
+      days: week.days,
+      summary: week.summary,
+      settings,
+    })
+
+    lastValidWeek.value = {
+      days: week.days,
+      summary: week.summary,
+      settings,
+    }
+    hasHydratedInitialCache.value = true
+
+    hasOfflineWeekCache.value = true
+    offlineWeekSavedAt.value = Date.now()
   } catch (error: unknown) {
-    setFeedback('error', 'Timesheet unavailable', error instanceof Error ? error.message : 'Failed to load timesheet data.')
+    if (!lastValidWeek.value && !resolvedWeek) {
+      setFeedback('error', 'Timesheet unavailable', error instanceof Error ? error.message : 'Failed to load timesheet data.')
+    } else {
+      fetchFailedWithCache.value = true
+    }
+  } finally {
+    if (syncStarted) {
+      finishSync()
+    }
+
+    isLoadingWeek.value = false
+
+    if (import.meta.dev && import.meta.client) {
+      const elapsed = Math.round((performance.now() - startedAt) * 100) / 100
+      console.info(`[worker-perf] timesheet:load-week: ${elapsed}ms`)
+    }
   }
 }
 
@@ -690,6 +843,16 @@ function formatSavedTimestamp(timestamp: string | null): string {
 
 async function saveDay(day: WorkerTimesheetDay): Promise<void> {
   try {
+    if (!isOnline.value) {
+      enqueueAction('saveTimesheet', {
+        date: day.date,
+        note: 'Offline save attempt kept in local draft only.',
+      })
+      scheduleDraftSave()
+      setFeedback('warning', 'Offline mode', 'You are offline. Changes remain in local draft and are queued for future sync.')
+      return
+    }
+
     isSaving.value = true
     recomputeDay(day)
     await saveDayEntry(day)
