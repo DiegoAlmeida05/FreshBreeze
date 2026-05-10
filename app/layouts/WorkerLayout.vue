@@ -249,25 +249,28 @@
       >
         <div
           v-if="isDailyMotivationOpen"
-          class="fixed inset-0 z-[90] flex items-center justify-center bg-foreground/45 px-4 py-6 backdrop-blur-sm"
+          class="fixed inset-0 z-[90] flex items-center justify-center bg-slate-950/72 px-3 py-5 backdrop-blur-md sm:px-4 sm:py-6"
           role="dialog"
           aria-modal="true"
           aria-labelledby="daily-motivation-title"
           @click="isDailyMotivationOpen = false"
         >
           <div
-            class="w-full max-w-xl rounded-[28px] border border-white/70 bg-white/90 p-5 shadow-[0_24px_60px_rgba(15,23,42,0.18)] backdrop-blur-xl dark:border-white/10 dark:bg-neutral-950/92 dark:shadow-[0_24px_60px_rgba(0,0,0,0.45)] sm:p-6"
+            class="relative w-full max-w-xl overflow-hidden rounded-[30px] border border-white/55 bg-white/92 p-5 shadow-[0_28px_70px_rgba(15,23,42,0.24)] backdrop-blur-xl dark:border-white/15 dark:bg-slate-950/88 dark:shadow-[0_30px_80px_rgba(0,0,0,0.62)] sm:p-6"
             @click.stop
           >
+            <div class="pointer-events-none absolute -left-20 -top-16 h-40 w-40 rounded-full bg-primary-500/18 blur-3xl dark:bg-primary-500/24" />
+            <div class="pointer-events-none absolute -right-20 -bottom-14 h-44 w-44 rounded-full bg-primary-warm-500/18 blur-3xl dark:bg-sky-400/12" />
+
             <div class="flex items-start justify-between gap-4">
               <div>
-                <p class="text-[11px] font-semibold uppercase tracking-[0.18em] text-primary-600 dark:text-primary-300">Daily motivation</p>
-                <h2 id="daily-motivation-title" class="mt-2 text-lg font-semibold text-foreground dark:text-white">Quote of the day</h2>
+                <p class="text-[11px] font-semibold uppercase tracking-[0.22em] text-primary-600/90 dark:text-sky-300/90">Daily motivation</p>
+                <h2 id="daily-motivation-title" class="mt-2 text-lg font-bold text-foreground dark:text-white sm:text-xl">Quote of the day</h2>
               </div>
 
               <button
                 type="button"
-                class="inline-flex h-9 w-9 items-center justify-center rounded-full border border-primary-200/70 bg-white/70 text-lg text-muted transition hover:border-primary-300 hover:text-foreground focus:outline-none focus:ring-2 focus:ring-primary-300 dark:border-white/10 dark:bg-white/5 dark:hover:text-white"
+                class="inline-flex h-9 w-9 items-center justify-center rounded-full border border-primary-200/70 bg-white/75 text-lg text-muted transition hover:border-primary-300 hover:bg-white hover:text-foreground focus:outline-none focus:ring-2 focus:ring-primary-300 dark:border-white/20 dark:bg-white/10 dark:text-slate-200 dark:hover:bg-white/20 dark:hover:text-white"
                 aria-label="Close daily motivation"
                 @click="isDailyMotivationOpen = false"
               >
@@ -275,14 +278,28 @@
               </button>
             </div>
 
-            <div class="mt-5 rounded-[24px] bg-gradient-to-br from-primary-50 via-white to-primary-warm-50 p-5 dark:from-white/5 dark:via-white/[0.03] dark:to-white/[0.02] sm:p-6">
-              <p class="text-xl font-semibold leading-relaxed text-foreground dark:text-white sm:text-2xl">
+            <div class="relative mt-5 rounded-[24px] border border-primary-100/80 bg-gradient-to-br from-primary-50 via-white to-primary-warm-50 p-5 dark:border-white/10 dark:bg-gradient-to-br dark:from-slate-900/95 dark:via-slate-900/88 dark:to-slate-950/95 sm:p-6">
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                viewBox="0 0 24 24"
+                fill="currentColor"
+                class="mb-3 h-7 w-7 text-primary-500/65 dark:text-sky-300/75"
+                aria-hidden="true"
+              >
+                <path d="M7.17 6A5.001 5.001 0 0 0 3 10.9V18a3 3 0 0 0 3 3h3a3 3 0 0 0 3-3v-3a3 3 0 0 0-3-3H6v-1.1A2.001 2.001 0 0 1 7.67 8.9l.33-.04V6h-.83Zm10 0A5.001 5.001 0 0 0 13 10.9V18a3 3 0 0 0 3 3h3a3 3 0 0 0 3-3v-3a3 3 0 0 0-3-3h-3v-1.1a2.001 2.001 0 0 1 1.67-1.98l.33-.04V6h-.83Z" />
+              </svg>
+
+              <p class="text-[1.18rem] font-semibold leading-relaxed text-foreground dark:text-white sm:text-[1.45rem]">
                 "{{ dailyMotivationQuote.en }}"
               </p>
-              <p class="mt-4 text-sm leading-relaxed text-muted dark:text-slate-300 sm:text-base">
+
+              <div class="mt-4 h-px w-full bg-gradient-to-r from-transparent via-primary-200/80 to-transparent dark:via-white/15" />
+
+              <p class="mt-4 text-sm leading-relaxed text-muted dark:text-slate-200 sm:text-base">
                 "{{ dailyMotivationQuote.pt }}"
               </p>
-              <p class="mt-5 text-sm italic text-foreground/80 dark:text-slate-200">
+
+              <p class="mt-5 text-sm italic text-primary-700 dark:text-sky-200">
                 — {{ dailyMotivationQuote.author }}
               </p>
             </div>
@@ -420,6 +437,7 @@
 
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { preloadRouteComponents } from '#imports'
 import { getDailyQuoteForDate } from '../data/dailyQuotes'
 import { useAuth } from '../composables/useAuth'
 import { useSupabaseClient } from '../composables/useSupabaseClient'
@@ -516,8 +534,49 @@ const isNavActive = (path: string) => {
   return idx === activeNavIndex.value
 }
 
+const likelyNextRoutesByPath: Record<string, string[]> = {
+  '/worker/dashboard': ['/worker/timesheet', '/worker/schedule'],
+  '/worker/timesheet': ['/worker/schedule', '/worker/dashboard'],
+  '/worker/schedule': ['/worker/dashboard', '/worker/invoice'],
+  '/worker/invoice': ['/worker/dashboard', '/worker/settings'],
+  '/worker/settings': ['/worker/dashboard', '/worker/invoice'],
+}
+
+function prefetchLikelyRoutes(path: string): void {
+  if (!import.meta.client) {
+    return
+  }
+
+  const resolvedPath = resolveMobileNavPath(path)
+  const targets = likelyNextRoutesByPath[resolvedPath] ?? []
+
+  for (const target of targets) {
+    if (target === resolvedPath) {
+      continue
+    }
+
+    void preloadRouteComponents(target)
+  }
+}
+
+function scheduleLikelyRoutePrefetch(path: string): void {
+  if (!import.meta.client) {
+    return
+  }
+
+  const callback = () => prefetchLikelyRoutes(path)
+
+  if ('requestIdleCallback' in window) {
+    window.requestIdleCallback(callback, { timeout: 1200 })
+    return
+  }
+
+  window.setTimeout(callback, 160)
+}
+
 const onNavPress = (path: string) => {
   pressedNavPath.value = path
+  scheduleLikelyRoutePrefetch(path)
 }
 
 const markWorkerShellHeartbeat = (reason: string) => {
@@ -671,6 +730,7 @@ watch(() => route.fullPath, () => {
     sidebarOpen.value = false
   }
 
+  scheduleLikelyRoutePrefetch(route.path)
   void restoreSidebarScroll()
 })
 
@@ -696,6 +756,7 @@ onMounted(async () => {
   window.addEventListener('orientationchange', handleViewportGeometryChange)
   document.addEventListener('visibilitychange', handleVisibilityChange)
   handlePageShow()
+  scheduleLikelyRoutePrefetch(route.path)
   void restoreSidebarScroll()
 
   try {
