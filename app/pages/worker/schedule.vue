@@ -10,6 +10,11 @@ import { onBeforeRouteLeave } from 'vue-router'
 import { useAuth } from '../../composables/useAuth'
 import ScheduleBoard from '../../components/features/schedule/ScheduleBoard.vue'
 
+definePageMeta({
+  name: 'worker-schedule',
+  keepalive: true,
+})
+
 interface PersistedWorkerSchedulePageState {
   scrollY: number
 }

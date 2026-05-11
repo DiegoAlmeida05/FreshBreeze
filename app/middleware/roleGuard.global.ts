@@ -143,6 +143,8 @@ export default defineNuxtRouteMiddleware(async (to) => {
 
     const rememberMode = getStorageItem(localStorage, REMEMBER_MODE_KEY)
     const hasSessionMarker = getStorageItem(sessionStorage, SESSION_ACTIVE_KEY) === '1'
+    const isOffline = typeof navigator !== 'undefined' && navigator.onLine === false
+    const hasOfflineSessionEvidence = isOffline && (hasSessionMarker || rememberMode === 'persistent')
 
     if (rememberMode === 'session' && !hasSessionMarker) {
       void withTimeout('session-signout', async () => {
@@ -166,6 +168,15 @@ export default defineNuxtRouteMiddleware(async (to) => {
     )
 
     if (userResult.error || !userResult.data.user) {
+      if (isWorkerRoute && hasOfflineSessionEvidence) {
+        logRoleGuard('offline worker route allowed by local session evidence', {
+          route: to.fullPath,
+          rememberMode,
+          hasSessionMarker,
+        })
+        return
+      }
+
       if (isAdminRoute || isWorkerRoute) {
         return navigateTo('/login')
       }
@@ -189,6 +200,15 @@ export default defineNuxtRouteMiddleware(async (to) => {
     const profile = profileResult.data
 
     if (profileResult.error || !profile || !profile.active) {
+      if (isWorkerRoute && hasOfflineSessionEvidence) {
+        logRoleGuard('offline worker route allowed without live profile', {
+          route: to.fullPath,
+          rememberMode,
+          hasSessionMarker,
+        })
+        return
+      }
+
       void withTimeout('inactive-signout', async () => {
         await supabase.auth.signOut()
       }, 900, undefined)

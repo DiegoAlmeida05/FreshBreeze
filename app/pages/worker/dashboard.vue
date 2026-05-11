@@ -123,6 +123,7 @@ import { useWorkerProfileSettings } from '../../composables/useWorkerProfileSett
 
 definePageMeta({
   name: 'worker-dashboard',
+  keepalive: true,
 })
 
 type DashboardFilter = 'week' | 'month' | 'year'

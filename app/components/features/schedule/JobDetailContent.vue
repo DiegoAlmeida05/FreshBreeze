@@ -19,7 +19,7 @@
       @dismiss="successMessage = ''"
     />
 
-    <div v-if="isLoading" class="space-y-3 py-2" aria-live="polite" aria-label="Loading job detail">
+    <div v-if="isLoading && !jobDetail" class="space-y-3 py-2" aria-live="polite" aria-label="Loading job detail">
       <div class="h-10 animate-pulse rounded-xl border border-primary-100 bg-primary-100/50 dark:border-white/10 dark:bg-white/10" />
       <div class="h-44 animate-pulse rounded-xl border border-primary-100 bg-primary-100/50 dark:border-white/10 dark:bg-white/10" />
       <div class="h-24 animate-pulse rounded-xl border border-primary-100 bg-primary-100/50 dark:border-white/10 dark:bg-white/10" />
@@ -42,13 +42,22 @@
         Showing saved data
       </div>
 
+      <div v-if="isMinimalDetailMode" class="inline-flex items-center rounded-full border border-warning/40 bg-warning/10 px-2.5 py-1 text-[11px] font-medium text-warning dark:border-warning/30 dark:bg-warning/10">
+        Offline - showing saved schedule details
+      </div>
+
       <div class="flex flex-wrap items-center justify-between gap-3">
         <NuxtLink :to="backTo" class="btn-outline !px-3 !py-1.5 text-xs">
           Back to schedule
         </NuxtLink>
-        <span class="inline-flex rounded-full bg-primary-100 px-2.5 py-1 text-xs font-semibold text-primary-700 dark:bg-primary-500/20 dark:text-primary-200">
-          Team {{ jobDetail.groupLabel }} · #{{ jobDetail.orderIndex + 1 }}
-        </span>
+        <div class="flex items-center gap-2">
+          <span class="inline-flex rounded-full bg-primary-100 px-2.5 py-1 text-xs font-semibold text-primary-700 dark:bg-primary-500/20 dark:text-primary-200">
+            Team {{ jobDetail.groupLabel }} · #{{ jobDetail.orderIndex + 1 }}
+          </span>
+          <span v-if="timeWindowLabel" class="inline-flex rounded-full border border-primary-200/70 bg-surface px-2.5 py-1 text-xs font-medium text-muted dark:border-white/10 dark:bg-white/5">
+            {{ timeWindowLabel }}
+          </span>
+        </div>
       </div>
 
       <section class="rounded-xl border border-border bg-surface p-4 shadow-card">
@@ -314,7 +323,7 @@
             <button
               type="button"
               class="btn-primary !px-3 !py-1.5 text-xs"
-              :disabled="isCreatingReport || isUploadingReportPhotos || isUploadingEditReportPhotos"
+              :disabled="isMinimalDetailMode || isCreatingReport || isUploadingReportPhotos || isUploadingEditReportPhotos"
               @click="openCreateReportModal"
             >
               New report
@@ -693,6 +702,7 @@ import { buildVisibleTaskTags } from '../../../utils/visualTaskTags'
 import type { ProfileDTO } from '../../../../shared/types/ProfileDTO'
 import type { DailyTaskExtraItemDTO } from '../../../../shared/types/PricingItemDTO'
 import type { PropertyReportDTO, PropertyReportAdminListItemDTO, PropertyReportStatus } from '../../../../shared/types/PropertyReportDTO'
+import type { WorkerMinimalJobDetail } from '../../../composables/useWorkerSharedState'
 
 interface PendingPhotoItem {
   id: string
@@ -718,6 +728,8 @@ interface JobDetailData {
   orderIndex: number
   dailyTaskId: string
   taskDate: string
+  plannedStartTime: string | null
+  plannedEndTime: string | null
   propertyId: string
   propertyName: string
   clientName: string
@@ -762,6 +774,8 @@ interface RouteStopRow {
   route_group_id: string
   daily_task_id: string
   order_index: number | null
+  planned_start_time: string | null
+  planned_end_time: string | null
 }
 
 interface RouteGroupRow {
@@ -853,7 +867,7 @@ const supabase = useSupabaseClient()
 const { getProfile } = useAuth()
 const { isOnline, isOffline } = useWorkerNetworkStatus()
 const { getCached: getPersistentCached, setCached: setPersistentCached } = useWorkerOfflineCache()
-const { getJobDetail: getSharedJobDetail, setJobDetail: setSharedJobDetail } = useWorkerSharedState()
+const { getJobDetail: getSharedJobDetail, setJobDetail: setSharedJobDetail, getMinimalJobDetail } = useWorkerSharedState()
 const { startSync, finishSync } = useWorkerSyncStatus()
 const { getTaskExtraItems } = useDailyTaskExtraItems()
 const { getReportsByProperty, createReport, deleteReport, resolveReport, updateReportStatus, updateReport, setReportPrimaryPhoto } = usePropertyReports()
@@ -909,6 +923,7 @@ const cachedJobDetailSavedAt = ref<number | null>(null)
 const hasHydratedInitialCache = ref(false)
 const fetchFailedWithCache = ref(false)
 const lastValidJobDetail = ref<JobDetailCachedPayload | null>(null)
+const isMinimalDetailMode = ref(false)
 const JOB_DETAIL_OFFLINE_CACHE_TTL = 30 * 60 * 1000
 
 const showSavedDetailBadge = computed(() => {
@@ -934,6 +949,25 @@ const emptyDetailMessage = computed(() => {
   }
 
   return 'Job not found for this route stop.'
+})
+
+const timeWindowLabel = computed(() => {
+  if (!jobDetail.value) {
+    return ''
+  }
+
+  const start = jobDetail.value.plannedStartTime?.trim() ?? ''
+  const end = jobDetail.value.plannedEndTime?.trim() ?? ''
+
+  if (!start && !end) {
+    return ''
+  }
+
+  if (start && end) {
+    return `${start} - ${end}`
+  }
+
+  return start || end
 })
 
 watch(errorMessage, (message) => {
@@ -1598,7 +1632,12 @@ function getJobDetailCacheKey(routeStopId: string): string {
   return `worker-job-detail:${routeStopId}`
 }
 
+function getJobMinimalCacheKey(routeStopId: string): string {
+  return `worker-job-min:${routeStopId}`
+}
+
 function applyCachedJobDetail(payload: JobDetailCachedPayload, savedAt: number | null): void {
+  isMinimalDetailMode.value = false
   jobDetail.value = payload.jobDetail
   teamMembers.value = payload.teamMembers
   reports.value = payload.reports
@@ -1608,6 +1647,58 @@ function applyCachedJobDetail(payload: JobDetailCachedPayload, savedAt: number |
   hasCachedJobDetail.value = true
   hasHydratedInitialCache.value = true
   lastValidJobDetail.value = payload
+  cachedJobDetailSavedAt.value = savedAt
+}
+
+function toJobDetailFromMinimal(minimal: WorkerMinimalJobDetail): JobDetailData {
+  return {
+    routeStopId: minimal.routeStopId,
+    groupLabel: minimal.groupLabel,
+    orderIndex: minimal.orderIndex,
+    dailyTaskId: '',
+    taskDate: minimal.taskDate,
+    plannedStartTime: minimal.plannedStartTime,
+    plannedEndTime: minimal.plannedEndTime,
+    propertyId: minimal.propertyId,
+    propertyName: minimal.propertyName,
+    clientName: minimal.clientName,
+    address: minimal.address,
+    lat: minimal.lat,
+    lng: minimal.lng,
+    keyPickupAddress: null,
+    propertyKeys: [],
+    propertyNotes: null,
+    link1: minimal.link1,
+    link2: minimal.link2,
+    hasKey: minimal.hasKey,
+    keyPhotoUrl: minimal.keyPhotoUrl,
+    bathrooms: minimal.bathrooms,
+    bedsSingle: minimal.bedsSingle,
+    bedsQueen: minimal.bedsQueen,
+    bedsKing: minimal.bedsKing,
+    guestName: minimal.guestName,
+    guestCheckinDate: minimal.guestCheckinDate,
+    tags: minimal.tags,
+    taskType: minimal.taskType,
+    taskNotes: minimal.taskNotes,
+    extraTowelsQty: minimal.extraTowelsQty,
+    extraBedsSingle: minimal.extraBedsSingle,
+    extraBedsQueen: minimal.extraBedsQueen,
+    extraBedsKing: minimal.extraBedsKing,
+    extraChocolatesQty: minimal.extraChocolatesQty,
+  }
+}
+
+function applyMinimalJobDetail(minimal: WorkerMinimalJobDetail, savedAt: number | null): void {
+  isMinimalDetailMode.value = true
+  jobDetail.value = toJobDetailFromMinimal(minimal)
+  teamMembers.value = []
+  reports.value = []
+  taskExtraItems.value = []
+  keyPhotoUrls.value = []
+  reportPhotosByReportId.value = {}
+  hasCachedJobDetail.value = true
+  hasHydratedInitialCache.value = true
   cachedJobDetailSavedAt.value = savedAt
 }
 
@@ -1631,23 +1722,31 @@ async function loadJobDetail(): Promise<void> {
   errorMessage.value = ''
   fetchFailedWithCache.value = false
   const cacheKey = getJobDetailCacheKey(props.routeStopId)
+  const minimalCacheKey = getJobMinimalCacheKey(props.routeStopId)
   let syncStarted = false
 
   const sharedCached = getSharedJobDetail<JobDetailCachedPayload>(props.routeStopId)
   const persistentCached = getPersistentCached<JobDetailCachedPayload>(cacheKey)
+  const sharedMinimal = getMinimalJobDetail(props.routeStopId)
+  const persistentMinimal = getPersistentCached<WorkerMinimalJobDetail>(minimalCacheKey)
   const resolvedCache = sharedCached?.value ?? persistentCached?.data ?? lastValidJobDetail.value
+  const resolvedMinimal = sharedMinimal?.value ?? persistentMinimal?.data ?? null
 
   if (resolvedCache) {
     applyCachedJobDetail(resolvedCache, sharedCached?.savedAt ?? persistentCached?.savedAt ?? null)
     isLoading.value = false
+  } else if (resolvedMinimal) {
+    applyMinimalJobDetail(resolvedMinimal, sharedMinimal?.savedAt ?? persistentMinimal?.savedAt ?? null)
+    isLoading.value = false
   } else {
     hasCachedJobDetail.value = false
     cachedJobDetailSavedAt.value = null
+    isMinimalDetailMode.value = false
   }
 
   if (!isOnline.value) {
     isLoading.value = false
-    fetchFailedWithCache.value = Boolean(resolvedCache)
+    fetchFailedWithCache.value = Boolean(resolvedCache || resolvedMinimal)
     return
   }
 
@@ -1657,7 +1756,7 @@ async function loadJobDetail(): Promise<void> {
   try {
     const { data: stopData, error: stopError } = await supabase
       .from('route_stops')
-      .select('id, route_group_id, daily_task_id, order_index')
+      .select('id, route_group_id, daily_task_id, order_index, planned_start_time, planned_end_time')
       .eq('id', props.routeStopId)
       .maybeSingle()
 
@@ -1666,7 +1765,7 @@ async function loadJobDetail(): Promise<void> {
     }
 
     if (!stopData) {
-      if (!lastValidJobDetail.value) {
+      if (!lastValidJobDetail.value && !resolvedMinimal) {
         jobDetail.value = null
       }
       return
@@ -1696,7 +1795,7 @@ async function loadJobDetail(): Promise<void> {
     }
 
     if (!taskData) {
-      if (!lastValidJobDetail.value) {
+      if (!lastValidJobDetail.value && !resolvedMinimal) {
         jobDetail.value = null
       }
       return
@@ -1717,7 +1816,7 @@ async function loadJobDetail(): Promise<void> {
     }
 
     if (!propertyData) {
-      if (!lastValidJobDetail.value) {
+      if (!lastValidJobDetail.value && !resolvedMinimal) {
         jobDetail.value = null
       }
       return
@@ -1773,6 +1872,8 @@ async function loadJobDetail(): Promise<void> {
       orderIndex: routeStop.order_index ?? 0,
       dailyTaskId: task.id,
       taskDate: task.date,
+      plannedStartTime: routeStop.planned_start_time,
+      plannedEndTime: routeStop.planned_end_time,
       propertyId: property.id,
       propertyName: property.name,
       clientName: client?.name ?? 'N/A',
@@ -1824,7 +1925,7 @@ async function loadJobDetail(): Promise<void> {
       cachedJobDetailSavedAt.value = Date.now()
     }
   } catch (err) {
-    if (!resolvedCache && !lastValidJobDetail.value) {
+    if (!resolvedCache && !lastValidJobDetail.value && !resolvedMinimal) {
       errorMessage.value = err instanceof Error ? err.message : 'Failed to load job detail.'
     } else {
       fetchFailedWithCache.value = true
@@ -1871,6 +1972,11 @@ async function loadReports(): Promise<void> {
 }
 
 async function onCreateReport(payload: ReportFormPayload): Promise<void> {
+  if (isMinimalDetailMode.value) {
+    errorMessage.value = 'Offline schedule details available. Reconnect to create reports.'
+    return
+  }
+
   if (!jobDetail.value) {
     return
   }

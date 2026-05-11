@@ -250,6 +250,7 @@ import type { WorkerProfileSettings } from '../../composables/useWorkerProfileSe
 
 definePageMeta({
   name: 'worker-timesheet',
+  keepalive: true,
 })
 
 type FeedbackTone = 'success' | 'error' | 'warning' | 'info'

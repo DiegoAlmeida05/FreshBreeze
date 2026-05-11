@@ -21,6 +21,39 @@ interface WorkerTimesheetCachedWeek {
   summary: WorkerTimesheetSummary
 }
 
+export interface WorkerMinimalJobDetail {
+  routeStopId: string
+  groupLabel: string
+  orderIndex: number
+  taskDate: string
+  propertyId: string
+  propertyName: string
+  clientName: string
+  address: string
+  lat: number | null
+  lng: number | null
+  taskType: 'BSB' | 'NORMAL'
+  tags: string[]
+  taskNotes: string | null
+  guestName: string | null
+  guestCheckinDate: string | null
+  bathrooms: number
+  bedsSingle: number
+  bedsQueen: number
+  bedsKing: number
+  extraTowelsQty: number
+  extraBedsSingle: number
+  extraBedsQueen: number
+  extraBedsKing: number
+  extraChocolatesQty: number
+  hasKey: boolean
+  keyPhotoUrl: string | null
+  link1: string | null
+  link2: string | null
+  plannedStartTime: string | null
+  plannedEndTime: string | null
+}
+
 type WorkerScheduleMap = Record<string, WorkerCachedValue<{
   scheduleItems: ScheduleItem[]
   availableGroups: string[]
@@ -28,6 +61,7 @@ type WorkerScheduleMap = Record<string, WorkerCachedValue<{
 }>>
 
 type WorkerJobDetailMap = Record<string, WorkerCachedValue<unknown>>
+type WorkerMinimalJobDetailMap = Record<string, WorkerCachedValue<WorkerMinimalJobDetail>>
 type WorkerTimesheetMap = Record<string, WorkerCachedValue<WorkerTimesheetCachedWeek>>
 type WorkerDashboardMap = Record<string, WorkerCachedValue<WorkerTimesheetSummary | {
   totalHours: number
@@ -39,6 +73,7 @@ type WorkerDashboardMap = Record<string, WorkerCachedValue<WorkerTimesheetSummar
 export function useWorkerSharedState() {
   const scheduleByKey = useState<WorkerScheduleMap>('worker-shared-schedule-by-key', () => ({}))
   const jobDetailByRouteStopId = useState<WorkerJobDetailMap>('worker-shared-job-detail-by-route-stop-id', () => ({}))
+  const minimalJobDetailByRouteStopId = useState<WorkerMinimalJobDetailMap>('worker-shared-min-job-detail-by-route-stop-id', () => ({}))
   const timesheetByWeek = useState<WorkerTimesheetMap>('worker-shared-timesheet-by-week', () => ({}))
   const dashboardByKey = useState<WorkerDashboardMap>('worker-shared-dashboard-by-key', () => ({}))
   const profileBasics = useState<WorkerCachedValue<WorkerProfileBasics> | null>('worker-shared-profile-basics', () => null)
@@ -83,6 +118,25 @@ export function useWorkerSharedState() {
     const now = Date.now()
     jobDetailByRouteStopId.value = {
       ...jobDetailByRouteStopId.value,
+      [routeStopId]: {
+        value,
+        lastUpdated: now,
+        savedAt: now,
+        hydrated: true,
+        stale: false,
+      },
+    }
+  }
+
+  function getMinimalJobDetail(routeStopId: string): WorkerCachedValue<WorkerMinimalJobDetail> | null {
+    const item = minimalJobDetailByRouteStopId.value[routeStopId]
+    return item ?? null
+  }
+
+  function setMinimalJobDetail(routeStopId: string, value: WorkerMinimalJobDetail): void {
+    const now = Date.now()
+    minimalJobDetailByRouteStopId.value = {
+      ...minimalJobDetailByRouteStopId.value,
       [routeStopId]: {
         value,
         lastUpdated: now,
@@ -151,6 +205,8 @@ export function useWorkerSharedState() {
     setSchedule,
     getJobDetail,
     setJobDetail,
+    getMinimalJobDetail,
+    setMinimalJobDetail,
     getTimesheet,
     setTimesheet,
     getDashboard,

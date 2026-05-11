@@ -235,6 +235,7 @@ import { useWorkerSyncStatus } from '../../../composables/useWorkerSyncStatus'
 import { useHolidays } from '../../../composables/useHolidays'
 import { useWorkerSchedule } from '../../../composables/useWorkerSchedule'
 import type { ScheduleItem } from '../../../composables/useWorkerSchedule'
+import type { WorkerMinimalJobDetail } from '../../../composables/useWorkerSharedState'
 import WorkerTaskCard from './WorkerTaskCard.vue'
 
 interface Props {
@@ -247,11 +248,12 @@ const { getSchedule } = useWorkerSchedule()
 const { getCached, setCached } = useDataCache()
 const { getCached: getPersistentCached, setCached: setPersistentCached } = useWorkerOfflineCache()
 const { isOnline, isOffline } = useWorkerNetworkStatus()
-const { getSchedule: getSharedSchedule, setSchedule: setSharedSchedule } = useWorkerSharedState()
+const { getSchedule: getSharedSchedule, setSchedule: setSharedSchedule, setMinimalJobDetail } = useWorkerSharedState()
 const { startSync, finishSync } = useWorkerSyncStatus()
 const { getHolidaysByRange } = useHolidays()
 const LAST_VIEWED_DATE_STORAGE_KEY = 'freshbreeze:last-viewed-board-date'
 const SCHEDULE_OFFLINE_CACHE_TTL = 30 * 60 * 1000
+const JOB_MINIMAL_OFFLINE_CACHE_TTL = 30 * 60 * 1000
 
 function formatDateForInput(date: Date): string {
   const year = date.getFullYear()
@@ -421,6 +423,7 @@ async function loadSchedule(): Promise<void> {
     scheduleItems.value = resolvedCache.scheduleItems
     availableGroups.value = resolvedCache.availableGroups
     holidayNamesByDate.value = resolvedCache.holidayNamesByDate
+    cacheMinimalDetailsFromSchedule(resolvedCache.scheduleItems)
     lastValidSchedule.value = resolvedCache
     hasHydratedInitialCache.value = true
     isLoading.value = false
@@ -486,6 +489,8 @@ async function loadSchedule(): Promise<void> {
       availableGroups: result.availableGroups,
       holidayNamesByDate: holidayNamesByDate.value,
     })
+
+    cacheMinimalDetailsFromSchedule(result.scheduleItems)
 
     lastValidSchedule.value = {
       scheduleItems: result.scheduleItems,
@@ -581,5 +586,48 @@ function isValidIsoDate(value: string | null): value is string {
     && date.getMonth() === month - 1
     && date.getDate() === day
   )
+}
+
+function toMinimalJobDetail(item: ScheduleItem): WorkerMinimalJobDetail {
+  return {
+    routeStopId: item.stopId,
+    groupLabel: item.groupLabel,
+    orderIndex: item.orderIndex,
+    taskDate: selectedDate.value,
+    propertyId: item.propertyId,
+    propertyName: item.propertyName,
+    clientName: item.clientName,
+    address: item.address,
+    lat: item.propertyLat,
+    lng: item.propertyLng,
+    taskType: item.taskType,
+    tags: item.tags,
+    taskNotes: item.notes,
+    guestName: item.guestName,
+    guestCheckinDate: item.guestCheckinDate,
+    bathrooms: item.bathrooms,
+    bedsSingle: item.bedsSingle,
+    bedsQueen: item.bedsQueen,
+    bedsKing: item.bedsKing,
+    extraTowelsQty: item.extraTowelsQty,
+    extraBedsSingle: item.extraBedsSingle,
+    extraBedsQueen: item.extraBedsQueen,
+    extraBedsKing: item.extraBedsKing,
+    extraChocolatesQty: item.extraChocolatesQty,
+    hasKey: item.hasKey,
+    keyPhotoUrl: item.keyPhotoUrl,
+    link1: item.link1,
+    link2: item.link2,
+    plannedStartTime: item.plannedStartTime,
+    plannedEndTime: item.plannedEndTime,
+  }
+}
+
+function cacheMinimalDetailsFromSchedule(items: ScheduleItem[]): void {
+  for (const item of items) {
+    const minimalDetail = toMinimalJobDetail(item)
+    setMinimalJobDetail(item.stopId, minimalDetail)
+    setPersistentCached(`worker-job-min:${item.stopId}`, minimalDetail, JOB_MINIMAL_OFFLINE_CACHE_TTL)
+  }
 }
 </script>

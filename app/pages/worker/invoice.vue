@@ -38,7 +38,11 @@
         </label>
 
         <div class="mt-1.5 max-h-[560px] overflow-auto rounded-lg border border-border/80 bg-surface/80 p-1.5 dark:bg-white/[0.02]">
-          <p v-if="isLoadingHistory" class="p-2 text-xs text-muted">Loading history...</p>
+          <div v-if="isLoadingHistory" class="space-y-1.5 p-1.5" aria-live="polite" aria-label="Loading invoices">
+            <div class="h-16 animate-pulse rounded-lg border border-primary-100 bg-primary-100/50 dark:border-white/10 dark:bg-white/10" />
+            <div class="h-16 animate-pulse rounded-lg border border-primary-100 bg-primary-100/50 dark:border-white/10 dark:bg-white/10" />
+            <div class="h-16 animate-pulse rounded-lg border border-primary-100 bg-primary-100/50 dark:border-white/10 dark:bg-white/10" />
+          </div>
 
           <div v-if="!isLoadingHistory && filteredHistoryInvoices.length > 0" class="space-y-1.5 md:hidden">
             <article
@@ -324,7 +328,6 @@
 <script setup lang="ts">
 import { computed, nextTick, onMounted, reactive, ref, watch } from 'vue'
 import { onBeforeRouteLeave } from 'vue-router'
-import jsPDF from 'jspdf'
 import BaseFeedbackBanner from '../../components/ui/BaseFeedbackBanner.vue'
 import BaseConfirmModal from '../../components/ui/BaseConfirmModal.vue'
 import { useAuth } from '../../composables/useAuth'
@@ -337,6 +340,7 @@ import { buildWorkerInvoiceFileName } from '../../utils/buildWorkerInvoiceFileNa
 
 definePageMeta({
   name: 'worker-invoice',
+  keepalive: true,
 })
 
 type FeedbackTone = 'success' | 'error' | 'warning' | 'info'
@@ -829,8 +833,9 @@ async function ensureDraftSaved(): Promise<boolean> {
   return currentInvoiceId.value !== null
 }
 
-async function buildPdfDocument(): Promise<jsPDF> {
-  const doc = new jsPDF({ unit: 'pt', format: 'a4' })
+async function buildPdfDocument() {
+  const { default: JsPDF } = await import('jspdf')
+  const doc = new JsPDF({ unit: 'pt', format: 'a4' })
   const pageWidth = 595
   const pageHeight = 842
   const marginLeft = 40

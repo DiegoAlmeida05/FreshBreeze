@@ -8,7 +8,7 @@
       <div>
         <p class="text-xs font-semibold uppercase tracking-wide text-primary-600">Configuration</p>
         <h2 class="mt-1 text-2xl font-semibold text-foreground">Account Settings</h2>
-        <p class="mt-2 max-w-2xl text-sm text-muted">Manage your profile photo, account details and preferences.</p>
+        <p class="mt-2 max-w-2xl text-sm text-muted dark:text-slate-300">Manage your profile photo, account details and preferences.</p>
       </div>
 
       <BaseFeedbackBanner
@@ -54,8 +54,14 @@
               :disabled="isUploadingAvatar"
               @click="triggerFileInput"
             >
-              {{ isUploadingAvatar ? 'Uploading...' : 'Choose Photo' }}
+              {{ isUploadingAvatar ? `Uploading ${avatarUploadProgress}%` : 'Choose Photo' }}
             </button>
+
+            <div v-if="isUploadingAvatar" class="w-full max-w-xs">
+              <div class="h-2 w-full overflow-hidden rounded-full bg-primary-100 dark:bg-white/10">
+                <div class="h-full rounded-full bg-primary-500 transition-all duration-200" :style="{ width: `${avatarUploadProgress}%` }" />
+              </div>
+            </div>
 
             <p class="text-xs text-muted">PNG, JPG or GIF. Max 5MB.</p>
             <p v-if="selectedFileName" class="text-xs text-primary-600 dark:text-primary-400">{{ selectedFileName }}</p>
@@ -342,6 +348,11 @@ import { useTheme } from '../../composables/useTheme'
 import { useUploadAvatar } from '../../composables/useUploadAvatar'
 import { useWorkerProfileSettings } from '../../composables/useWorkerProfileSettings'
 
+definePageMeta({
+  name: 'worker-settings',
+  keepalive: true,
+})
+
 const { signOut, getCurrentUser, getProfile } = useAuth()
 const { updateProfile, updatePassword } = useEditProfile()
 const { isDark: isDarkMode, toggleTheme } = useTheme()
@@ -394,6 +405,7 @@ const passwordForm = reactive({
 const isUpdating = ref(false)
 const isUpdatingPassword = ref(false)
 const isUploadingAvatar = ref(false)
+const avatarUploadProgress = ref(0)
 const isUpdatingWorkerProfile = ref(false)
 const feedbackTone = ref<FeedbackTone>('info')
 const feedbackTitle = ref('')
@@ -660,10 +672,15 @@ async function onFileSelected(event: Event): Promise<void> {
 
   selectedFileName.value = file.name
   isUploadingAvatar.value = true
+  avatarUploadProgress.value = 0
   clearFeedback()
 
   try {
-    const url = await uploadAvatar(file)
+    const url = await uploadAvatar(file, {
+      onProgress(progress) {
+        avatarUploadProgress.value = progress
+      },
+    })
     avatarUrl.value = url
     selectedFileName.value = ''
 
@@ -675,6 +692,7 @@ async function onFileSelected(event: Event): Promise<void> {
   } catch (err: unknown) {
     setFeedback('error', 'Upload failed', err instanceof Error ? err.message : 'Failed to upload photo.')
   } finally {
+    avatarUploadProgress.value = 0
     isUploadingAvatar.value = false
   }
 }

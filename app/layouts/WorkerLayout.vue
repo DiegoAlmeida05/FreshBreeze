@@ -222,6 +222,13 @@
               {{ isOffline ? 'Offline mode' : isSyncing ? 'Syncing...' : 'Synced' }}
             </span>
 
+            <span
+              v-if="showOfflineRouteNotice"
+              class="inline-flex items-center rounded-full border border-warning/40 bg-warning/10 px-2.5 py-1 text-[10px] font-semibold tracking-wide text-warning dark:border-warning/30 dark:bg-warning/10"
+            >
+              {{ offlineRouteNotice.message }}
+            </span>
+
             <button
               type="button"
               class="inline-flex h-9 w-9 items-center justify-center rounded-full border border-primary-200/70 bg-white/70 text-base text-primary-700 shadow-sm transition duration-150 hover:scale-[1.05] hover:border-primary-300 hover:bg-primary-50 focus:outline-none focus:ring-2 focus:ring-primary-300 dark:border-white/10 dark:bg-white/5 dark:text-primary-300 dark:hover:bg-white/10"
@@ -488,6 +495,12 @@ const { getProfile } = useAuth()
 const { isOffline } = useWorkerNetworkStatus()
 const { isSyncing, syncStatus } = useWorkerSyncStatus()
 const { getProfileBasics, setProfileBasics } = useWorkerSharedState()
+const offlineRouteNotice = useState<{ visible: boolean, message: string, targetPath: string, at: number }>('worker-offline-route-notice', () => ({
+  visible: false,
+  message: '',
+  targetPath: '',
+  at: 0,
+}))
 const supabase = useSupabaseClient()
 let desktopMediaQuery: MediaQueryList | null = null
 let rafId = 0
@@ -524,6 +537,9 @@ const appUpdatedLabel = computed(() => {
 
 const isDesktopCollapsed = computed(() => isDesktop.value && sidebarCollapsed.value)
 const dailyMotivationQuote = computed(() => getDailyQuoteForDate())
+const showOfflineRouteNotice = computed(() => {
+  return isOffline.value && offlineRouteNotice.value.visible && Boolean(offlineRouteNotice.value.message)
+})
 
 function resolveMobileNavPath(path: string): string {
   if (path.startsWith('/worker/job/')) {
