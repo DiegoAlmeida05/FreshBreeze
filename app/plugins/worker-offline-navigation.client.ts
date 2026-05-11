@@ -69,6 +69,8 @@ export default defineNuxtPlugin(() => {
   preloadWorkerRoutes()
   window.addEventListener('online', preloadWorkerRoutes)
 
+  const ONLINE_CHUNK_RECOVERY_KEY = 'chunk-error-recovery-v1'
+
   router.afterEach((to) => {
     if (to.path.startsWith('/worker') && offlineRouteNotice.value.visible && offlineRouteNotice.value.targetPath === to.path) {
       offlineRouteNotice.value = {
@@ -82,14 +84,30 @@ export default defineNuxtPlugin(() => {
     if (to.path.startsWith('/worker')) {
       preloadWorkerRoutes()
     }
+
+    // Clear the chunk recovery flag after a successful navigation, so the guard
+    // can fire again if a different chunk fails in the same session.
+    if (sessionStorage.getItem(ONLINE_CHUNK_RECOVERY_KEY)) {
+      sessionStorage.removeItem(ONLINE_CHUNK_RECOVERY_KEY)
+    }
   })
 
   router.onError((error, to) => {
-    if (window.navigator.onLine) {
+    if (!isChunkLoadError(error)) {
       return
     }
 
-    if (!isChunkLoadError(error)) {
+    if (window.navigator.onLine) {
+      // Online chunk error means the browser is loading a stale HTML with old
+      // chunk hashes (from a previous deploy). Force a hard reload to fetch
+      // fresh HTML and correct chunks. Guard against reload loops with a
+      // session-scoped flag that is cleared on successful navigation.
+      const alreadyAttempted = sessionStorage.getItem(ONLINE_CHUNK_RECOVERY_KEY)
+      if (!alreadyAttempted) {
+        sessionStorage.setItem(ONLINE_CHUNK_RECOVERY_KEY, '1')
+        const targetPath = to?.fullPath ?? to?.path ?? '/'
+        window.location.replace(targetPath)
+      }
       return
     }
 

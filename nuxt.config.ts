@@ -11,6 +11,13 @@ export default defineNuxtConfig({
   },
 
   routeRules: {
+    // HTML pages must never be cached — stale HTML references old chunk hashes
+    // after a new deploy, which causes chunk load failures and broken navigation.
+    '/**': {
+      headers: {
+        'cache-control': 'no-store',
+      },
+    },
     '/manifest.webmanifest': {
       headers: {
         'cache-control': 'public, max-age=3600, must-revalidate',
