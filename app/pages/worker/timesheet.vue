@@ -17,6 +17,14 @@
         @dismiss="clearFeedback"
       />
 
+      <div v-if="isOffline && hasOfflineWeekCache" class="inline-flex items-center rounded-full border border-warning/40 bg-warning/10 px-2.5 py-1 text-[11px] font-medium text-warning dark:border-warning/30 dark:bg-warning/10">
+        Offline mode - showing last saved week
+        <span v-if="offlineWeekUpdatedLabel" class="ml-1 text-[10px] text-warning/80">({{ offlineWeekUpdatedLabel }})</span>
+      </div>
+
+      <div v-if="showSavedWeekBadge" class="inline-flex items-center rounded-full border border-primary-300/50 bg-primary-500/10 px-2.5 py-1 text-[11px] font-medium text-primary-700 dark:border-primary-400/40 dark:bg-primary-500/20 dark:text-primary-200">
+        Showing saved data
+      </div>
 
       <WorkerWeekNavigator
         v-model="selectedDate"
@@ -230,8 +238,9 @@ import { preloadRouteComponents } from '#imports'
 import BaseFeedbackBanner from '../../components/ui/BaseFeedbackBanner.vue'
 import WorkerWeekNavigator from '../../components/features/worker/WorkerWeekNavigator.vue'
 import { useAuth } from '../../composables/useAuth'
-import { useWorkerSyncStatus } from '../../composables/useWorkerSyncStatus'
 import { useWorkerOfflineCache } from '../../composables/useWorkerOfflineCache'
+import { useWorkerNetworkStatus } from '../../composables/useWorkerNetworkStatus'
+import { useWorkerSyncStatus } from '../../composables/useWorkerSyncStatus'
 import { useWorkerSharedState } from '../../composables/useWorkerSharedState'
 import { useWorkerPendingSync } from '../../composables/useWorkerPendingSync'
 import { useWorkerProfileSettings } from '../../composables/useWorkerProfileSettings'
@@ -241,6 +250,7 @@ import type { WorkerProfileSettings } from '../../composables/useWorkerProfileSe
 
 definePageMeta({
   name: 'worker-timesheet',
+  keepalive: true,
 })
 
 type FeedbackTone = 'success' | 'error' | 'warning' | 'info'
@@ -283,8 +293,9 @@ interface WorkerTimesheetOfflineWeekPayload {
 }
 
 const { signOut, getCurrentUser } = useAuth()
-const { startSync, finishSync } = useWorkerSyncStatus()
 const { getCached: getPersistentCached, setCached: setPersistentCached } = useWorkerOfflineCache()
+const { isOnline, isOffline } = useWorkerNetworkStatus()
+const { startSync, finishSync } = useWorkerSyncStatus()
 const { getTimesheet: getSharedTimesheet, setTimesheet: setSharedTimesheet } = useWorkerSharedState()
 const { enqueueAction } = useWorkerPendingSync()
 const { getSettings } = useWorkerProfileSettings()
@@ -324,6 +335,7 @@ const lastValidWeek = ref<WorkerTimesheetOfflineWeekPayload | null>(null)
 let draftSaveTimeout: ReturnType<typeof setTimeout> | null = null
 
 const showSavedWeekBadge = computed(() => {
+  return hasHydratedInitialCache.value && (isOffline.value || fetchFailedWithCache.value)
 })
 
 const offlineWeekUpdatedLabel = computed(() => {
@@ -637,6 +649,17 @@ async function loadWeek(restoreDraft = false): Promise<void> {
     offlineWeekSavedAt.value = null
   }
 
+  if (!isOnline.value) {
+    if (!resolvedWeek) {
+      setFeedback('warning', 'Offline mode', 'No saved timesheet available offline.')
+    } else {
+      fetchFailedWithCache.value = true
+    }
+
+    isLoadingWeek.value = false
+    return
+  }
+
   startSync()
   syncStarted = true
 
@@ -821,6 +844,16 @@ function formatSavedTimestamp(timestamp: string | null): string {
 
 async function saveDay(day: WorkerTimesheetDay): Promise<void> {
   try {
+    if (!isOnline.value) {
+      enqueueAction('saveTimesheet', {
+        date: day.date,
+        note: 'Offline save attempt kept in local draft only.',
+      })
+      scheduleDraftSave()
+      setFeedback('warning', 'Offline mode', 'You are offline. Changes remain in local draft and are queued for future sync.')
+      return
+    }
+
     isSaving.value = true
     recomputeDay(day)
     await saveDayEntry(day)

@@ -340,6 +340,7 @@ import { buildWorkerInvoiceFileName } from '../../utils/buildWorkerInvoiceFileNa
 
 definePageMeta({
   name: 'worker-invoice',
+  keepalive: true,
 })
 
 type FeedbackTone = 'success' | 'error' | 'warning' | 'info'
