@@ -12,6 +12,16 @@ const DEFAULT_OPTIONS: Required<OptimizeImageOptions> = {
   outputType: 'image/webp',
 }
 
+function yieldToUi(): Promise<void> {
+  if (typeof window === 'undefined') {
+    return Promise.resolve()
+  }
+
+  return new Promise((resolve) => {
+    window.requestAnimationFrame(() => resolve())
+  })
+}
+
 function isAllowedImageType(mimeType: string): boolean {
   return ALLOWED_IMAGE_MIME_TYPES.includes(mimeType as (typeof ALLOWED_IMAGE_MIME_TYPES)[number])
 }
@@ -68,6 +78,7 @@ export async function optimizeImageFile(file: File, options: OptimizeImageOption
   }
 
   const config = { ...DEFAULT_OPTIONS, ...options }
+  await yieldToUi()
   const image = await loadImage(file)
   const ratio = Math.min(1, config.maxDimension / Math.max(image.width, image.height))
   const width = Math.max(1, Math.round(image.width * ratio))
@@ -83,8 +94,10 @@ export async function optimizeImageFile(file: File, options: OptimizeImageOption
     return file
   }
 
+  await yieldToUi()
   context.drawImage(image, 0, 0, width, height)
 
+  await yieldToUi()
   const blob = await canvasToBlob(canvas, config.outputType, config.quality)
   const extension = toExtension(config.outputType)
   const baseName = file.name.replace(/\.[^.]+$/, '')
@@ -96,6 +109,7 @@ export async function optimizeImageFiles(files: File[], options: OptimizeImageOp
   const optimizedFiles: File[] = []
 
   for (const file of files) {
+    await yieldToUi()
     optimizedFiles.push(await optimizeImageFile(file, options))
   }
 

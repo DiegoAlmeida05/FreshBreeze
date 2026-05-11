@@ -350,7 +350,6 @@ import { useWorkerProfileSettings } from '../../composables/useWorkerProfileSett
 
 definePageMeta({
   name: 'worker-settings',
-  keepalive: true,
 })
 
 const { signOut, getCurrentUser, getProfile } = useAuth()
