@@ -1,9 +1,5 @@
 <template>
-  <div v-if="!layoutReady" class="fixed inset-0 flex min-h-0 w-full min-w-0 items-center justify-center overflow-hidden bg-gradient-to-br from-surface-soft via-primary-50/30 to-primary-warm-50/30 dark:bg-black dark:bg-none">
-    <div class="sr-only" aria-live="polite">Loading workspace...</div>
-  </div>
-
-  <div v-else class="fixed inset-0 flex min-h-0 w-full min-w-0 overflow-hidden bg-gradient-to-br from-surface-soft via-primary-50/30 to-primary-warm-50/30 dark:bg-black dark:bg-none">
+  <div class="fixed inset-0 flex min-h-0 w-full min-w-0 overflow-hidden bg-gradient-to-br from-surface-soft via-primary-50/30 to-primary-warm-50/30 dark:bg-black dark:bg-none" :aria-busy="!layoutReady" :inert="!layoutReady ? true : undefined">
     <!-- Sidebar overlay (mobile) -->
     <div
       v-if="sidebarOpen && !isDesktop"

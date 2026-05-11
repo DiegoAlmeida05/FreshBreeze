@@ -22,12 +22,17 @@ const persistedWorkerSchedulePageState = useState<PersistedWorkerSchedulePageSta
 
 onMounted(async () => {
   if (import.meta.client) {
+    // Defer scroll restoration until after hydration completes
+    // Use nextTick to wait for hydration, then requestAnimationFrame to wait for browser paint
     await nextTick()
     requestAnimationFrame(() => {
-      window.scrollTo({
-        top: persistedWorkerSchedulePageState.value.scrollY,
-        behavior: 'auto',
-      })
+      // Check if we actually have a saved scroll position (not initial 0)
+      if (persistedWorkerSchedulePageState.value.scrollY > 0) {
+        window.scrollTo({
+          top: persistedWorkerSchedulePageState.value.scrollY,
+          behavior: 'auto',
+        })
+      }
     })
   }
 })
