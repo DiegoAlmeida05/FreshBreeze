@@ -1,19 +1,19 @@
 <template>
-  <div v-if="!layoutReady" class="flex h-screen w-full min-w-0 items-center justify-center overflow-hidden bg-gradient-to-br from-surface-soft via-primary-50/30 to-primary-warm-50/30 dark:bg-black dark:bg-none">
-    <div class="sr-only" aria-live="polite">Loading workspace...</div>
-  </div>
-
-  <div v-else class="flex h-screen w-full min-w-0 overflow-hidden bg-gradient-to-br from-surface-soft via-primary-50/30 to-primary-warm-50/30 dark:bg-black dark:bg-none">
+  <div class="flex h-screen w-full min-w-0 overflow-hidden bg-gradient-to-br from-surface-soft via-primary-50/30 to-primary-warm-50/30 dark:bg-black dark:bg-none" :aria-busy="!layoutReady" :inert="!layoutReady ? true : undefined">
+    <!-- Loading screen overlay -->
+    <div v-show="!layoutReady" class="absolute inset-0 z-[110] flex items-center justify-center bg-gradient-to-br from-surface-soft via-primary-50/30 to-primary-warm-50/30 dark:bg-black dark:bg-none">
+      <div class="sr-only" aria-live="polite">Loading workspace...</div>
+    </div>
     <!-- Sidebar overlay (mobile) -->
     <div
-      v-if="sidebarOpen && !isDesktop && !isFullscreenMode"
+      v-show="sidebarOpen && !isDesktop && !isFullscreenMode"
       class="fixed inset-0 z-20 bg-foreground/40 backdrop-blur-sm lg:hidden"
       @click="sidebarOpen = false"
     />
 
     <!-- Sidebar -->
     <aside
-      v-if="!isFullscreenMode && (isDesktop || sidebarOpen)"
+      v-show="!isFullscreenMode && (isDesktop || sidebarOpen)"
       id="admin-sidebar"
       :class="[
         'fixed inset-y-0 left-0 z-30 flex w-64 flex-col bg-gradient-to-b from-white via-primary-50/55 to-primary-warm-50/45 shadow-[0_18px_40px_rgba(15,23,42,0.08),10px_0_30px_rgba(148,163,184,0.08)] backdrop-blur-sm transition-all duration-300 ease-in-out dark:bg-gradient-to-b dark:from-black dark:via-neutral-950 dark:to-neutral-900 dark:shadow-[0_24px_60px_rgba(0,0,0,0.55),14px_0_36px_rgba(255,255,255,0.03)]',
@@ -479,7 +479,6 @@
         </div>
       </main>
     </div>
-
   </div>
 </template>
 

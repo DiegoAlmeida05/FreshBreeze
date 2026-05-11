@@ -9,7 +9,13 @@ html, body {
 
 body {
   height: 100vh;
-  overflow: hidden;
+}
+
+/* Only lock overflow on desktop; mobile needs scrollable body for proper rendering */
+@media (min-width: 1024px) {
+  body {
+    overflow: hidden;
+  }
 }
 
 * {

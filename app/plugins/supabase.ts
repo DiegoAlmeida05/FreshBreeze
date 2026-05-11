@@ -10,11 +10,14 @@ export default defineNuxtPlugin(() => {
   )
 
   if (import.meta.client) {
+    // Aggressive timeout: complete auth bootstrap within 800ms on mobile
+    // Prevents UI lock during initial load. Session will be restored
+    // opportunistically after initial render if needed.
     const bootstrapFallbackTimeoutId = window.setTimeout(() => {
       if (isAuthBootstrapping.value) {
         isAuthBootstrapping.value = false
       }
-    }, 1800)
+    }, 800)
 
     void supabaseClient.auth.getSession()
       .catch(() => {
@@ -22,7 +25,9 @@ export default defineNuxtPlugin(() => {
       })
       .finally(() => {
         window.clearTimeout(bootstrapFallbackTimeoutId)
-        isAuthBootstrapping.value = false
+        if (isAuthBootstrapping.value) {
+          isAuthBootstrapping.value = false
+        }
       })
 
     supabaseClient.auth.onAuthStateChange(() => {
