@@ -9,10 +9,6 @@ function isStandaloneMode(): boolean {
   )
 }
 
-function isStandaloneColdStart(): boolean {
-  return Boolean((window as Window & { __PWA_COLD_START__?: boolean }).__PWA_COLD_START__)
-}
-
 /**
  * PWA Startup Fix
  *
@@ -32,11 +28,12 @@ export default defineNuxtPlugin(async () => {
     return
   }
 
-  if (!isStandaloneColdStart()) {
+  const currentPath = window.location.pathname
+
+  // Only normalize public entry routes. Deep app routes should be preserved.
+  if (currentPath !== '/' && currentPath !== '/login') {
     return
   }
-
-  const currentPath = window.location.pathname
 
   const config = useRuntimeConfig()
   const supabase = createClient(config.public.supabaseUrl, config.public.supabaseAnonKey)

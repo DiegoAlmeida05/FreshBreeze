@@ -1,4 +1,4 @@
-import { defineNuxtRouteMiddleware, navigateTo } from '#app'
+import { defineNuxtRouteMiddleware, navigateTo, useNuxtApp } from '#app'
 import { useAuthBootstrap } from '../composables/useAuthBootstrap'
 import { useSupabaseClient } from '../composables/useSupabaseClient'
 
@@ -113,6 +113,18 @@ function resolveLayoutFromPath(path: string): 'admin' | 'worker' | 'public' {
   return 'public'
 }
 
+function hardRedirect(path: string): void {
+  if (!import.meta.client) {
+    return
+  }
+
+  if (window.location.pathname === path) {
+    return
+  }
+
+  window.location.replace(path)
+}
+
 export default defineNuxtRouteMiddleware(async (to) => {
   if (import.meta.server) {
     return
@@ -129,6 +141,7 @@ export default defineNuxtRouteMiddleware(async (to) => {
   try {
     const supabase = useSupabaseClient()
     const { waitForAuthBootstrap } = useAuthBootstrap()
+    const nuxtApp = useNuxtApp()
 
     logRoleGuard('guard start', {
       route: to.fullPath,
@@ -167,6 +180,11 @@ export default defineNuxtRouteMiddleware(async (to) => {
 
     if (userResult.error || !userResult.data.user) {
       if (isAdminRoute || isWorkerRoute) {
+        if (nuxtApp.isHydrating || isStandaloneMode()) {
+          hardRedirect('/login')
+          return
+        }
+
         return navigateTo('/login')
       }
 
@@ -194,6 +212,11 @@ export default defineNuxtRouteMiddleware(async (to) => {
       }, 900, undefined)
 
       if (isAdminRoute || isWorkerRoute) {
+        if (nuxtApp.isHydrating || isStandaloneMode()) {
+          hardRedirect('/login')
+          return
+        }
+
         return navigateTo('/login')
       }
 
@@ -211,6 +234,13 @@ export default defineNuxtRouteMiddleware(async (to) => {
         role: profile.role,
         active: profile.active,
       })
+
+      // Avoid SSR(/login) -> SPA(/worker|/admin) route swap during hydration,
+      // which can trigger intermittent white screens and hydration mismatch on iOS reopen.
+      if (nuxtApp.isHydrating || isStandaloneMode()) {
+        hardRedirect(targetRoute)
+        return
+      }
 
       return navigateTo(targetRoute)
     }
@@ -237,6 +267,11 @@ export default defineNuxtRouteMiddleware(async (to) => {
     })
 
     if (isAdminRoute || isWorkerRoute) {
+      if (useNuxtApp().isHydrating || isStandaloneMode()) {
+        hardRedirect('/login')
+        return
+      }
+
       return navigateTo('/login')
     }
   }
