@@ -214,7 +214,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, watch, onMounted } from 'vue'
+import { computed, ref, watch, onMounted, onBeforeMount } from 'vue'
 import { navigateTo } from '#imports'
 import { useHolidays } from '../../../composables/useHolidays'
 import { useWorkerSchedule } from '../../../composables/useWorkerSchedule'
@@ -242,7 +242,7 @@ function todayString(): string {
   return formatDateForInput(new Date())
 }
 
-const selectedDate = ref(getInitialSelectedDate())
+const selectedDate = ref(todayString())
 const selectedGroup = ref('all')
 const isLoading = ref(false)
 const error = ref<string | null>(null)
@@ -393,6 +393,16 @@ watch(selectedDate, () => {
 watch(selectedGroup, () => {
   if (showGroupFilter.value) {
     loadSchedule()
+  }
+})
+
+onBeforeMount(() => {
+  // Restore saved date from localStorage only on client after initial SSR hydration
+  if (import.meta.client) {
+    const savedDate = window.localStorage.getItem(LAST_VIEWED_DATE_STORAGE_KEY)
+    if (isValidIsoDate(savedDate)) {
+      selectedDate.value = savedDate
+    }
   }
 })
 
