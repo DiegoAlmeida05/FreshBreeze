@@ -47,9 +47,13 @@
       </div>
 
       <div class="flex flex-wrap items-center justify-between gap-3">
-        <NuxtLink :to="backTo" class="btn-outline !px-3 !py-1.5 text-xs">
+        <button
+          type="button"
+          class="btn-outline !px-3 !py-1.5 text-xs"
+          @click="navigateBackToSchedule"
+        >
           Back to schedule
-        </NuxtLink>
+        </button>
         <div class="flex items-center gap-2">
           <span class="inline-flex rounded-full bg-primary-100 px-2.5 py-1 text-xs font-semibold text-primary-700 dark:bg-primary-500/20 dark:text-primary-200">
             Team {{ jobDetail.groupLabel }} · #{{ jobDetail.orderIndex + 1 }}
@@ -682,6 +686,7 @@
 
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { navigateTo } from '#imports'
 import ReportCreateModal from './ReportCreateModal.vue'
 import ReportDetailModal from '../reports/ReportDetailModal.vue'
 import BaseConfirmModal from '../../ui/BaseConfirmModal.vue'
@@ -1039,6 +1044,7 @@ const editReportInitialValue = computed<ReportFormPayload | null>(() => {
 })
 
 const backTo = computed(() => (props.mode === 'admin' ? '/admin/schedule' : '/worker/schedule'))
+const RETURN_FROM_JOB_DETAIL_FLAG_KEY = 'worker:return-from-job-detail'
 const isAdmin = computed(() => currentProfile.value?.role === 'admin')
 const openReports = computed(() => reports.value.filter((report) => report.status === 'open'))
 const canOpenGoogleMaps = computed(() => {
@@ -1075,6 +1081,14 @@ function resetUploadProgress(): void {
   uploadProgress.value = 0
   uploadProgressPhase.value = null
   uploadProgressFileName.value = ''
+}
+
+async function navigateBackToSchedule(): Promise<void> {
+  if (import.meta.client && props.mode === 'worker') {
+    sessionStorage.setItem(RETURN_FROM_JOB_DETAIL_FLAG_KEY, '1')
+  }
+
+  await navigateTo(backTo.value, { replace: true })
 }
 
 function handleUploadProgress(

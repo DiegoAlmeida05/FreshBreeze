@@ -225,7 +225,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, watch, onMounted } from 'vue'
+import { computed, ref, watch, onActivated, onMounted } from 'vue'
 import { navigateTo } from '#imports'
 import { useDataCache } from '../../../composables/useDataCache'
 import { useWorkerOfflineCache } from '../../../composables/useWorkerOfflineCache'
@@ -252,6 +252,7 @@ const { getSchedule: getSharedSchedule, setSchedule: setSharedSchedule, setMinim
 const { startSync, finishSync } = useWorkerSyncStatus()
 const { getHolidaysByRange } = useHolidays()
 const LAST_VIEWED_DATE_STORAGE_KEY = 'freshbreeze:last-viewed-board-date'
+const RETURN_FROM_JOB_DETAIL_FLAG_KEY = 'worker:return-from-job-detail'
 const SCHEDULE_OFFLINE_CACHE_TTL = 30 * 60 * 1000
 const JOB_MINIMAL_OFFLINE_CACHE_TTL = 30 * 60 * 1000
 
@@ -521,6 +522,28 @@ async function loadSchedule(): Promise<void> {
   }
 }
 
+function shouldRunReturnFromDetailFallback(): boolean {
+  if (!import.meta.client || props.mode !== 'worker') {
+    return false
+  }
+
+  return sessionStorage.getItem(RETURN_FROM_JOB_DETAIL_FLAG_KEY) === '1'
+}
+
+function applyReturnFromDetailFallback(): void {
+  if (!shouldRunReturnFromDetailFallback()) {
+    return
+  }
+
+  // Keep any already-rendered cached schedule visible while schedule reloads.
+  if (scheduleItems.value.length > 0) {
+    isLoading.value = false
+    error.value = null
+  }
+
+  sessionStorage.removeItem(RETURN_FROM_JOB_DETAIL_FLAG_KEY)
+}
+
 watch(selectedDate, () => {
   persistLastViewedDate(selectedDate.value)
   selectedGroup.value = 'all'
@@ -534,7 +557,12 @@ watch(selectedGroup, () => {
 })
 
 onMounted(async () => {
+  applyReturnFromDetailFallback()
   await loadSchedule()
+})
+
+onActivated(() => {
+  applyReturnFromDetailFallback()
 })
 
 async function openJobDetail(routeStopId: string): Promise<void> {

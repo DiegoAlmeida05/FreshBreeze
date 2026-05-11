@@ -5,7 +5,7 @@
 </template>
 
 <script setup lang="ts">
-import { nextTick, onMounted } from 'vue'
+import { nextTick, onActivated, onMounted } from 'vue'
 import { onBeforeRouteLeave } from 'vue-router'
 import { useAuth } from '../../composables/useAuth'
 import ScheduleBoard from '../../components/features/schedule/ScheduleBoard.vue'
@@ -26,6 +26,18 @@ const persistedWorkerSchedulePageState = useState<PersistedWorkerSchedulePageSta
 }))
 
 onMounted(async () => {
+  if (import.meta.client) {
+    await nextTick()
+    requestAnimationFrame(() => {
+      window.scrollTo({
+        top: persistedWorkerSchedulePageState.value.scrollY,
+        behavior: 'auto',
+      })
+    })
+  }
+})
+
+onActivated(async () => {
   if (import.meta.client) {
     await nextTick()
     requestAnimationFrame(() => {
