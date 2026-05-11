@@ -210,6 +210,18 @@
 
           <!-- Topbar actions slot -->
           <div class="ml-2 flex shrink-0 items-center gap-2">
+            <span
+              v-if="isOffline || isSyncing || syncStatus === 'synced'"
+              class="inline-flex items-center rounded-full px-2.5 py-1 text-[10px] font-semibold tracking-wide"
+              :class="isOffline
+                ? 'border border-warning/40 bg-warning/10 text-warning dark:border-warning/30 dark:bg-warning/10'
+                : isSyncing
+                  ? 'border border-primary-300/60 bg-primary-500/10 text-primary-700 dark:border-primary-400/40 dark:bg-primary-500/20 dark:text-primary-200'
+                  : 'border border-success/40 bg-success/10 text-success dark:border-success/30 dark:bg-success/15'"
+            >
+              {{ isOffline ? 'Offline mode' : isSyncing ? 'Syncing...' : 'Synced' }}
+            </span>
+
             <button
               type="button"
               class="inline-flex h-9 w-9 items-center justify-center rounded-full border border-primary-200/70 bg-white/70 text-base text-primary-700 shadow-sm transition duration-150 hover:scale-[1.05] hover:border-primary-300 hover:bg-primary-50 focus:outline-none focus:ring-2 focus:ring-primary-300 dark:border-white/10 dark:bg-white/5 dark:text-primary-300 dark:hover:bg-white/10"
@@ -440,6 +452,9 @@ import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { preloadRouteComponents } from '#imports'
 import { getDailyQuoteForDate } from '../data/dailyQuotes'
 import { useAuth } from '../composables/useAuth'
+import { useWorkerNetworkStatus } from '../composables/useWorkerNetworkStatus'
+import { useWorkerSharedState } from '../composables/useWorkerSharedState'
+import { useWorkerSyncStatus } from '../composables/useWorkerSyncStatus'
 import { useSupabaseClient } from '../composables/useSupabaseClient'
 
 const emit = defineEmits<{
@@ -470,6 +485,9 @@ const isDailyMotivationOpen = ref(false)
 const layoutReady = ref(false)
 const hasMounted = ref(false)
 const { getProfile } = useAuth()
+const { isOffline } = useWorkerNetworkStatus()
+const { isSyncing, syncStatus } = useWorkerSyncStatus()
+const { getProfileBasics, setProfileBasics } = useWorkerSharedState()
 const supabase = useSupabaseClient()
 let desktopMediaQuery: MediaQueryList | null = null
 let rafId = 0
@@ -759,6 +777,15 @@ onMounted(async () => {
   scheduleLikelyRoutePrefetch(route.path)
   void restoreSidebarScroll()
 
+  const cachedProfileBasics = getProfileBasics()
+  if (cachedProfileBasics) {
+    fullName.value = cachedProfileBasics.value.fullName
+    profileEmail.value = cachedProfileBasics.value.email
+    avatarUrl.value = cachedProfileBasics.value.avatarUrl
+    const firstName = cachedProfileBasics.value.fullName.trim().split(' ')[0]
+    greetingName.value = firstName || 'there'
+  }
+
   try {
     const profile = await getProfile()
     fullName.value = profile.full_name.trim()
@@ -774,8 +801,16 @@ onMounted(async () => {
       .maybeSingle<{ photo_url: string | null }>()
 
     avatarUrl.value = employee?.photo_url || ''
+    setProfileBasics({
+      id: profile.id,
+      fullName: fullName.value,
+      email: profileEmail.value,
+      avatarUrl: avatarUrl.value,
+    })
   } catch {
-    greetingName.value = 'there'
+    if (!cachedProfileBasics) {
+      greetingName.value = 'there'
+    }
   }
 })
 
