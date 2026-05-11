@@ -2,14 +2,14 @@
   <div class="fixed inset-0 flex min-h-0 w-full min-w-0 overflow-hidden bg-gradient-to-br from-surface-soft via-primary-50/30 to-primary-warm-50/30 dark:bg-black dark:bg-none" :aria-busy="!layoutReady" :inert="!layoutReady ? true : undefined">
     <!-- Sidebar overlay (mobile) -->
     <div
-      v-if="sidebarOpen && !isDesktop"
+      v-show="sidebarOpen && !isDesktop"
       class="fixed inset-0 z-20 bg-foreground/40 backdrop-blur-sm lg:hidden"
       @click="sidebarOpen = false"
     />
 
     <!-- Sidebar -->
     <aside
-      v-if="isDesktop || sidebarOpen"
+      v-show="isDesktop || sidebarOpen"
       id="worker-sidebar"
       :class="[
         'fixed inset-y-0 left-0 z-30 flex w-64 flex-col bg-gradient-to-b from-white via-primary-50/55 to-primary-warm-50/45 shadow-[0_18px_40px_rgba(15,23,42,0.08),10px_0_30px_rgba(148,163,184,0.08)] backdrop-blur-sm transition-all duration-300 ease-in-out dark:bg-gradient-to-b dark:from-black dark:via-neutral-950 dark:to-neutral-900 dark:shadow-[0_24px_60px_rgba(0,0,0,0.55),14px_0_36px_rgba(255,255,255,0.03)]',
