@@ -152,8 +152,21 @@
       {{ displayDate }}
     </p>
 
+    <!-- Cache badge: shown when displaying saved data and a background refresh is in progress -->
     <div
-      v-if="isLoading"
+      v-if="isFromScheduleCache && !isLoading"
+      role="status"
+      aria-live="polite"
+      class="flex items-center gap-1.5 rounded-lg border border-warning/30 bg-warning/10 px-3 py-1.5 text-xs text-warning dark:border-warning/20 dark:bg-warning/10"
+    >
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="h-3.5 w-3.5 shrink-0" aria-hidden="true">
+        <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z" />
+      </svg>
+      Showing saved schedule — refreshing in background
+    </div>
+
+    <div
+      v-if="isLoading && !isFromScheduleCache"
       class="flex items-center justify-center py-16"
       aria-live="polite"
       aria-label="Loading schedule"
@@ -163,7 +176,7 @@
     </div>
 
     <div
-      v-else-if="error"
+      v-else-if="error && !isFromScheduleCache"
       class="rounded-xl border border-error-200 bg-error-50 px-5 py-4 text-sm text-error-700 dark:border-error-500/20 dark:bg-error-500/10 dark:text-error-400"
       role="alert"
     >
@@ -171,7 +184,7 @@
     </div>
 
     <div
-      v-else-if="scheduleItems.length === 0"
+      v-else-if="scheduleItems.length === 0 && !isFromScheduleCache"
       class="rounded-xl border border-primary-100 bg-gradient-to-r from-primary-50/60 via-surface to-primary-warm-50/60 px-6 py-10 text-center dark:border-white/10 dark:from-[#1b2534] dark:via-[#182231] dark:to-[#212d3d]"
     >
       <svg
@@ -219,6 +232,7 @@ import { navigateTo } from '#imports'
 import { useHolidays } from '../../../composables/useHolidays'
 import { useWorkerSchedule } from '../../../composables/useWorkerSchedule'
 import type { ScheduleItem } from '../../../composables/useWorkerSchedule'
+import { useWorkerCache } from '../../../composables/useWorkerCache'
 import WorkerTaskCard from './WorkerTaskCard.vue'
 
 interface Props {
@@ -229,6 +243,7 @@ const props = defineProps<Props>()
 
 const { getSchedule } = useWorkerSchedule()
 const { getHolidaysByRange } = useHolidays()
+const { readWorkerCache, writeWorkerCache, scheduleCacheKey } = useWorkerCache()
 const LAST_VIEWED_DATE_STORAGE_KEY = 'freshbreeze:last-viewed-board-date'
 
 function formatDateForInput(date: Date): string {
@@ -250,6 +265,7 @@ const scheduleItems = ref<ScheduleItem[]>([])
 const availableGroups = ref<string[]>([])
 const holidayNamesByDate = ref<Record<string, string[]>>({})
 const scheduleRequestId = ref(0)
+const isFromScheduleCache = ref(false)
 
 const showGroupFilter = computed(() => props.mode === 'admin')
 
@@ -337,8 +353,23 @@ const displayDate = computed(() => {
 async function loadSchedule(): Promise<void> {
   const requestId = scheduleRequestId.value + 1
   scheduleRequestId.value = requestId
-  isLoading.value = true
   error.value = null
+
+  // Cache-first strategy (worker mode only)
+  let hasCachedData = false
+  if (import.meta.client && props.mode === 'worker') {
+    const cached = readWorkerCache<{ scheduleItems: ScheduleItem[]; availableGroups: string[] }>(scheduleCacheKey(selectedDate.value))
+    if (cached) {
+      scheduleItems.value = cached.data.scheduleItems
+      availableGroups.value = cached.data.availableGroups
+      isFromScheduleCache.value = true
+      hasCachedData = true
+    }
+  }
+
+  if (!hasCachedData) {
+    isLoading.value = true
+  }
 
   try {
     const weekStart = getStartOfWeek(parseIsoDate(selectedDate.value))
@@ -368,15 +399,25 @@ async function loadSchedule(): Promise<void> {
 
     scheduleItems.value = result.scheduleItems
     availableGroups.value = result.availableGroups
+    isFromScheduleCache.value = false
+
+    // Write fresh data to cache (worker mode only)
+    if (import.meta.client && props.mode === 'worker') {
+      writeWorkerCache(scheduleCacheKey(selectedDate.value), result)
+    }
   } catch (err) {
     if (requestId !== scheduleRequestId.value) {
       return
     }
 
-    error.value = err instanceof Error ? err.message : 'Failed to load schedule.'
-    scheduleItems.value = []
-    availableGroups.value = []
-    holidayNamesByDate.value = {}
+    // If cache data is available, keep it visible; only set error when starting fresh
+    if (!hasCachedData) {
+      error.value = err instanceof Error ? err.message : 'Failed to load schedule.'
+      scheduleItems.value = []
+      availableGroups.value = []
+      holidayNamesByDate.value = {}
+    }
+    // isFromScheduleCache stays true so the badge keeps showing cached data state
   } finally {
     if (requestId === scheduleRequestId.value) {
       isLoading.value = false
@@ -387,6 +428,7 @@ async function loadSchedule(): Promise<void> {
 watch(selectedDate, () => {
   persistLastViewedDate(selectedDate.value)
   selectedGroup.value = 'all'
+  isFromScheduleCache.value = false
   loadSchedule()
 })
 

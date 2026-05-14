@@ -11,7 +11,10 @@ interface BillingAccessResponse {
 }
 
 function isRouteAllowedWithoutAccess(path: string): boolean {
-  return path === '/login' || path === '/admin/billing' || path === '/blocked'
+  return path === '/login'
+    || path === '/admin/billing'
+    || path === '/admin/settings'
+    || path === '/blocked'
 }
 
 export default defineNuxtRouteMiddleware(async (to) => {

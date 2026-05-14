@@ -13,6 +13,7 @@ interface AuthProfile {
 
 interface AppSubscriptionRow {
   stripe_customer_id: string | null
+  stripe_subscription_id?: string | null
 }
 
 const APP_KEY = 'freshbreeze'
@@ -82,7 +83,7 @@ export default defineEventHandler(async (event) => {
   const { data: subscription, error: fetchError } = await adminClient
     .schema('public')
     .from('app_subscription')
-    .select('stripe_customer_id')
+    .select('stripe_customer_id, stripe_subscription_id')
     .eq('app_key', APP_KEY)
     .single<AppSubscriptionRow>()
 
@@ -94,22 +95,96 @@ export default defineEventHandler(async (event) => {
   }
 
   if (!subscription.stripe_customer_id) {
+    console.warn('[stripe:create-portal] missing billing account', {
+      hasCustomerId: false,
+      hasSubscriptionId: Boolean(subscription.stripe_subscription_id),
+      appKey: APP_KEY,
+    })
+
     throw createError({
       statusCode: 400,
-      statusMessage: 'No Stripe customer is linked to this subscription yet.',
+      statusMessage: 'No billing account found for this workspace',
     })
   }
 
   const stripe = new Stripe(stripeSecretKey)
-  const session = await stripe.billingPortal.sessions.create({
-    customer: subscription.stripe_customer_id,
-    return_url: `${appUrl}/admin/billing`,
-  })
+
+  try {
+    const portalConfigurations = await stripe.billingPortal.configurations.list({ limit: 1 })
+    if (!portalConfigurations.data.length) {
+      console.warn('[stripe:create-portal] billing portal not configured', {
+        hasCustomerId: Boolean(subscription.stripe_customer_id),
+        hasSubscriptionId: Boolean(subscription.stripe_subscription_id),
+        appKey: APP_KEY,
+      })
+
+      throw createError({
+        statusCode: 503,
+        statusMessage: 'Stripe billing portal is not configured',
+      })
+    }
+  } catch (err: unknown) {
+    if (err && typeof err === 'object' && 'statusCode' in err) {
+      throw err
+    }
+
+    const stripeError = err as { type?: string; message?: string; code?: string }
+    console.error('[stripe:create-portal] failed to read portal configuration', {
+      stripeErrorType: stripeError?.type ?? null,
+      stripeErrorCode: stripeError?.code ?? null,
+      stripeErrorMessage: stripeError?.message ?? 'unknown_error',
+      hasCustomerId: Boolean(subscription.stripe_customer_id),
+      hasSubscriptionId: Boolean(subscription.stripe_subscription_id),
+      appKey: APP_KEY,
+    })
+
+    throw createError({
+      statusCode: 503,
+      statusMessage: 'Stripe billing portal is not configured',
+    })
+  }
+
+  let session: Stripe.BillingPortal.Session
+  try {
+    session = await stripe.billingPortal.sessions.create({
+      customer: subscription.stripe_customer_id,
+      return_url: `${appUrl}/admin/billing`,
+    })
+  } catch (err: unknown) {
+    const stripeError = err as { type?: string; message?: string; code?: string }
+
+    console.error('[stripe:create-portal] failed to create portal session', {
+      stripeErrorType: stripeError?.type ?? null,
+      stripeErrorCode: stripeError?.code ?? null,
+      stripeErrorMessage: stripeError?.message ?? 'unknown_error',
+      hasCustomerId: Boolean(subscription.stripe_customer_id),
+      hasSubscriptionId: Boolean(subscription.stripe_subscription_id),
+      appKey: APP_KEY,
+    })
+
+    if ((stripeError?.code ?? '') === 'resource_missing') {
+      throw createError({
+        statusCode: 400,
+        statusMessage: 'No billing account found for this workspace',
+      })
+    }
+
+    throw createError({
+      statusCode: 502,
+      statusMessage: 'Unable to open billing portal right now',
+    })
+  }
 
   if (!session.url) {
+    console.error('[stripe:create-portal] portal session has no URL', {
+      hasCustomerId: Boolean(subscription.stripe_customer_id),
+      hasSubscriptionId: Boolean(subscription.stripe_subscription_id),
+      appKey: APP_KEY,
+    })
+
     throw createError({
       statusCode: 500,
-      statusMessage: 'Stripe did not return a billing portal URL. Please try again.',
+      statusMessage: 'Unable to open billing portal right now',
     })
   }
 

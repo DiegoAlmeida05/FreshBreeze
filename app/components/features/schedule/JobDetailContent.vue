@@ -19,19 +19,32 @@
       @dismiss="successMessage = ''"
     />
 
-    <div v-if="isLoading" class="flex items-center justify-center py-16">
+    <div v-if="isLoading && !jobDetail" class="flex items-center justify-center py-16">
       <div class="h-6 w-6 animate-spin rounded-full border-2 border-primary-500 border-t-transparent" />
       <span class="ml-3 text-sm text-muted">Loading job detail...</span>
     </div>
 
     <div
-      v-else-if="!jobDetail"
+      v-else-if="!isLoading && !jobDetail"
       class="rounded-xl border border-primary-100 bg-primary-50/40 px-5 py-8 text-center text-sm text-muted dark:border-white/10 dark:bg-white/5"
     >
       Job not found for this route stop.
     </div>
 
-    <template v-else>
+    <template v-else-if="jobDetail">
+      <!-- Cache badge: shown when displaying saved data while a background refresh loads -->
+      <div
+        v-if="isFromJobCache"
+        role="status"
+        aria-live="polite"
+        class="flex items-center gap-1.5 rounded-lg border border-warning/30 bg-warning/10 px-3 py-1.5 text-xs text-warning dark:border-warning/20 dark:bg-warning/10"
+      >
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="h-3.5 w-3.5 shrink-0" aria-hidden="true">
+          <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z" />
+        </svg>
+        Showing saved job details — refreshing in background
+      </div>
+
       <div class="flex flex-wrap items-center justify-between gap-3">
         <NuxtLink :to="backTo" class="btn-outline !px-3 !py-1.5 text-xs">
           Back to schedule
@@ -317,6 +330,7 @@
           mode="create"
           :loading="isCreatingReport || isUploadingReportPhotos"
           :initial-value="createReportInitialValue"
+          :draft-key="reportDraftKey(routeStopId)"
           :report-photos-error="reportPhotosError"
           :pending-report-photos="createPendingReportPhotos"
           @update:model-value="onCreateModalModelValueChange"
@@ -667,6 +681,7 @@ import { usePropertyReports } from '../../../composables/usePropertyReports'
 import { usePropertyReportPhotos } from '../../../composables/usePropertyReportPhotos'
 import { usePropertyKeyPhotos } from '../../../composables/usePropertyKeyPhotos'
 import { useUploadReportPhoto } from '../../../composables/useUploadReportPhoto'
+import { useWorkerCache } from '../../../composables/useWorkerCache'
 import { assertAllowedImageType } from '../../../utils/optimizeImage'
 import { buildVisibleTaskTags } from '../../../utils/visualTaskTags'
 import type { ProfileDTO } from '../../../../shared/types/ProfileDTO'
@@ -826,6 +841,7 @@ const { getReportsByProperty, createReport, deleteReport, resolveReport, updateR
 const { getPhotosByReportIds, createPhotos, deletePhotos } = usePropertyReportPhotos()
 const { getPhotosByPropertyId } = usePropertyKeyPhotos()
 const { uploadReportPhotos, deleteReportPhoto } = useUploadReportPhoto()
+const { readWorkerCache, writeWorkerCache, clearWorkerCache, jobDetailCacheKey, reportDraftKey } = useWorkerCache()
 
 const isLoading = ref(false)
 const isLoadingReports = ref(false)
@@ -844,6 +860,7 @@ const reportPhotosError = ref('')
 const editReportPhotosError = ref('')
 
 const jobDetail = ref<JobDetailData | null>(null)
+const isFromJobCache = ref(false)
 const currentProfile = ref<ProfileDTO | null>(null)
 const reports = ref<PropertyReportAdminListItemDTO[]>([])
 const teamMembers = ref<TeamMemberItem[]>([])
@@ -1483,7 +1500,13 @@ async function loadTeamMembers(routeGroupId: string): Promise<void> {
 }
 
 async function loadJobDetail(): Promise<void> {
-  isLoading.value = true
+  // Don't show loading spinner if we already have cached data
+  const hasCachedData = jobDetail.value !== null
+
+  if (!hasCachedData) {
+    isLoading.value = true
+  }
+
   errorMessage.value = ''
   taskExtraItems.value = []
 
@@ -1637,6 +1660,12 @@ async function loadJobDetail(): Promise<void> {
       extraChocolatesQty: Number(task.extra_chocolate_qty ?? 0),
     }
 
+    // Write fresh data to cache
+    if (import.meta.client) {
+      writeWorkerCache(jobDetailCacheKey(props.routeStopId), jobDetail.value)
+    }
+    isFromJobCache.value = false
+
     await Promise.all([
       loadTeamMembers(routeStop.route_group_id),
       loadReports(),
@@ -1708,6 +1737,10 @@ async function onCreateReport(payload: ReportFormPayload): Promise<void> {
 
     // Close modal immediately after report row creation for a snappier mobile UX.
     resetCreateReportState()
+    // Clear report draft from localStorage after successful save
+    if (import.meta.client) {
+      clearWorkerCache(reportDraftKey(props.routeStopId))
+    }
     isCreateReportModalOpen.value = false
 
     const optimisticReport: PropertyReportAdminListItemDTO = {
@@ -1990,6 +2023,15 @@ function openWaze(): void {
 }
 
 onMounted(async () => {
+  // Restore from cache for immediate display (skips loading spinner)
+  if (import.meta.client) {
+    const cached = readWorkerCache<JobDetailData>(jobDetailCacheKey(props.routeStopId))
+    if (cached) {
+      jobDetail.value = cached.data
+      isFromJobCache.value = true
+    }
+  }
+
   await Promise.all([
     loadCurrentProfile(),
     loadJobDetail(),

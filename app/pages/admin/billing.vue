@@ -72,7 +72,7 @@
           <line x1="9" y1="9" x2="15" y2="15" />
         </svg>
         <div>
-          <p class="font-semibold">Failed to start checkout</p>
+          <p class="font-semibold">{{ billingErrorTitle }}</p>
           <p class="mt-0.5 text-xs opacity-80">{{ checkoutError }}</p>
         </div>
       </div>
@@ -185,6 +185,30 @@
           </template>
         </div>
 
+        <!-- Terms acceptance (shown only when Subscribe button is visible) -->
+        <div v-if="shouldShowSubscribeButton" class="border-t border-border px-6 py-4">
+          <label class="flex cursor-pointer items-start gap-3 text-sm text-foreground">
+            <input
+              id="billing-terms-checkbox"
+              v-model="termsAccepted"
+              type="checkbox"
+              class="mt-0.5 h-4 w-4 shrink-0 rounded border-primary-300 text-primary-600 focus:ring-primary-500"
+              @change="persistTermsUiState(termsAccepted)"
+            >
+            <span>
+              I have read and agree to the
+              <button
+                type="button"
+                class="font-semibold text-primary-600 underline underline-offset-2 hover:text-primary-700 dark:text-primary-400 dark:hover:text-primary-300"
+                @click="isTermsModalOpen = true"
+              >
+                Terms of Service
+              </button>
+              and acknowledge the subscription conditions.
+            </span>
+          </label>
+        </div>
+
         <div class="flex items-center justify-end gap-3 border-t border-border px-6 py-4">
           <button
             type="button"
@@ -204,7 +228,7 @@
             v-if="shouldShowSubscribeButton"
             type="button"
             class="btn-primary"
-            :disabled="isRedirecting"
+            :disabled="isRedirecting || !termsAccepted"
             @click="startCheckout"
           >
             <span v-if="isRedirecting" class="inline-flex items-center gap-2">
@@ -288,6 +312,96 @@
         Manual access controls are restricted to platform owners.
       </div>
     </section>
+
+    <!-- Terms of Service Modal -->
+    <div
+      v-if="isTermsModalOpen"
+      id="billing-terms-modal"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="terms-modal-title"
+      class="fixed inset-0 z-50 flex items-end justify-center p-4 sm:items-center"
+      @click.self="isTermsModalOpen = false"
+    >
+      <div class="absolute inset-0 bg-black/50" aria-hidden="true" @click="isTermsModalOpen = false" />
+      <div class="relative z-10 w-full max-w-2xl overflow-hidden rounded-2xl border border-border bg-surface shadow-xl">
+        <div class="flex items-center justify-between border-b border-border px-6 py-4">
+          <h2 id="terms-modal-title" class="text-base font-semibold text-foreground">Terms of Service</h2>
+          <button
+            type="button"
+            class="inline-flex h-8 w-8 items-center justify-center rounded-md text-muted transition hover:bg-muted/10"
+            aria-label="Close terms"
+            @click="isTermsModalOpen = false"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="h-4 w-4">
+              <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z" />
+            </svg>
+          </button>
+        </div>
+        <div class="max-h-[60vh] overflow-y-auto px-6 py-5 text-sm text-foreground">
+          <p class="mb-4 text-xs text-muted">Last updated: May 2025 — Version 1.0</p>
+
+          <section class="mb-4">
+            <h3 class="mb-1 font-semibold">1. Subscription</h3>
+            <p class="text-muted">The service is provided as a monthly recurring subscription. By subscribing, you authorise recurring charges to your payment method until cancellation. The subscription renews automatically each billing cycle.</p>
+          </section>
+
+          <section class="mb-4">
+            <h3 class="mb-1 font-semibold">2. Price changes</h3>
+            <p class="text-muted">Features, pricing, and integrations may change with prior notice. You will be notified before pricing changes take effect in your billing cycle.</p>
+          </section>
+
+          <section class="mb-4">
+            <h3 class="mb-1 font-semibold">3. Service availability</h3>
+            <p class="text-muted">The platform may experience temporary downtime, maintenance periods, or third-party service interruptions. Service availability is provided on a best-effort basis and uninterrupted operation is not guaranteed.</p>
+          </section>
+
+          <section class="mb-4">
+            <h3 class="mb-1 font-semibold">4. Feature changes</h3>
+            <p class="text-muted">Features and functionality may be added, modified, or removed over time. Material changes will be communicated in advance whenever reasonably possible.</p>
+          </section>
+
+          <section class="mb-4">
+            <h3 class="mb-1 font-semibold">5. Customer responsibility</h3>
+            <p class="text-muted">Users remain responsible for verifying operational, payroll, invoicing, and compliance-related data before taking action.</p>
+          </section>
+
+          <section class="mb-4">
+            <h3 class="mb-1 font-semibold">6. Platform role and limitations</h3>
+            <p class="text-muted">The platform acts as a management and operational support tool and does not replace legal, accounting, payroll, or compliance review. It does not provide tax, legal, or financial advice; qualified professionals should be consulted where required.</p>
+          </section>
+
+          <section class="mb-4">
+            <h3 class="mb-1 font-semibold">7. Third-party services</h3>
+            <p class="text-muted">The platform depends on third-party providers, including payment and infrastructure services. Availability and performance may be affected by those providers, and their terms and privacy policies also apply.</p>
+          </section>
+
+          <section class="mb-4">
+            <h3 class="mb-1 font-semibold">8. Cancellation and access</h3>
+            <p class="text-muted">You may cancel your subscription at any time through the billing portal. Cancellation takes effect at the end of the current billing period. Access to paid features will be removed once the subscription expires.</p>
+          </section>
+
+          <section class="mb-4">
+            <h3 class="mb-1 font-semibold">9. Limitation of liability</h3>
+            <p class="text-muted">To the maximum extent permitted by law, the platform provider is not liable for indirect, incidental, special, consequential, or punitive damages related to service use, including loss of data, revenue, or business opportunity.</p>
+          </section>
+
+          <section>
+            <h3 class="mb-1 font-semibold">10. Acceptance</h3>
+            <p class="text-muted">By checking the acceptance box and proceeding to checkout, you confirm that you have read, understood, and agree to these terms.</p>
+          </section>
+        </div>
+        <div class="flex items-center justify-end border-t border-border px-6 py-4">
+          <button
+            type="button"
+            class="btn-primary"
+            @click="isTermsModalOpen = false"
+          >
+            Close
+          </button>
+        </div>
+      </div>
+    </div>
   </NuxtLayout>
 </template>
 
@@ -321,6 +435,23 @@ interface BillingResponse {
   isPlatformOwner: boolean
 }
 
+interface AcceptTermsResponse {
+  success: true
+  terms_version: string
+  accepted_at: string
+}
+
+interface FetchLikeError {
+  statusCode?: number
+  statusMessage?: string
+  data?: {
+    statusCode?: number
+    statusMessage?: string
+    message?: string
+  }
+  message?: string
+}
+
 const route = useRoute()
 const router = useRouter()
 const { signOut } = useAuth()
@@ -332,9 +463,39 @@ const subscriptionFetchError = ref<string | null>(null)
 const isRedirecting = ref(false)
 const isRedirectingPortal = ref(false)
 const checkoutError = ref<string | null>(null)
+const billingErrorContext = ref<'checkout' | 'portal'>('checkout')
 const manualAccessError = ref<string | null>(null)
 const manualAccessSuccess = ref(false)
 const isSavingManualAccess = ref(false)
+
+const termsAccepted = ref(false)
+const isTermsModalOpen = ref(false)
+
+const TERMS_VERSION = '1.0'
+const TERMS_UI_STORAGE_KEY = 'fb:billing-terms-ui-checked'
+
+function persistTermsUiState(value: boolean): void {
+  try {
+    window.localStorage.setItem(TERMS_UI_STORAGE_KEY, value ? '1' : '0')
+  } catch {
+    // localStorage unavailable — continue without persisting UI preference
+  }
+}
+
+function resolveBillingPortalErrorMessage(err: unknown): string {
+  const typedError = err as FetchLikeError
+  const backendMessage = typedError?.data?.statusMessage || typedError?.statusMessage || ''
+
+  if (backendMessage === 'No billing account found for this workspace') {
+    return 'No billing account found for this workspace'
+  }
+
+  if (backendMessage === 'Stripe billing portal is not configured') {
+    return 'Stripe billing portal is not configured'
+  }
+
+  return 'Unable to open billing portal right now'
+}
 
 const manualAccessEnabled = ref(false)
 const manualAccessUntil = ref('')
@@ -383,6 +544,12 @@ const checkoutResult = computed<'success' | 'cancelled' | null>(() => {
   if (val === 'success') return 'success'
   if (val === 'cancelled') return 'cancelled'
   return null
+})
+
+const billingErrorTitle = computed(() => {
+  return billingErrorContext.value === 'portal'
+    ? 'Failed to open billing portal'
+    : 'Failed to start checkout'
 })
 
 function formatAmount(amount: number, currency: string): string {
@@ -489,11 +656,39 @@ async function startCheckout(): Promise<void> {
     return
   }
 
+  if (!termsAccepted.value) {
+    billingErrorContext.value = 'checkout'
+    checkoutError.value = 'Please accept the Terms of Service before subscribing.'
+    return
+  }
+
+  billingErrorContext.value = 'checkout'
   checkoutError.value = null
   isRedirecting.value = true
 
   try {
     const accessToken = await getAccessToken()
+
+    const acceptTermsResponse = await $fetch<AcceptTermsResponse>('/api/admin/billing/accept-terms', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+      },
+      body: {
+        terms_version: TERMS_VERSION,
+      },
+    })
+
+    if (!acceptTermsResponse?.success) {
+      billingErrorContext.value = 'checkout'
+      checkoutError.value = 'Unable to confirm terms acceptance right now. Please try again.'
+      isRedirecting.value = false
+      return
+    }
+
+    // UI convenience only. Source of truth is the server insert in billing_terms_acceptances.
+    persistTermsUiState(true)
+
     const idempotencyKey = `billing-checkout:${Date.now()}:${Math.random().toString(36).slice(2)}`
     const response = await $fetch<{ url: string }>('/api/stripe/create-checkout', {
       method: 'POST',
@@ -504,6 +699,7 @@ async function startCheckout(): Promise<void> {
     })
 
     if (!response.url) {
+      billingErrorContext.value = 'checkout'
       checkoutError.value = 'Stripe did not return a checkout URL. Please try again.'
       isRedirecting.value = false
       return
@@ -512,6 +708,7 @@ async function startCheckout(): Promise<void> {
     window.location.href = response.url
   }
   catch (err: unknown) {
+    billingErrorContext.value = 'checkout'
     const message = err instanceof Error ? err.message : 'An unexpected error occurred. Please try again.'
     checkoutError.value = message
     isRedirecting.value = false
@@ -523,6 +720,7 @@ async function openBillingPortal(): Promise<void> {
     return
   }
 
+  billingErrorContext.value = 'portal'
   checkoutError.value = null
   isRedirectingPortal.value = true
 
@@ -536,7 +734,8 @@ async function openBillingPortal(): Promise<void> {
     })
 
     if (!response.url) {
-      checkoutError.value = 'Stripe did not return a billing portal URL. Please try again.'
+      billingErrorContext.value = 'portal'
+      checkoutError.value = 'Unable to open billing portal right now'
       isRedirectingPortal.value = false
       return
     }
@@ -544,8 +743,8 @@ async function openBillingPortal(): Promise<void> {
     window.location.href = response.url
   }
   catch (err: unknown) {
-    const message = err instanceof Error ? err.message : 'Failed to open billing portal. Please try again.'
-    checkoutError.value = message
+    billingErrorContext.value = 'portal'
+    checkoutError.value = resolveBillingPortalErrorMessage(err)
     isRedirectingPortal.value = false
   }
 }
@@ -594,6 +793,15 @@ async function onSignOut(): Promise<void> {
 }
 
 onMounted(() => {
+  if (import.meta.client) {
+    try {
+      const storedState = window.localStorage.getItem(TERMS_UI_STORAGE_KEY)
+      termsAccepted.value = storedState === '1'
+    } catch {
+      termsAccepted.value = false
+    }
+  }
+
   fetchSubscription()
 })
 </script>

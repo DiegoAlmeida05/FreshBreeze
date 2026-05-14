@@ -19,6 +19,18 @@
             <button type="button" class="btn-outline !px-2.5 !py-1 text-xs" :disabled="loading" @click="closeModal">Close</button>
           </div>
 
+          <!-- Draft restored badge -->
+          <div
+            v-if="hasDraft && mode === 'create'"
+            role="status"
+            class="mt-3 flex items-center gap-1.5 rounded-lg border border-primary-200 bg-primary-50/70 px-3 py-1.5 text-xs text-primary-600 dark:border-white/10 dark:bg-white/5 dark:text-primary-400"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="h-3.5 w-3.5 shrink-0" aria-hidden="true">
+              <path d="M17 3H5c-1.11 0-2 .9-2 2v14c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V7l-4-4zm-5 16c-1.66 0-3-1.34-3-3s1.34-3 3-3 3 1.34 3 3-1.34 3-3 3zm3-10H5V5h10v4z" />
+            </svg>
+            Draft restored — unsaved changes from a previous session
+          </div>
+
           <form class="mt-4 grid grid-cols-1 gap-3" novalidate @submit.prevent="onSubmit">
             <div>
               <label :for="`${idPrefix}-report-date`" class="mb-1 block text-xs font-semibold uppercase tracking-wide text-muted">Date</label>
@@ -141,7 +153,8 @@
 </template>
 
 <script setup lang="ts">
-import { computed, reactive, watch } from 'vue'
+import { computed, reactive, ref, watch } from 'vue'
+import { useWorkerCache } from '../../../composables/useWorkerCache'
 
 interface ReportFormValue {
   reportDate: string
@@ -175,6 +188,8 @@ interface Props {
   existingPhotos?: ExistingReportPhotoItem[]
   allowExistingPhotoRemoval?: boolean
   submitLabel?: string
+  /** When provided (create mode only), enables localStorage draft autosave keyed by this value. */
+  draftKey?: string
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -186,6 +201,7 @@ const props = withDefaults(defineProps<Props>(), {
   existingPhotos: () => [],
   allowExistingPhotoRemoval: false,
   submitLabel: '',
+  draftKey: '',
 })
 
 const emit = defineEmits<{
@@ -195,6 +211,9 @@ const emit = defineEmits<{
   'remove-photo': [photoId: string]
   'remove-existing-photo': [photoId: string]
 }>()
+
+const { readWorkerCacheNoTTL, writeWorkerCache } = useWorkerCache()
+const hasDraft = ref(false)
 
 const form = reactive<ReportFormValue>({
   reportDate: '',
@@ -218,6 +237,23 @@ function syncForm(): void {
   form.title = props.initialValue?.title ?? ''
   form.descriptionPt = props.initialValue?.descriptionPt ?? ''
   clearErrors()
+
+  // Restore draft (create mode only) — overlays title/description if draft exists
+  if (props.draftKey && props.mode === 'create') {
+    const cached = readWorkerCacheNoTTL<ReportFormValue>(props.draftKey)
+    if (cached && (cached.data.title.trim() || cached.data.descriptionPt.trim())) {
+      form.title = cached.data.title
+      form.descriptionPt = cached.data.descriptionPt
+      if (cached.data.reportDate) {
+        form.reportDate = cached.data.reportDate
+      }
+      hasDraft.value = true
+    } else {
+      hasDraft.value = false
+    }
+  } else {
+    hasDraft.value = false
+  }
 }
 
 function clearErrors(): void {
@@ -270,4 +306,20 @@ watch(() => props.modelValue, (isOpen) => {
     syncForm()
   }
 })
+
+// Debounced draft autosave (create mode + draftKey only)
+let draftSaveTimer: ReturnType<typeof setTimeout> | null = null
+
+watch(
+  () => ({ reportDate: form.reportDate, title: form.title, descriptionPt: form.descriptionPt }),
+  (value) => {
+    if (!props.draftKey || props.mode !== 'create') return
+    if (draftSaveTimer) clearTimeout(draftSaveTimer)
+    draftSaveTimer = setTimeout(() => {
+      writeWorkerCache(props.draftKey!, value)
+      draftSaveTimer = null
+    }, 500)
+  },
+  { deep: true },
+)
 </script>
