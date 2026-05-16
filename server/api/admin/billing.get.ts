@@ -124,18 +124,53 @@ export default defineEventHandler(async (event) => {
 
   const isPlatformOwner = isPlatformOwnerEmail(normalizedRequesterEmail)
 
-  const { data: subscription, error } = await adminClient
+  const { data: existingSubscription, error } = await adminClient
     .schema('public')
     .from('app_subscription')
     .select('app_key, app_name, status, monthly_amount, currency, stripe_customer_id, stripe_price_id, current_period_end, trial_ends_at, manual_access_enabled, manual_access_until, manual_access_reason')
     .eq('app_key', APP_KEY)
-    .single<AppSubscriptionRow>()
+    .maybeSingle<AppSubscriptionRow>()
 
-  if (error || !subscription) {
+  if (error) {
     throw createError({
       statusCode: 500,
-      statusMessage: `Failed to load app subscription: ${error?.message ?? 'row not found'}`,
+      statusMessage: `Failed to load app subscription: ${error.message}`,
     })
+  }
+
+  let subscription = existingSubscription
+
+  if (!subscription) {
+    const stripePriceId = config.stripePriceId || process.env.STRIPE_PRICE_ID || null
+
+    const { data: createdSubscription, error: createSubscriptionError } = await adminClient
+      .schema('public')
+      .from('app_subscription')
+      .upsert({
+        app_key: APP_KEY,
+        app_name: 'FreshBreeze',
+        status: 'inactive',
+        monthly_amount: 0,
+        currency: 'AUD',
+        stripe_customer_id: null,
+        stripe_price_id: stripePriceId,
+        current_period_end: null,
+        trial_ends_at: null,
+        manual_access_enabled: false,
+        manual_access_until: null,
+        manual_access_reason: null,
+      }, { onConflict: 'app_key' })
+      .select('app_key, app_name, status, monthly_amount, currency, stripe_customer_id, stripe_price_id, current_period_end, trial_ends_at, manual_access_enabled, manual_access_until, manual_access_reason')
+      .single<AppSubscriptionRow>()
+
+    if (createSubscriptionError || !createdSubscription) {
+      throw createError({
+        statusCode: 500,
+        statusMessage: `Failed to initialize app subscription: ${createSubscriptionError?.message ?? 'row not created'}`,
+      })
+    }
+
+    subscription = createdSubscription
   }
 
   const now = new Date()
