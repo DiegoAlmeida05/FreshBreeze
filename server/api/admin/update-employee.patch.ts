@@ -117,6 +117,15 @@ function sanitizePayload(payload: Record<string, unknown>): Record<string, unkno
   return updateData
 }
 
+function normalizeEmail(value: string | null): string | null {
+  if (!value) {
+    return null
+  }
+
+  const normalized = value.trim().toLowerCase()
+  return normalized.length > 0 ? normalized : null
+}
+
 async function requireAdminUser(event: H3Event, adminClient: SupabaseClient): Promise<{ isRequesterOwner: boolean }> {
   const authorization = getHeader(event, 'authorization')
   const accessToken = authorization?.startsWith('Bearer ')
@@ -180,6 +189,48 @@ export default defineEventHandler(async (event) => {
 
   if (!targetEmployee) {
     throw createError({ statusCode: 404, statusMessage: 'Employee not found.' })
+  }
+
+  if (targetEmployee.profile_id) {
+    const { data: sameProfileRows, error: sameProfileRowsError } = await adminClient
+      .from('employees')
+      .select('id')
+      .eq('profile_id', targetEmployee.profile_id)
+
+    if (sameProfileRowsError) {
+      throw createError({ statusCode: 500, statusMessage: sameProfileRowsError.message })
+    }
+
+    const conflictRow = (sameProfileRows ?? []).find((row) => row.id !== employeeId)
+    if (conflictRow) {
+      throw createError({
+        statusCode: 409,
+        statusMessage: 'Data integrity error: this profile is linked to more than one employee.',
+      })
+    }
+  }
+
+  if (Object.prototype.hasOwnProperty.call(updateData, 'email')) {
+    const normalizedEmail = normalizeEmail((updateData.email ?? null) as string | null)
+
+    if (normalizedEmail) {
+      const { data: matchingEmailRows, error: matchingEmailRowsError } = await adminClient
+        .from('employees')
+        .select('id')
+        .ilike('email', normalizedEmail)
+
+      if (matchingEmailRowsError) {
+        throw createError({ statusCode: 500, statusMessage: matchingEmailRowsError.message })
+      }
+
+      const conflictingEmailRow = (matchingEmailRows ?? []).find((row) => row.id !== employeeId)
+      if (conflictingEmailRow) {
+        throw createError({
+          statusCode: 409,
+          statusMessage: 'Email is already in use by another employee.',
+        })
+      }
+    }
   }
 
   let targetOwnerEmail: string | null = targetEmployee.email
