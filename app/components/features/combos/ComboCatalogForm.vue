@@ -1,5 +1,5 @@
 <template>
-  <form novalidate class="space-y-5" @submit.prevent="onSubmit">
+  <form novalidate class="space-y-5" @submit.prevent="onSubmit" @keydown.enter="onEnterKeyDown">
     <div>
       <label for="combo-name" class="mb-1.5 block text-sm font-medium text-foreground">Name</label>
       <input
@@ -396,6 +396,20 @@ function onSubmit(): void {
   }
 
   emit('submit', payload)
+}
+
+function onEnterKeyDown(event: KeyboardEvent): void {
+  const target = event.target as HTMLElement | null
+  if (!target) {
+    return
+  }
+
+  const tagName = target.tagName
+  if (tagName === 'TEXTAREA' || tagName === 'BUTTON') {
+    return
+  }
+
+  event.preventDefault()
 }
 
 watch(() => props.combo, syncForm, { immediate: true })

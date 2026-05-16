@@ -1,5 +1,5 @@
 <template>
-  <form class="space-y-5" novalidate @submit.prevent="onSubmit">
+  <form class="space-y-5" novalidate @submit.prevent="onSubmit" @keydown.enter="onEnterKeyDown">
     <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
       <div class="sm:col-span-2">
         <label for="pricing-set-name" class="mb-1.5 block text-sm font-medium text-foreground">Set name</label>
@@ -204,6 +204,20 @@ function onSubmit(): void {
     category: form.category,
     items: normalizeItems(),
   })
+}
+
+function onEnterKeyDown(event: KeyboardEvent): void {
+  const target = event.target as HTMLElement | null
+  if (!target) {
+    return
+  }
+
+  const tagName = target.tagName
+  if (tagName === 'TEXTAREA' || tagName === 'BUTTON') {
+    return
+  }
+
+  event.preventDefault()
 }
 
 watch(() => props.pricingSet, syncForm, { immediate: true })

@@ -1,5 +1,5 @@
 <template>
-  <form novalidate class="space-y-5" @submit.prevent="onSubmit">
+  <form novalidate class="space-y-5" @submit.prevent="onSubmit" @keydown.enter="onEnterKeyDown">
     <div>
       <label for="pricing-item-name" class="mb-1.5 block text-sm font-medium text-foreground">Name</label>
       <input
@@ -166,6 +166,20 @@ async function onSubmit(): Promise<void> {
     unit_price: parseMoney(form.unit_price),
     active: form.active,
   })
+}
+
+function onEnterKeyDown(event: KeyboardEvent): void {
+  const target = event.target as HTMLElement | null
+  if (!target) {
+    return
+  }
+
+  const tagName = target.tagName
+  if (tagName === 'TEXTAREA' || tagName === 'BUTTON') {
+    return
+  }
+
+  event.preventDefault()
 }
 
 watch(() => props.pricingItem, syncForm, { immediate: true })
